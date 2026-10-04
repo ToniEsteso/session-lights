@@ -82,3 +82,31 @@ Run `node scripts/usage-check.cjs`. Check both account windows and reset times.
 Check the right screen edge, dragging, Spaces, full-screen apps, tray menu, and chat links.
 Run `npm run pack`. Open the app after moving its output to another folder.
 Update the adapter if the Codex log path or record format differs.
+
+## Expand and collapse animation — 2026-10-05
+
+The panel now opens with a 280 ms slide and soft easing. Names fade in after the initial movement.
+On collapse, names fade out for 70 ms before the panel slides back. The right screen edge stays fixed.
+The lights move with the list. The list height follows the window so lights do not get clipped.
+A second click can reverse the motion. A session refresh keeps the moving layout stable and shows fresh data at completion.
+The system's reduced-motion setting skips native and content animation. Dragging still works after either transition.
+
+Work started from local commit `2ebc444` in the isolated worktree `C:/workspaces/session-lights-animation`.
+The original checkout was clean. The tested changes were then copied into `C:/workspaces/session-lights`.
+Changed files: `src/main.cjs`, `src/ui/renderer.js`, `src/ui/style.css`, `scripts/desktop-smoke.cjs`, `README.md`, and this report.
+No dependency or provider adapter contract changed. This update is kept in the local Git repo.
+
+Final checks in the worktree: `npm run check` passed for 18 files; `npm test` passed all 10 tests;
+`npm run test:desktop` passed 48 checks. All returned exit 0. `git diff --check` passed.
+Native evidence: `C:/workspaces/session-lights-animation/evidence/desktop-rw7E8e/`.
+It includes `expanding.png`, `collapsing.png`, `animation-frames.json`, and the full panel report.
+The check samples intermediate native widths, screen-edge alignment, topmost state, a source update during motion,
+quick reversal, and reduced motion. The media preference is emulated only in the isolated test window.
+Frame inspection found and corrected temporary scrollbar and light-clipping issues. The final native run had no renderer errors.
+The macOS animation and native resizing still need a Mac. Earlier platform and data-source limits still apply.
+
+Delivery: `npm run pack` passed. `node scripts/package-test.cjs dist/session-lights-win32-x64-1791152579687`
+passed with matching source, 2 real local chats, both live account windows, and the panel above other windows.
+The animated app was started from that build. Its output is in `evidence/app-animation-update.log`.
+The source in the project folder matched the tested worktree. Git checks passed in the normal workspace shell;
+the elevated build shell could not run Git checks because its user differs from the repo owner.

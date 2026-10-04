@@ -33,6 +33,7 @@ This keeps Electron's renderer sandbox enabled in restricted workspace folders.
 
 - Hover over a dot to see the session name, working folder, and state.
 - Click a dot to show session names. Press Escape or use the arrow in the expanded panel to collapse it.
+- The panel opens and closes with a short slide and fade. Its right edge stays fixed. The system's reduced-motion setting skips the animation.
 - Click a name in the expanded panel to open the chat in Codex.
 - Pin a session with the diamond. Pins stay visible after the app restarts.
 - All saved, unarchived desktop sessions appear.

@@ -19,6 +19,8 @@ async function run({ app, win, refresh, refreshUsage, showPanel, testDir, prefer
   const data = { root: path.join(testDir, 'codex'), log: path.join(testDir, 'logs', ...new Date().toISOString().slice(0, 10).split('-'), 'desktop.log') };
   const id = '11111111-1111-4111-8111-111111111111';
   try {
+    win.webContents.debugger.attach('1.3');
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
     showPanel();
     await wait("document.visibilityState === 'visible'");
     await wait("document.querySelectorAll('.session').length === 2");
@@ -101,12 +103,57 @@ async function run({ app, win, refresh, refreshUsage, showPanel, testDir, prefer
     assert.equal(await js("getComputedStyle(document.querySelector('#handle')).cursor"), 'grab');
     await wait(`window.sessionLights.read().then(value => Math.abs(value.preferences.y - ${dragStart.y - 20}) <= 1)`);
     await refresh(); await waitPosition(dragStart.y - 20);
+    // Catch an instant resize, a moving screen edge, and refreshes that interrupt motion.
+    const frames = [];
+    const recordFrame = () => frames.push({ ...win.getBounds(), at: Date.now(), aboveOtherWindows: win.isAlwaysOnTop() });
+    win.on('resize', recordFrame);
     await js("document.querySelector('.usage-gauge').click()");
-    await wait("document.querySelector('#panel').classList.contains('expanded')");
+    await wait("innerWidth > 50 && innerWidth < 320");
+    checkScreenEdge(); await capture('expanding.png');
+    const duringMotion = new (require('node:sqlite').DatabaseSync)(path.join(data.root, 'state_5.sqlite'));
+    duringMotion.prepare('UPDATE threads SET title = ? WHERE id = ?').run('Updated while opening', id); duringMotion.close();
+    await refresh();
+    await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
+    assert.match(await js("document.querySelector('#sessions').textContent"), /Updated while opening/);
+    const restoreTitle = new (require('node:sqlite').DatabaseSync)(path.join(data.root, 'state_5.sqlite'));
+    restoreTitle.prepare('UPDATE threads SET title = ? WHERE id = ?').run('Build the service', id); restoreTitle.close(); await refresh();
+    const expandedEdge = win.getBounds().x + win.getBounds().width;
+    assert.ok(new Set(frames.filter(frame => frame.width > nativeWidth + 2 && frame.width < 326).map(frame => frame.width)).size >= 3, 'Expansion did not pass through intermediate widths.');
+    assert.ok(frames.every(frame => Math.abs(frame.x + frame.width - expandedEdge) <= 1), 'Expansion moved away from the screen edge.');
+    assert.ok(frames.every(frame => frame.aboveOtherWindows), 'The panel lost its topmost state during expansion.');
+    frames.length = 0;
     await js("document.querySelector('#expand').click()");
-    await wait("!document.querySelector('#panel').classList.contains('expanded')");
+    await wait("innerWidth > 40 && innerWidth < 300");
+    await capture('collapsing.png');
+    await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
+    assert.ok(new Set(frames.filter(frame => frame.width > nativeWidth + 2 && frame.width < 326).map(frame => frame.width)).size >= 3, 'Collapse did not pass through intermediate widths.');
+    assert.ok(frames.every(frame => Math.abs(frame.x + frame.width - expandedEdge) <= 1), 'Collapse moved away from the screen edge.');
+    assert.ok(frames.every(frame => frame.aboveOtherWindows), 'The panel lost its topmost state during collapse.');
+    await fs.writeFile(path.join(testDir, 'animation-frames.json'), JSON.stringify(frames, null, 2));
+    // A second click during collapse must reverse smoothly and reach the new state.
     await js("document.querySelector('.session-button').click()");
-    await wait("document.querySelector('#panel').classList.contains('expanded')");
+    await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
+    await js("document.querySelector('#expand').click()");
+    await wait("!document.querySelector('#panel').classList.contains('expanded') && document.body.classList.contains('resizing')");
+    await js("document.querySelector('.session-button').click()");
+    await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
+    assert.equal(win.getBounds().width, 328); checkScreenEdge();
+    await js("document.querySelector('#expand').click()");
+    await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
+    // The user's reduced-motion setting must avoid native and content animation.
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+    frames.length = 0;
+    await js("document.querySelector('.usage-gauge').click()");
+    await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
+    assert.equal(win.getBounds().width, 328);
+    assert.equal(frames.some(frame => frame.width > nativeWidth + 2 && frame.width < 326), false, 'Reduced motion still animated the native window.');
+    assert.equal(await js("document.getAnimations().some(animation => animation.playState === 'running')"), false);
+    await js("document.querySelector('#expand').click()");
+    await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] });
+    win.webContents.debugger.detach(); win.removeListener('resize', recordFrame);
+    await js("document.querySelector('.session-button').click()");
+    await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     assert.equal(win.getBounds().width, 328);
     checkScreenEdge();
     assert.match(await js("document.querySelector('#sessions').textContent"), /Build the service/);
@@ -128,7 +175,7 @@ async function run({ app, win, refresh, refreshUsage, showPanel, testDir, prefer
     assert.equal(await js("[...document.querySelectorAll('.usage-track')].every(track => !track.hasAttribute('aria-valuenow'))"), true);
     await capture('usage-unavailable.png');
     await js("document.querySelector('#expand').click()");
-    await wait("!document.querySelector('#panel').classList.contains('expanded')");
+    await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     assert.equal(await js("[...document.querySelectorAll('.gauge-needle')].every(needle => getComputedStyle(needle).visibility === 'hidden')"), true);
     await capture('compact-unavailable.png');
     await fs.writeFile(usageFile, JSON.stringify({ result: { rateLimitsByLimitId: {
@@ -169,7 +216,7 @@ async function run({ app, win, refresh, refreshUsage, showPanel, testDir, prefer
     await fs.writeFile(usageFile, initialUsage); await refreshUsage();
     await wait("document.querySelector('[data-limit=fiveHour] .usage-value').textContent === '76% left'");
     await js("document.querySelector('.usage-gauge').click()");
-    await wait("document.querySelector('#panel').classList.contains('expanded')");
+    await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     await logLine(data, Date.now() + 1000, `[desktop-notifications] show notification conversationId=${id} kind=approval`);
     await refresh();
     await wait("Boolean(document.querySelector('.dot.waiting'))");
@@ -204,13 +251,13 @@ async function run({ app, win, refresh, refreshUsage, showPanel, testDir, prefer
     assert.equal(await js("document.querySelector('#sessions').scrollHeight > document.querySelector('#sessions').clientHeight"), true);
     assert.equal(await js("['#usage', 'footer'].every(selector => document.querySelector(selector).getBoundingClientRect().bottom <= innerHeight + 0.5)"), true);
     await js("document.querySelector('#expand').click()");
-    await wait("!document.querySelector('#panel').classList.contains('expanded')");
+    await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     const longCenters = await js(`['#panel', '.dot', '.usage-gauge'].map(selector => { const box = document.querySelector(selector).getBoundingClientRect(); return box.x + box.width / 2; })`);
     assert.ok(Math.max(...longCenters) - Math.min(...longCenters) < 0.5, `Long list lights are off center: ${longCenters}`);
     assert.equal(await js("document.querySelector('#usage').getBoundingClientRect().bottom <= innerHeight + 0.5"), true);
     await capture('compact-many-chats.png');
     await js("document.querySelector('.usage-gauge').click()");
-    await wait("document.querySelector('#panel').classList.contains('expanded')");
+    await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     await js("document.querySelector('.session-button').focus(); document.querySelector('.session:last-child').scrollIntoView({ block: 'end' })");
     const scrollBefore = await js("document.querySelector('#sessions').scrollTop");
     assert.ok(scrollBefore > 0);
@@ -227,11 +274,12 @@ async function run({ app, win, refresh, refreshUsage, showPanel, testDir, prefer
     assert.equal(await js("['#empty', '#usage', 'footer'].every(selector => { const box = document.querySelector(selector).getBoundingClientRect(); return box.height > 0 && box.bottom <= innerHeight + 0.5; })"), true);
     await capture('empty.png');
     await js("document.querySelector('#expand').click()");
-    await wait("!document.querySelector('#panel').classList.contains('expanded')");
+    await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     assert.equal(await js("['#empty', '#usage'].every(selector => { const box = document.querySelector(selector).getBoundingClientRect(); return box.height > 0 && box.bottom <= innerHeight + 0.5; })"), true);
     await capture('compact-no-chats.png');
     const report = { result: 'passed', checks: ['always on top', 'half-width compact bar', 'compact center alignment', 'equal top and bottom spacing', 'compact and expanded panels touch screen edge', 'small plain lights', 'no compact icons or grip', 'no hover highlight', 'grab and grabbing cursors', 'panel follows held drag', 'reverse drag without overshoot', 'drag position survives refresh and is saved on release', 'click light to show names', 'no legend or extra text', 'no filter or quit button', 'workspace in hover text', 'short list needs no scrollbar', 'compact divider and two gauges', 'green gauges and limit tooltips', 'click gauge to expand', 'red yellow and green follow amount left', 'unavailable gauge clears pointer', 'compact gauges fit with no chats', 'remaining percentages and reset tooltip', 'usage bars fit expanded panel', 'usage failure clears figures and keeps sessions', 'usage connection recovers', 'Codex bucket and window duration selection', 'empty and missing usage windows', 'reset clears expired figures until new data arrives', 'usage fits with no local chats', 'live approval', 'pin', 'old chats visible with old filter setting', 'cross hides panel and show restores it', 'live completion', 'reload and persistence', 'horizontal fit', 'no renderer errors'] };
     report.checks.push('long lists keep compact lights centered', 'long lists keep usage and controls visible', 'background updates preserve scroll position');
+    report.checks.push('expand through intermediate widths', 'collapse through intermediate widths', 'screen edge stays fixed during animation', 'refresh does not interrupt animation', 'quick reversal reaches the requested state', 'reduced motion skips animation');
     await fs.writeFile(path.join(testDir, 'report.json'), JSON.stringify(report, null, 2));
     console.log(`Desktop checks passed: ${report.checks.length}.`);
     app.exit(0);

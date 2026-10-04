@@ -1,12 +1,46 @@
 const $ = selector => document.querySelector(selector);
 const labels = { idle: 'Idle', waiting: 'Needs you', working: 'Working', error: 'Failed', unknown: 'Unknown' };
 let snapshot, renderSignature, dragging, dragFrame;
+let motionId, collapseTimer, pendingRender;
+let effects = [];
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 async function act(value) {
-  try { await window.sessionLights.action(value); $('#error').hidden = true; }
+  try {
+    await window.sessionLights.action(value.type === 'expand' ? { ...value, reducedMotion: reducedMotion.matches } : value);
+    $('#error').hidden = true;
+  }
   catch (error) { $('#error').textContent = error.message; $('#error').hidden = false; }
 }
 function render(value) {
+  if (collapseTimer && value.motion?.id === motionId) { pendingRender = value; return; }
+  // The final update contains fresh data. Keep the moving DOM stable until then.
+  if (value.motion && value.motion.id === motionId && snapshot?.motion?.id === motionId) return;
+  if (value.motion?.id !== motionId) {
+    clearTimeout(collapseTimer); collapseTimer = undefined; pendingRender = undefined;
+    effects.forEach(effect => effect.cancel()); effects = [];
+    motionId = value.motion?.id;
+    if (value.motion?.delay && snapshot?.preferences.expanded && !value.preferences.expanded) {
+      pendingRender = value;
+      document.body.classList.add('resizing');
+      for (const element of document.querySelectorAll('.wide')) {
+        effects.push(element.animate([{ opacity: 1 }, { opacity: 0 }], { duration: value.motion.delay, fill: 'forwards' }));
+      }
+      collapseTimer = setTimeout(() => {
+        collapseTimer = undefined;
+        const next = pendingRender; pendingRender = undefined;
+        renderNow(next);
+      }, value.motion.delay);
+      return;
+    }
+  }
+  renderNow(value);
+}
+function renderNow(value) {
+  const changing = snapshot && snapshot.preferences.expanded !== value.preferences.expanded;
+  const previousList = changing ? $('#sessions').getBoundingClientRect() : null;
+  const previousDots = new Map(changing ? [...document.querySelectorAll('.session-button')].map(button =>
+    [button.dataset.key, button.querySelector('.dot').getBoundingClientRect()]) : []);
   snapshot = value;
   // Do not rebuild focused buttons during the two-second update.
   // Refresh the usage display when a reset passes, even if no source data changed.
@@ -14,6 +48,8 @@ function render(value) {
   if (signature === renderSignature) return;
   renderSignature = signature;
   const expanded = value.preferences.expanded;
+  document.body.classList.toggle('resizing', Boolean(value.motion));
+  document.body.style.setProperty('--compact-inset', `${value.compactInset || 0}px`);
   $('#panel').classList.toggle('expanded', expanded);
   $('#expand').setAttribute('aria-expanded', String(expanded));
   $('#expand').setAttribute('aria-label', expanded ? 'Hide session names' : 'Show session names');
@@ -67,6 +103,24 @@ function render(value) {
   }
   $('#sessions').replaceChildren(fragment);
   if (focused?.key) [...document.querySelectorAll('button[data-key]')].find(button => button.dataset.key === focused.key && button.dataset.action === focused.action)?.focus({ preventScroll: true });
+  if (changing && value.motion) {
+    const timing = { duration: value.motion.duration, easing: 'cubic-bezier(.333, 1, .667, 1)' };
+    const listOffset = previousList.top - $('#sessions').getBoundingClientRect().top;
+    for (const button of document.querySelectorAll('.session-button')) {
+      const before = previousDots.get(button.dataset.key);
+      const dot = button.querySelector('.dot');
+      const after = dot.getBoundingClientRect();
+      if (before) effects.push(dot.animate([{ transform: `translate(${before.x - after.x}px, ${before.y - after.y - listOffset}px)` },
+        { transform: 'translate(0, 0)' }], timing));
+    }
+    const listHeight = Math.min(value.sessions.length * (expanded ? 40 : 24), Math.max(0, value.motion.height - (expanded ? 146 : 77)));
+    effects.push($('#sessions').animate([{ height: `${previousList.height}px`, transform: `translateY(${listOffset}px)` },
+      { height: `${listHeight}px`, transform: 'translateY(0)' }], { ...timing, fill: 'both' }));
+    for (const element of document.querySelectorAll(expanded ? '.wide' : '.usage-gauge')) {
+      effects.push(element.animate([{ opacity: 0, transform: 'translateX(6px)' }, { opacity: 1, transform: 'translateX(0)' }],
+        { ...timing, delay: expanded ? 80 : 0, duration: expanded ? timing.duration - 80 : timing.duration, fill: 'backwards' }));
+    }
+  }
 }
 $('#expand').addEventListener('click', () => act({ type: 'expand' }));
 $('#empty').addEventListener('click', () => { if (!snapshot?.preferences.expanded) act({ type: 'expand' }); });

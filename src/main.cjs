@@ -12,6 +12,7 @@ const demo = process.argv.includes('--demo');
 let win, tray, preferences, monitor, snapshot = { sessions: [], sources: [] }, timer, quitting = false;
 let actionQueue = Promise.resolve();
 let panelDrag;
+let panelResize, resizeTimer, resizeId = 0;
 let usageReader, usageTimer, usage = { windows: [], message: 'Reading usage limits.', updatedAt: null };
 // The floating level clears Windows topmost state in the tested Electron runtime.
 const panelLevel = process.platform === 'win32' ? 'normal' : 'floating';
@@ -21,12 +22,15 @@ const compactWidth = process.platform === 'win32' ? 30 : 26;
 function payload() {
   // All sessions stay visible, including when older settings enabled the recent filter.
   return { ...snapshot, sessions: visibleSessions(snapshot.sessions, { ...preferences.value, showAll: true }),
-    total: snapshot.sessions.length, preferences: preferences.value, usage, demo };
+    total: snapshot.sessions.length, preferences: preferences.value, usage, demo,
+    motion: panelResize, compactInset: compactWidth - 26 };
 }
 function notify() {
   if (win && !win.isDestroyed()) win.webContents.send('sessions:update', payload());
 }
-function positionPanel() {
+function stopResize() { clearTimeout(resizeTimer); resizeTimer = undefined; panelResize = undefined; }
+function positionPanel({ animate = false, reducedMotion = false } = {}) {
+  if (!win || win.isDestroyed() || (panelResize && !animate)) return;
   const display = screen.getAllDisplays().find(d => d.id === (panelDrag?.displayId ?? preferences.value.displayId)) || screen.getPrimaryDisplay();
   const area = display.workArea;
   const width = preferences.value.expanded ? 328 : compactWidth;
@@ -36,6 +40,26 @@ function positionPanel() {
   const y = Math.round(Math.max(area.y + 12, Math.min(panelDrag?.y ?? preferences.value.y ?? area.y + (area.height - height) / 2, area.y + area.height - height - 12)));
   const bounds = { x: display.bounds.x + display.bounds.width - width, y, width, height };
   const current = win.getBounds();
+  stopResize();
+  if (animate && !reducedMotion && win.isVisible()) {
+    const motion = panelResize = { id: ++resizeId, duration: 280, delay: preferences.value.expanded ? 0 : 70, height: bounds.height };
+    const started = performance.now() + motion.delay;
+    const edge = bounds.x + bounds.width;
+    const step = () => {
+      if (quitting || win.isDestroyed() || panelResize !== motion) return;
+      const frameStarted = performance.now();
+      const progress = Math.max(0, Math.min(1, (performance.now() - started) / motion.duration));
+      const eased = 1 - (1 - progress) ** 3;
+      const width = Math.round(current.width + (bounds.width - current.width) * eased);
+      win.setBounds({ x: edge - width, width,
+        y: Math.round(current.y + (bounds.y - current.y) * eased),
+        height: Math.round(current.height + (bounds.height - current.height) * eased) });
+      if (progress < 1) resizeTimer = setTimeout(step, Math.max(1, 16 - (performance.now() - frameStarted)));
+      else { stopResize(); positionPanel(); notify(); }
+    };
+    resizeTimer = setTimeout(step, motion.delay || 16);
+    return;
+  }
   if (Object.keys(bounds).some(key => Math.abs(bounds[key] - current[key]) > 1)) win.setBounds(bounds);
   win.setAlwaysOnTop(true, panelLevel);
 }
@@ -53,7 +77,9 @@ async function action(event, value) {
   if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw Error('Unknown sender.');
   const prefs = preferences.value;
   switch (value?.type) {
-    case 'expand': await preferences.save({ ...prefs, expanded: !prefs.expanded }); break;
+    case 'expand':
+      await preferences.save({ ...prefs, expanded: !prefs.expanded });
+      positionPanel({ animate: true, reducedMotion: value.reducedMotion === true }); notify(); return;
     case 'pin': {
       if (!snapshot.sessions.some(s => s.key === value.key)) return;
       const pinned = prefs.pinned.includes(value.key) ? prefs.pinned.filter(k => k !== value.key) : [...prefs.pinned, value.key];
@@ -62,6 +88,7 @@ async function action(event, value) {
     case 'move': {
       if (!Number.isFinite(value.screenY)) return;
       if (value.phase === 'start') {
+        if (panelResize) { stopResize(); positionPanel(); notify(); }
         const bounds = win.getBounds();
         panelDrag = { displayId: screen.getDisplayMatching(bounds).id,
           startY: bounds.y, pointerY: value.screenY, y: bounds.y };
@@ -178,13 +205,14 @@ async function main() {
     if (!quitting) timer = setTimeout(poll, 2000);
   };
   timer = setTimeout(poll, 2000);
-  screen.on('display-removed', positionPanel); screen.on('display-metrics-changed', positionPanel);
+  const displayChanged = () => { stopResize(); positionPanel(); notify(); };
+  screen.on('display-removed', displayChanged); screen.on('display-metrics-changed', displayChanged);
   app.on('activate', showPanel);
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (win) showPanel(); });
-  app.on('before-quit', () => { quitting = true; clearTimeout(timer); clearTimeout(usageTimer); usageReader?.close(); tray?.destroy(); });
+  app.on('before-quit', () => { quitting = true; stopResize(); clearTimeout(timer); clearTimeout(usageTimer); usageReader?.close(); tray?.destroy(); });
   app.whenReady().then(main).catch(error => { console.error(error); app.exit(1); });
 }
