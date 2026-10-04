@@ -1,0 +1,17 @@
+{
+  "name": "session-lights",
+  "version": "0.1.0",
+  "description": "A small desktop panel for local coding sessions.",
+  "private": true,
+  "main": "src/main.cjs",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "start": "node scripts/start.cjs",
+    "demo": "node scripts/start.cjs --demo",
+    "test": "node --experimental-sqlite --test test/*.test.cjs",
+    "check": "node scripts/check.cjs",
+    "test:desktop": "node --experimental-sqlite scripts/desktop-test.cjs",
+    "pack": "node scripts/pack.cjs"
+  },
+  "devDependencies": { "electron": "44.5.1" }
+}

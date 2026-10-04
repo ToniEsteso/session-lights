@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
+  <title>Session Lights</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="panel" class="panel" aria-label="Session Lights">
+    <header id="handle">
+      <span class="wide title">Session Lights</span>
+      <button class="wide quiet" id="hide" aria-label="Hide panel">×</button>
+    </header>
+    <div id="sessions" role="list" aria-label="Sessions"></div>
+    <button id="empty" aria-label="No sessions. Show session list." hidden><span class="empty-dot" aria-hidden="true"></span><span class="wide">No sessions.<br>Open a local Codex chat.</span></button>
+    <section id="usage" aria-label="Codex account usage limits">
+      <div class="usage-row" data-limit="fiveHour">
+        <button class="usage-gauge" aria-label="5-hour limit"><svg viewBox="0 1 20 12" aria-hidden="true"><path class="gauge-track" d="M2 11a8 8 0 0 1 16 0"/><path class="gauge-fill" d="M2 11a8 8 0 0 1 16 0" pathLength="100"/><path class="gauge-needle" d="M10 11H4"/><circle cx="10" cy="11" r="1"/></svg></button>
+        <span class="wide">5h</span><div class="wide usage-track" role="progressbar" aria-label="5-hour limit remaining" aria-valuemin="0" aria-valuemax="100"><span class="usage-fill"></span></div><span class="wide usage-value">Unavailable</span>
+      </div>
+      <div class="usage-row" data-limit="weekly">
+        <button class="usage-gauge" aria-label="Weekly limit"><svg viewBox="0 1 20 12" aria-hidden="true"><path class="gauge-track" d="M2 11a8 8 0 0 1 16 0"/><path class="gauge-fill" d="M2 11a8 8 0 0 1 16 0" pathLength="100"/><path class="gauge-needle" d="M10 11H4"/><circle cx="10" cy="11" r="1"/></svg></button>
+        <span class="wide">Weekly</span><div class="wide usage-track" role="progressbar" aria-label="Weekly limit remaining" aria-valuemin="0" aria-valuemax="100"><span class="usage-fill"></span></div><span class="wide usage-value">Unavailable</span>
+      </div>
+    </section>
+    <footer>
+      <button id="expand" title="Show session names" aria-label="Show session names" aria-expanded="false"><svg width="12" height="16" viewBox="0 0 12 16" aria-hidden="true"><path d="M8 4 4 8 8 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </footer>
+    <p class="wide health error" id="error" role="alert" hidden></p>
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>
