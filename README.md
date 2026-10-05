@@ -36,7 +36,7 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 
 ## Use the panel
 
-- Click the gear for Appearance, updates, and Quit. The small menu opens to the left of the panel.
+- Click the gear for Appearance, adapter switches, updates, and Quit. The small menu opens to the left of the panel.
 - Choose System, Light, or Dark in Appearance. System is the default and follows device theme changes. The choice applies at once and stays after app restarts. Use Tab to reach the theme choices and arrow keys to change the choice.
 - A yellow badge on the gear marks an available update. Downloads and restarts require a click. Installed releases check at startup and every six hours.
 
@@ -46,7 +46,8 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 - The panel opens and closes with a short slide and fade. Its right edge stays fixed. The system's reduced-motion setting skips the animation.
 - Click a name in the expanded panel to open the chat in Codex.
 - Pin a session with the bookmark icon. A filled yellow bookmark marks a pinned session. Pins stay visible after the app restarts.
-- All saved, unarchived desktop sessions appear.
+- All adapters appear by default. In Settings, use the Adapters switches to hide or show an adapter and its sessions and usage. Changes apply at once and stay saved after a restart. Hidden adapters continue monitoring; their session data and pins stay intact. If all adapters are hidden, use Open Settings in the panel to show one again.
+- All saved, unarchived desktop sessions from visible adapters appear.
 - Each row shows its project, provider, and state below the chat title. Codex uses its saved project name when a session maps to one. Otherwise, the row uses its workspace folder or `No workspace`. Projects without saved sessions do not appear. Long project names are shortened to fit. Hover over a project group heading for the full path or project ID.
 - The right side of each expanded row shows the age of its last recorded activity, such as `just now`, `5m ago`, or `2h ago`. The age updates while the panel is open. A dash means the activity time is unavailable.
 - Use the two buttons at the top to sort by latest activity or project. The selected button has a soft background. The choice is saved and also sets compact light order. Project headings appear only in the expanded list.

@@ -40,6 +40,8 @@ async function main() {
   await launch(process.argv.slice(2), 'process.log');
   if (process.argv.includes('--theme-only')) {
     for (const theme of ['dark', 'light', 'system']) await launch([`--theme-startup=${theme}`], `restart-${theme}.log`);
+  } else {
+    await launch(['--adapter-visibility-restart'], 'restart-process.log');
   }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

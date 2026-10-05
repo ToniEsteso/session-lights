@@ -79,7 +79,8 @@ const DAY = 86_400_000;
 function visibleSessions(sessions: Session[], preferences: PanelPreferences, now = Date.now()) {
   const pinned = new Set(preferences.pinned || []);
   const activity = (a: Session, b: Session) => (Number.isFinite(b.updatedAt) ? b.updatedAt : 0) - (Number.isFinite(a.updatedAt) ? a.updatedAt : 0);
-  return sessions.filter(s => preferences.showAll || pinned.has(s.key) || s.updatedAt >= now - DAY).sort((a, b) => {
+  return sessions.filter(s => !preferences.hiddenAdapters.includes(s.providerId) &&
+    (preferences.showAll || pinned.has(s.key) || s.updatedAt >= now - DAY)).sort((a, b) => {
     if (preferences.sortOrder === 'project') {
       const group = Number(a.projectKey === 'none') - Number(b.projectKey === 'none') ||
         a.projectGroup.localeCompare(b.projectGroup, undefined, { sensitivity: 'base' }) || a.projectKey.localeCompare(b.projectKey);

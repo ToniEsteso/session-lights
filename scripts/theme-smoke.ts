@@ -144,6 +144,12 @@ export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refre
     } finally { await fs.rmdir(blockedWrite); }
     checks.push('failed preference writes show an error and preserve the current theme', 'empty states use both themes');
   }
+  if (process.argv.includes('--theme-only')) {
+    await settings("Promise.all([window.settings.action({ type: 'theme', theme: 'light' }), window.settings.action({ type: 'adapter', id: 'atlas', visible: false })])");
+    await wait(async () => await settings("window.settings.read().then(value => value.theme === 'light' && value.adapters.some(adapter => adapter.id === 'atlas' && !adapter.visible))"));
+    await wait(() => themeMatches(false));
+    checks.push('theme and adapter choices both survive concurrent Settings saves');
+  }
   // Leave Dark saved so the parent can verify a cold app restart.
   await choose('dark');
   assert.deepEqual(rendererErrors, [], 'Renderer errors after theme checks.');
@@ -159,6 +165,7 @@ export async function checkThemeStartup({ win, settingsWin, tooltipWin, testDir 
     assert.equal(await window.webContents.executeJavaScript('getComputedStyle(document.documentElement).colorScheme'), scheme);
   }
   assert.equal(await settingsWin.webContents.executeJavaScript('window.settings.read().then(value => value.theme)'), theme);
+  assert.equal(await settingsWin.webContents.executeJavaScript("window.settings.read().then(value => value.adapters.some(adapter => adapter.id === 'atlas' && !adapter.visible))"), true, 'Theme restart must preserve hidden adapters.');
   const next = theme === 'dark' ? 'light' : 'system';
   await settingsWin.webContents.executeJavaScript(`window.settings.action({ type: 'theme', theme: '${next}' })`);
   await fs.writeFile(path.join(testDir, `startup-${theme}.json`), JSON.stringify({ theme, scheme, passed: true }, null, 2));
