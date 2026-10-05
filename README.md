@@ -44,12 +44,13 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 - Click a dot to show session names. Press Escape or use the arrow in the expanded panel to collapse it.
 - The panel opens and closes with a short slide and fade. Its right edge stays fixed. The system's reduced-motion setting skips the animation.
 - Click a name in the expanded panel to open the chat in Codex.
-- Pin a session with the bookmark icon. A filled yellow bookmark marks a pinned session. Pins stay visible after the app restarts.
+- Pin a session with the bookmark icon. A filled yellow bookmark marks a pinned session. Bookmarked sessions stay in a separate section at the top in both sort modes. Pins survive app restarts.
 - All saved, unarchived desktop sessions appear.
 - Each row shows its project, provider, and state below the chat title. Codex uses its saved project name when a session maps to one. Otherwise, the row uses its workspace folder or `No workspace`. Projects without saved sessions do not appear. Long project names are shortened to fit. Hover over a project group heading for the full path or project ID.
 - The right side of each expanded row shows the age of its last recorded activity, such as `just now`, `5m ago`, or `2h ago`. The age updates while the panel is open. A dash means the activity time is unavailable.
 - Use the two buttons at the top to sort by latest activity or project. The selected button has a soft background. The choice is saved and also sets compact light order. Project headings appear only in the expanded list.
-- Pins come first in activity order. In project mode, pins come first within each project. Chats within a project then follow latest activity.
+- Bookmarked sessions come first and follow latest activity. In project mode, the other sessions appear below them in project groups.
+- Click the crossed-eye button to hide a session from the list and compact lights. Click `X sessions hidden` at the bottom to show hidden sessions. Use `Restore` for one session or `Restore all` for all of them. Hidden sessions stay hidden after app restarts. Restoring a bookmarked session puts it back at the top.
 - Below a thin divider, the compact panel shows two small gauges: 5-hour above weekly. Their arc and pointer show the amount left. Click a gauge to expand the panel.
 - Gauges and usage percentages are green above 20% remaining, yellow above 5% up to 20%, and red at 5% or less. Unavailable limits show a gray gauge with no pointer.
 - The expanded panel shows usage bars, percentages, and reset countdowns. Hover over a gauge or row for a detail card with its provider, scope, amount left, countdown, exact reset time, and reading age.

@@ -64,6 +64,7 @@ export interface PanelPreferences {
   expanded: boolean;
   showAll: boolean;
   pinned: string[];
+  hidden: string[];
   displayId: number | null;
   y: number | null;
   sortOrder: SortOrder;
@@ -76,6 +77,8 @@ export interface PanelMotion { id: number; duration: number; delay: number; heig
 export interface PanelPayload extends MonitorSnapshot {
   update: UpdateState;
   total: number;
+  hiddenSessions: Session[];
+  showHidden: boolean;
   preferences: PanelPreferences;
   usage: ProviderUsage[];
   demo: boolean;
@@ -88,6 +91,10 @@ export type PanelAction =
   | { type: 'sort'; order: SortOrder }
   | { type: 'expand'; reducedMotion?: boolean }
   | { type: 'pin'; key: string }
+  | { type: 'hide-session'; key: string }
+  | { type: 'restore-session'; key: string }
+  | { type: 'show-hidden' }
+  | { type: 'restore-all' }
   | { type: 'open'; key: string }
   | { type: 'move'; phase: 'start' | 'update' | 'end'; screenY: number }
   | { type: 'hide' }

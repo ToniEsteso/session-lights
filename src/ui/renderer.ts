@@ -1,5 +1,6 @@
 import type { PanelPayload, PanelAction, TooltipTarget } from '../shared/contracts.js';
 import { panelText } from './text.js';
+import { sessionSections } from '../shared/session-sections.js';
 import { updateView } from '../shared/updates.js';
 import { element as $, svgElement, usageRow } from './dom.js';
 import { errorMessage } from '../shared/validation.js';
@@ -119,6 +120,7 @@ function renderNow(value: PanelPayload) {
   const previousList = changing ? $('#sessions').getBoundingClientRect() : null;
   const previousDots = new Map(changing ? [...document.querySelectorAll<HTMLButtonElement>('.session-button')].map(button =>
     [button.dataset.key, $('.dot', button).getBoundingClientRect()]) : []);
+  const openingHidden = value.showHidden && !snapshot?.showHidden;
   snapshot = value;
   const update = updateView(value.update);
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-settings]')) {
@@ -129,7 +131,7 @@ function renderNow(value: PanelPayload) {
   // Do not rebuild focused buttons during the two-second update.
   // Refresh the usage display when a reset passes, even if no source data changed.
   const signature = JSON.stringify([value,
-    value.preferences.expanded && value.sessions.map(session => age(session.updatedAt)),
+    value.preferences.expanded && [...value.sessions, ...(value.showHidden ? value.hiddenSessions : [])].map(session => age(session.updatedAt)),
     value.usage?.flatMap(source => source.windows.map(limit => [available(limit), countdown(limit.resetsAt)]))]);
   if (signature === renderSignature) return;
   renderSignature = signature;
@@ -141,59 +143,100 @@ function renderNow(value: PanelPayload) {
   $('#expand').setAttribute('aria-expanded', String(expanded));
   $('#expand').setAttribute('aria-label', expanded ? 'Hide session names' : 'Show session names');
   $('#expand').title = expanded ? 'Hide session names' : 'Show session names';
-  $('#empty').hidden = value.sessions.length > 0;
+  $('#empty').hidden = value.sessions.length > 0 || value.showHidden;
+  $('#empty .wide').textContent = value.hiddenSessions.length ? 'All sessions are hidden.' : 'No local sessions.';
+  $('#empty').setAttribute('aria-label', value.hiddenSessions.length ? 'All sessions are hidden. Show session list.' : 'No sessions. Show session list.');
+  const hiddenToggle = $('#hidden-sessions');
+  hiddenToggle.hidden = value.hiddenSessions.length === 0;
+  hiddenToggle.textContent = `${value.hiddenSessions.length} ${value.hiddenSessions.length === 1 ? 'session' : 'sessions'} hidden`;
+  hiddenToggle.setAttribute('aria-expanded', String(value.showHidden));
+  hiddenToggle.title = value.showHidden ? 'Close hidden sessions' : 'Show hidden sessions';
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-sort]')) {
     button.setAttribute('aria-pressed', String(button.dataset.sort === (value.preferences.sortOrder || 'activity')));
   }
   renderUsage(value);
-  const sessions = value.sessions;
+  const sections = sessionSections(value);
+  const sessions = sections.flatMap(section => section.sessions);
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement.dataset : undefined;
   const fragment = document.createDocumentFragment();
-  let projectKey;
-  for (const session of sessions) {
-    if (expanded && value.preferences.sortOrder === 'project' && session.projectKey !== projectKey) {
-      projectKey = session.projectKey;
-      const heading = document.createElement('div'); heading.className = 'wide project-heading';
-      heading.dataset.projectKey = projectKey; heading.setAttribute('role', 'presentation');
-      const name = document.createElement('span'); name.className = 'project-name'; name.textContent = session.projectGroup;
-      heading.append(name); fragment.append(heading);
+  for (const section of sections) {
+    if (expanded && section.title) {
+      const heading = document.createElement('div');
+      heading.className = section.kind === 'project' ? 'wide project-heading' : `wide section-heading ${section.kind}-heading`;
+      if (section.kind === 'project') heading.dataset.projectKey = section.projectKey;
+      heading.setAttribute('role', 'presentation');
+      const name = document.createElement('span'); name.className = 'project-name'; name.textContent = section.title;
+      heading.append(name);
+      if (section.kind === 'hidden') {
+        const restoreAll = document.createElement('button'); restoreAll.className = 'restore-all';
+        restoreAll.textContent = 'Restore all'; restoreAll.dataset.action = 'restore-all';
+        restoreAll.addEventListener('click', () => act({ type: 'restore-all' }));
+        heading.append(restoreAll);
+      }
+      fragment.append(heading);
     }
-    const row = document.createElement('div'); row.className = 'session'; row.setAttribute('role', 'listitem');
-    const button = document.createElement('button'); button.className = 'session-button';
-    button.dataset.key = session.key; button.dataset.action = 'session';
-    const activityAge = age(session.updatedAt);
-    button.setAttribute('aria-label', `${session.title}: ${labels[session.state]}`);
-    button.setAttribute('aria-description', [session.provider, session.workspace || session.project, session.detail,
-      `Last activity: ${activityAge}`].filter(Boolean).join('. '));
-    const dot = document.createElement('span'); dot.className = `dot ${session.state}`;
-    dot.setAttribute('aria-hidden', 'true');
-    const text = document.createElement('span'); text.className = 'wide session-text';
-    const title = document.createElement('span'); title.className = 'session-title'; title.textContent = session.title;
-    const detail = document.createElement('span'); detail.className = 'session-detail';
-    const project = document.createElement('span'); project.className = 'session-project'; project.textContent = session.project;
-    const meta = document.createElement('span'); meta.className = 'session-meta'; meta.textContent = `· ${session.provider} · ${labels[session.state]}`;
-    detail.append(project, meta);
-    const activity = document.createElement('time'); activity.className = 'wide session-activity';
-    const timestamp = session.updatedAt > 0 ? new Date(session.updatedAt).toJSON() : null;
-    activity.textContent = timestamp ? activityAge : '–';
-    activity.setAttribute('aria-label', `Last activity: ${timestamp ? activityAge : 'Time unavailable'}`);
-    if (timestamp) activity.dateTime = timestamp;
-    text.append(title, detail); button.append(dot, text, activity);
-    button.addEventListener('click', () => act(expanded ? { type: 'open', key: session.key } : { type: 'expand' }));
-    const pin = document.createElement('button'); pin.className = 'wide pin'; pin.dataset.key = session.key; pin.dataset.action = 'pin';
-    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    icon.setAttribute('viewBox', '0 0 16 16'); icon.setAttribute('aria-hidden', 'true');
-    const bookmark = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    bookmark.setAttribute('d', 'M4.5 2.5h7a1 1 0 0 1 1 1v10l-4.5-3-4.5 3v-10a1 1 0 0 1 1-1z');
-    icon.append(bookmark); pin.append(icon);
-    const pinned = value.preferences.pinned.includes(session.key);
-    pin.title = pinned ? 'Unpin session' : 'Pin session';
-    pin.setAttribute('aria-label', `${pinned ? 'Unpin' : 'Pin'} ${session.title}`); pin.setAttribute('aria-pressed', String(pinned));
-    pin.addEventListener('click', () => act({ type: 'pin', key: session.key }));
-    row.append(button, pin); fragment.append(row);
+    for (const session of section.sessions) {
+      const row = document.createElement('div'); row.className = section.kind === 'hidden' ? 'session hidden-session' : 'session'; row.setAttribute('role', 'listitem');
+      const button = document.createElement('button'); button.className = 'session-button';
+      button.dataset.key = session.key; button.dataset.action = 'session';
+      const activityAge = age(session.updatedAt);
+      button.setAttribute('aria-label', `${session.title}: ${labels[session.state]}`);
+      button.setAttribute('aria-description', [session.provider, session.workspace || session.project, session.detail,
+        `Last activity: ${activityAge}`].filter(Boolean).join('. '));
+      const dot = document.createElement('span'); dot.className = `dot ${session.state}`;
+      dot.setAttribute('aria-hidden', 'true');
+      const text = document.createElement('span'); text.className = 'wide session-text';
+      const title = document.createElement('span'); title.className = 'session-title'; title.textContent = session.title;
+      const detail = document.createElement('span'); detail.className = 'session-detail';
+      const project = document.createElement('span'); project.className = 'session-project'; project.textContent = session.project;
+      const meta = document.createElement('span'); meta.className = 'session-meta'; meta.textContent = `· ${session.provider} · ${labels[session.state]}`;
+      detail.append(project, meta);
+      const activity = document.createElement('time'); activity.className = 'wide session-activity';
+      const timestamp = session.updatedAt > 0 ? new Date(session.updatedAt).toJSON() : null;
+      activity.textContent = timestamp ? activityAge : '–';
+      activity.setAttribute('aria-label', `Last activity: ${timestamp ? activityAge : 'Time unavailable'}`);
+      if (timestamp) activity.dateTime = timestamp;
+      text.append(title, detail); button.append(dot, text, activity);
+      button.addEventListener('click', () => act(expanded ? { type: 'open', key: session.key } : { type: 'expand' }));
+      const pin = document.createElement('button'); pin.className = 'wide pin'; pin.dataset.key = session.key; pin.dataset.action = 'pin';
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      icon.setAttribute('viewBox', '0 0 16 16'); icon.setAttribute('aria-hidden', 'true');
+      const bookmark = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      bookmark.setAttribute('d', 'M4.5 2.5h7a1 1 0 0 1 1 1v10l-4.5-3-4.5 3v-10a1 1 0 0 1 1-1z');
+      icon.append(bookmark); pin.append(icon);
+      const pinned = value.preferences.pinned.includes(session.key);
+      pin.title = pinned ? 'Unpin session' : 'Pin session';
+      pin.setAttribute('aria-label', `${pinned ? 'Unpin' : 'Pin'} ${session.title}`); pin.setAttribute('aria-pressed', String(pinned));
+      pin.addEventListener('click', () => act({ type: 'pin', key: session.key }));
+      const visibility = document.createElement('button');
+      const hidden = section.kind === 'hidden';
+      visibility.className = hidden ? 'wide restore-session' : 'wide hide-session';
+      visibility.dataset.key = session.key; visibility.dataset.action = hidden ? 'restore-session' : 'hide-session';
+      visibility.title = hidden ? 'Restore session' : 'Hide session';
+      visibility.setAttribute('aria-label', `${hidden ? 'Restore' : 'Hide'} ${session.title}`);
+      if (hidden) visibility.textContent = 'Restore';
+      else {
+        const eye = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        eye.setAttribute('viewBox', '0 0 16 16'); eye.setAttribute('aria-hidden', 'true');
+        const outline = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        outline.setAttribute('d', 'M2 2l12 12M6.5 3.5A7 7 0 0 1 14 8a10 10 0 0 1-2 2.5M9.5 12.5A7 7 0 0 1 2 8a10 10 0 0 1 2-2.5M6.5 6.5a2.1 2.1 0 0 0 3 3');
+        eye.append(outline); visibility.append(eye);
+      }
+      visibility.addEventListener('click', () => act({ type: hidden ? 'restore-session' : 'hide-session', key: session.key }));
+      row.append(button);
+      if (!hidden) row.append(pin);
+      row.append(visibility); fragment.append(row);
+    }
   }
   $('#sessions').replaceChildren(fragment);
-  if (focused?.key) [...document.querySelectorAll<HTMLButtonElement>('button[data-key]')].find(button => button.dataset.key === focused.key && button.dataset.action === focused.action)?.focus({ preventScroll: true });
+  if (focused?.key) {
+    const target = [...document.querySelectorAll<HTMLButtonElement>('button[data-key]')].find(button => button.dataset.key === focused.key && button.dataset.action === focused.action);
+    if (target) target.focus({ preventScroll: true });
+    else if (focused.action === 'hide-session') hiddenToggle.focus({ preventScroll: true });
+    else if (focused.action === 'restore-session') [...document.querySelectorAll<HTMLButtonElement>('.session-button')].find(button => button.dataset.key === focused.key)?.focus({ preventScroll: true });
+  }
+  if (focused?.action === 'restore-all') (document.querySelector<HTMLButtonElement>('.restore-all') ?? document.querySelector<HTMLButtonElement>('.session-button'))?.focus({ preventScroll: true });
+  if (openingHidden) document.querySelector('.hidden-heading')?.scrollIntoView({ block: 'start' });
   if (changing && previousList && value.motion) {
     const timing = { duration: value.motion.duration, easing: 'cubic-bezier(.333, 1, .667, 1)' };
     const listOffset = previousList.top - $('#sessions').getBoundingClientRect().top;
@@ -205,7 +248,7 @@ function renderNow(value: PanelPayload) {
         { transform: 'translate(0, 0)' }], timing));
     }
     const usageHeight = value.usage.reduce((sum, source) => sum + source.windows.length * (expanded ? 36 : 24), 0);
-    const groupHeight = expanded && value.preferences.sortOrder === 'project' ? new Set(sessions.map(session => session.projectKey)).size * 24 : 0;
+    const groupHeight = expanded ? sections.filter(section => section.title).length * 24 : 0;
     const scale = expanded ? value.textScale : 1;
     const listHeight = Math.min(sessions.length * (expanded ? 40 : 24) + groupHeight, Math.max(0, value.motion.height / scale - (expanded ? 104 : 62) - usageHeight));
     effects.push($('#sessions').animate([{ height: `${previousList.height}px`, transform: `translateY(${listOffset}px)` },
@@ -221,6 +264,7 @@ for (const button of document.querySelectorAll<HTMLButtonElement>('[data-setting
   button.addEventListener('click', () => act({ type: 'settings', y: button.getBoundingClientRect().top }));
 }
 $('#empty').addEventListener('click', () => { if (!snapshot?.preferences.expanded) act({ type: 'expand' }); });
+$('#hidden-sessions').addEventListener('click', () => act({ type: 'show-hidden' }));
 $('#hide').addEventListener('click', () => act({ type: 'hide' }));
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-sort]')) {
   button.addEventListener('click', () => {

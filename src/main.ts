@@ -4,6 +4,7 @@ import { parseAction, parseTooltipTarget, parseSettingsAction, errorMessage } fr
 import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell } from 'electron';
 import * as path from 'node:path';
 import { SessionMonitor, visibleSessions } from './core.js';
+import { sessionSections } from './shared/session-sections.js';
 import { createAdapters } from './adapters/index.js';
 import { Preferences } from './preferences.js';
 import { existsSync } from 'node:fs';
@@ -23,6 +24,7 @@ let tray: Tray | undefined;
 let preferences: Preferences;
 let monitor: SessionMonitor;
 let snapshot: MonitorSnapshot = { sessions: [], sources: [] };
+let showHidden = false;
 let timer: NodeJS.Timeout | undefined;
 let quitting = false;
 let actionQueue = Promise.resolve();
@@ -58,9 +60,13 @@ async function refreshTextScale(force = false) {
 }
 
 function payload(): PanelPayload {
-  // All sessions stay visible, including when older settings enabled the recent filter.
+  const hidden = new Set(preferences.value.hidden);
+  const hiddenSessions = visibleSessions(snapshot.sessions.filter(session => hidden.has(session.key)), { ...preferences.value, showAll: true, hidden: [] });
+  // Ignore the old recent filter. Only explicit hiding removes a session.
   return { ...snapshot, sessions: visibleSessions(snapshot.sessions, { ...preferences.value, showAll: true }),
     update: updates.state,
+    hiddenSessions,
+    showHidden: preferences.value.expanded && showHidden && hiddenSessions.length > 0,
     total: snapshot.sessions.length, preferences: preferences.value, usage, demo,
     motion: panelResize, compactInset: compactWidth - 26, textScale: systemTextScale };
 }
@@ -144,9 +150,10 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const area = display.workArea;
   const scale = preferences.value.expanded ? systemTextScale : 1;
   const width = preferences.value.expanded ? Math.round(Math.min(328 * scale, area.width)) : compactWidth;
-  const sessions = payload().sessions;
+  const value = payload();
+  const sessions = value.showHidden ? [...value.sessions, ...value.hiddenSessions] : value.sessions;
   const rows = Math.max(1, Math.min(sessions.length, 14));
-  const groupHeight = preferences.value.expanded && preferences.value.sortOrder === 'project' ? new Set(sessions.map(session => session.projectKey)).size * 24 : 0;
+  const groupHeight = preferences.value.expanded ? sessionSections(value).filter(section => section.title).length * 24 : 0;
   const limits = usage.reduce((sum, source) => sum + source.windows.length, 0);
   const overhead = preferences.value.expanded ? 104 : limits ? 62 : 51;
   const height = Math.round(Math.min(area.height - 24, scale * Math.max(preferences.value.expanded ? 128 : 41,
@@ -207,6 +214,16 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
       const pinned = prefs.pinned.includes(value.key) ? prefs.pinned.filter(k => k !== value.key) : [...prefs.pinned, value.key];
       await preferences.save({ ...prefs, pinned }); break;
     }
+    case 'hide-session': {
+      if (!snapshot.sessions.some(session => session.key === value.key) || prefs.hidden.includes(value.key)) return;
+      await preferences.save({ ...prefs, hidden: [...prefs.hidden, value.key] }); break;
+    }
+    case 'restore-session':
+      await preferences.save({ ...prefs, hidden: prefs.hidden.filter(key => key !== value.key) }); break;
+    case 'restore-all':
+      await preferences.save({ ...prefs, hidden: [] }); showHidden = false; break;
+    case 'show-hidden':
+      showHidden = !showHidden; break;
     case 'move': {
       settingsWin.hide();
       if (!Number.isFinite(value.screenY)) return;

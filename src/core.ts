@@ -78,15 +78,18 @@ class SessionMonitor {
 const DAY = 86_400_000;
 function visibleSessions(sessions: Session[], preferences: PanelPreferences, now = Date.now()) {
   const pinned = new Set(preferences.pinned || []);
+  const hidden = new Set(preferences.hidden);
   const activity = (a: Session, b: Session) => (Number.isFinite(b.updatedAt) ? b.updatedAt : 0) - (Number.isFinite(a.updatedAt) ? a.updatedAt : 0);
-  return sessions.filter(s => preferences.showAll || pinned.has(s.key) || s.updatedAt >= now - DAY).sort((a, b) => {
+  return sessions.filter(s => !hidden.has(s.key) && (preferences.showAll || pinned.has(s.key) || s.updatedAt >= now - DAY)).sort((a, b) => {
+    const pins = Number(pinned.has(b.key)) - Number(pinned.has(a.key));
+    if (pins) return pins;
+    if (pinned.has(a.key)) return activity(a, b) || a.key.localeCompare(b.key);
     if (preferences.sortOrder === 'project') {
       const group = Number(a.projectKey === 'none') - Number(b.projectKey === 'none') ||
         a.projectGroup.localeCompare(b.projectGroup, undefined, { sensitivity: 'base' }) || a.projectKey.localeCompare(b.projectKey);
       if (a.projectKey !== b.projectKey) return group;
     }
-    const pins = Number(pinned.has(b.key)) - Number(pinned.has(a.key));
-    return pins || activity(a, b) || a.key.localeCompare(b.key);
+    return activity(a, b) || a.key.localeCompare(b.key);
   });
 }
 

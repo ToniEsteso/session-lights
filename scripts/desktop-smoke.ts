@@ -456,7 +456,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       { id: 'other', title: 'Other design project', project: 'Design', projectId: 'repo:other-design', state: 'idle', detail: 'Finished.', updatedAt: Date.now() }
     ] };
     await fs.writeFile(providerFile, JSON.stringify(projectAtlas)); await refresh(); await selectSort('project');
-    await wait("document.querySelectorAll('.session').length === 7 && document.querySelectorAll('.project-heading').length === 5");
+    await wait("document.querySelectorAll('.session').length === 7 && document.querySelectorAll('.project-heading').length === 4 && document.querySelector('.bookmarked-heading') !== null");
     assert.equal(await js("[...document.querySelectorAll('.session-project')].some(project => project.textContent === 'No workspace')"), true);
     assert.equal(await js(`(() => {
       const time = document.querySelector('[data-key="atlas:missing"] .session-activity');
@@ -465,7 +465,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     assert.equal(await js("[...document.querySelectorAll('.session-button')].find(button => button.dataset.key === 'atlas:remote').querySelector('.session-project').textContent"), 'repo:design');
     assert.equal(await js(`(() => {
       const groups = []; for (const child of document.querySelector('#sessions').children) {
-        if (child.classList.contains('project-heading')) groups.push({ title: child.textContent, keys: [] });
+        if (child.classList.contains('project-heading') || child.classList.contains('section-heading')) groups.push({ title: child.textContent, keys: [] });
         else groups.at(-1).keys.push(child.querySelector('.session-button').dataset.key);
       }
       return groups.some(group => group.keys.includes('codex:${id}') && group.keys.includes('atlas:shared')) &&
@@ -488,12 +488,74 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await js("document.querySelector('.session-button').click()");
     await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing') && document.querySelectorAll('.session').length === 7");
     await win.webContents.reload();
-    await wait("document.querySelector('[data-sort=project]').getAttribute('aria-pressed') === 'true' && document.querySelectorAll('.project-heading').length === 5");
+    await wait("document.querySelector('[data-sort=project]').getAttribute('aria-pressed') === 'true' && document.querySelectorAll('.project-heading').length === 4");
     await reloadedPreferences.load(); assert.equal(reloadedPreferences.value.sortOrder, 'project');
     assert.equal(reloadedPreferences.value.pinned.length, 1);
     assert.ok(Math.abs(required(reloadedPreferences.value.y) - (dragStart.y - 20)) <= 1);
     assert.equal(errors.length, 0, errors.join('\n'));
+    // Catch bookmarks falling back into project groups and hidden chats returning after refresh.
+    const clickControl = async (selector: string) => {
+      const point = await js(`(() => {
+        const button = document.querySelector(${JSON.stringify(selector)});
+        button.scrollIntoView({ block: 'nearest' });
+        const box = button.getBoundingClientRect();
+        return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+      })()`);
+      win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...point });
+      win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...point });
+    };
+    const bookmarkKey = 'codex:22222222-2222-4222-8222-222222222222';
+    assert.equal(await js("document.querySelector('.session-button').dataset.key"), bookmarkKey);
+    assert.equal(await js("document.querySelector('#sessions').firstElementChild.textContent"), 'Bookmarked');
+    await capture('bookmarks-project.png');
+    await selectSort('activity');
+    assert.equal(await js("document.querySelector('.session-button').dataset.key"), bookmarkKey);
+    await capture('bookmarks-activity.png');
+    await clickControl('.hide-session[data-key="atlas:other"]');
+    await wait("!document.querySelector('.session-button[data-key=\"atlas:other\"]') && document.querySelector('#hidden-sessions').textContent === '1 session hidden'");
+    await clickControl('.hide-session[data-key="' + bookmarkKey + '"]');
+    await wait("document.querySelector('#hidden-sessions').textContent === '2 sessions hidden' && document.querySelectorAll('.session').length === 5");
+    await refresh();
+    assert.equal(await js(`document.querySelector('.session-button[data-key="${bookmarkKey}"]') === null`), true);
+    await win.webContents.reload();
+    await wait("document.querySelector('#hidden-sessions').textContent === '2 sessions hidden' && document.querySelectorAll('.session').length === 5");
+    await capture('sessions-hidden.png');
+    await clickControl('#expand');
+    await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
+    assert.equal(await js("document.querySelectorAll('.dot').length"), 5);
+    await capture('hidden-compact.png');
+    await clickControl('.session-button');
+    await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
+    // Keyboard access must expose hidden chats without opening a chat in its provider.
+    await js("document.querySelector('#hidden-sessions').focus()");
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+    win.webContents.sendInputEvent({ type: 'char', keyCode: 'Enter' });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
+    await wait("document.querySelectorAll('.hidden-session').length === 2 && document.querySelector('#hidden-sessions').getAttribute('aria-expanded') === 'true'");
+    await capture('restore-hidden-sessions.png');
+    await clickControl('.restore-session[data-key="' + bookmarkKey + '"]');
+    await wait(`document.querySelector('.session-button').dataset.key === ${JSON.stringify(bookmarkKey)} && document.querySelectorAll('.hidden-session').length === 1 && document.querySelector('#hidden-sessions').textContent === '1 session hidden'`);
+    assert.equal(await js("document.querySelector('.pin').getAttribute('aria-pressed')"), 'true');
+    await clickControl('.restore-all');
+    await wait("document.querySelectorAll('.session').length === 7 && document.querySelector('#hidden-sessions').hidden && document.querySelectorAll('.hidden-session').length === 0");
+    await capture('sessions-restored.png');
+    // The count must stay reachable when every chat is hidden.
+    const sessionKeys: string[] = await js("[...document.querySelectorAll('.session-button')].map(button => button.dataset.key)");
+    for (const key of sessionKeys) {
+      await clickControl('.hide-session[data-key="' + key + '"]');
+      await wait(`document.querySelector('.hide-session[data-key="${key}"]') === null`);
+    }
+    await wait("document.querySelector('#hidden-sessions').textContent === '7 sessions hidden' && document.querySelector('#empty .wide').textContent === 'All sessions are hidden.'");
+    await capture('all-sessions-hidden.png');
+    await clickControl('#hidden-sessions');
+    await wait("document.querySelectorAll('.hidden-session').length === 7");
+    await clickControl('.restore-all');
+    await wait("document.querySelectorAll('.session').length === 7 && document.querySelector('#hidden-sessions').hidden");
+    await selectSort('project');
+    await capture('bookmarks-restored-project.png');
+    assert.deepEqual(errors, [], 'Renderer errors after hiding and restoring.');
     const report = { result: 'passed', checks: ['always on top', 'half-width compact bar', 'compact center alignment', 'equal top and bottom spacing', 'compact and expanded panels touch screen edge', 'small plain lights', 'no compact icons or grip', 'no hover highlight', 'grab and grabbing cursors', 'panel follows held drag', 'reverse drag without overshoot', 'drag position survives refresh and is saved on release', 'click light to show names', 'no panel title', 'only activity and project sorting', 'no legend or extra text', 'no recent-only or quit button', 'workspace in tooltip', 'short list needs no scrollbar', 'compact divider and two gauges', 'green gauges and limit tooltips', 'click gauge to expand', 'red yellow and green follow amount left', 'unavailable gauge clears pointer', 'compact gauges fit with no chats', 'remaining percentages and reset tooltip', 'usage bars fit expanded panel', 'usage failure clears figures and keeps sessions', 'usage connection recovers', 'Codex bucket and window duration selection', 'empty and missing usage windows', 'reset clears expired figures until new data arrives', 'usage fits with no local chats', 'live approval', 'pin', 'old chats visible with old show-all setting', 'cross hides panel and show restores it', 'live completion', 'reload and persistence', 'horizontal fit', 'no renderer errors'] };
+    report.checks.push('bookmarks stay above all project groups', 'bookmarks stay above activity sessions', 'hide control removes a session', 'hidden count stays at the bottom', 'hidden sessions stay hidden after refresh and reload', 'compact lights exclude hidden sessions', 'keyboard opens hidden sessions', 'individual restore preserves a bookmark', 'restore all returns every session', 'all sessions can be hidden and restored');
     report.checks.push('long lists keep compact lights centered', 'long lists keep usage and controls visible', 'background updates preserve scroll position');
     report.checks.push('last activity ages fit on the right', 'row timestamp matches adapter activity', 'row ages update without changed data', 'second provider supplies last activity', 'unavailable activity shows a dash');
     report.checks.push('expand through intermediate widths', 'collapse through intermediate widths', 'screen edge stays fixed during animation', 'refresh does not interrupt animation', 'quick reversal reaches the requested state', 'reduced motion skips animation');
@@ -512,14 +574,25 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       await fs.writeFile(path.join(testDir, 'system-text-percent.json'), String(percent));
       await refresh();
       await wait(`window.sessionLights.read().then(value => value.textScale === ${scale})`);
-      assert.equal(win.getBounds().width, Math.round(328 * scale)); checkScreenEdge();
+      // Native Windows DPI conversion can round the requested width by one pixel.
+      assert.ok(Math.abs(win.getBounds().width - Math.round(328 * scale)) <= 1, 'Expanded width exceeds DPI rounding tolerance.'); checkScreenEdge();
       assert.ok(Math.abs(await js("document.querySelector('.session').getBoundingClientRect().height") - 40 * scale) < 0.5);
       assert.equal(await js("Math.abs(document.querySelector('#panel').getBoundingClientRect().right - innerWidth) <= 1 && Math.abs(document.querySelector('#panel').getBoundingClientRect().width - innerWidth) <= 1 && document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight + 1"), true);
       await capture(`system-text-${percent}.png`);
+      if (percent === 225) {
+        await clickControl('.hide-session[data-key="atlas:other"]');
+        await wait("document.querySelector('#hidden-sessions').textContent === '1 session hidden'");
+        await clickControl('#hidden-sessions');
+        await wait("document.querySelectorAll('.hidden-session').length === 1");
+        assert.equal(await js("['#hidden-sessions', '.restore-session', '.restore-all', '#usage', 'footer'].every(selector => { const box = document.querySelector(selector).getBoundingClientRect(); return box.width > 0 && box.right <= innerWidth + 1 && box.bottom <= innerHeight + 1; })"), true);
+        await capture('hidden-system-text-225.png');
+        await clickControl('.restore-all');
+        await wait("document.querySelectorAll('.session').length === 7 && document.querySelector('#hidden-sessions').hidden");
+      }
       const key = await js("document.querySelector('.session-button').dataset.key");
       await js(`window.sessionLights.tooltip({ kind: 'session', key: ${JSON.stringify(key)}, y: 40 })`);
       await waitTooltip("document.body.style.zoom === '" + scale + "'");
-      assert.equal(tooltipWin.getBounds().width, Math.round(280 * scale));
+      assert.ok(Math.abs(tooltipWin.getBounds().width - Math.round(280 * scale)) <= 1, 'Tooltip width exceeds DPI rounding tolerance.');
       await js('window.sessionLights.tooltip(null)');
       assert.equal(await js("document.querySelector('select, #text-size') === null"), true);
       assert.equal(await js("window.sessionLights.read().then(value => 'textSize' in value.preferences)"), false);
