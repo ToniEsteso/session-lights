@@ -8,6 +8,7 @@ function render(value: SettingsPayload) {
   snapshot = value;
   const usage = $('#codex-usage');
   if (usage instanceof HTMLInputElement) usage.checked = value.codexUsageEnabled;
+  for (const input of document.querySelectorAll<HTMLInputElement>('input[name=theme]')) input.checked = input.value === value.theme;
   document.body.style.setProperty('--text-scale', String(value.textScale));
   for (const adapter of value.adapters) {
     let input = switches.get(adapter.id);
@@ -44,6 +45,11 @@ async function act(value: SettingsAction) {
     $('#error').textContent = errorMessage(error); $('#error').hidden = false;
     try { render(await window.settings.read()); } catch { /* Keep the action error visible. */ }
   }
+}
+for (const input of document.querySelectorAll<HTMLInputElement>('input[name=theme]')) {
+  input.addEventListener('change', () => {
+    if (input.checked && (input.value === 'system' || input.value === 'light' || input.value === 'dark')) void act({ type: 'theme', theme: input.value });
+  });
 }
 $('#codex-usage').addEventListener('change', event => {
   if (event.target instanceof HTMLInputElement) void act({ type: 'codex-usage', enabled: event.target.checked });

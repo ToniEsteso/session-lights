@@ -21,22 +21,27 @@ async function main() {
     secondary: { usedPercent: 16, windowDurationMins: 10080, resetsAt: Math.floor(Date.now() / 1000) + 345600 }
   } } } }));
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-  const launch = (restart = false) => new Promise<number | null>((resolve, reject) => {
-    const child = spawn(electronBinary(), [path.join(__dirname, '..', '..'), `--desktop-test=${dir}`, ...(restart ? ['--adapter-visibility-restart'] : []), ...(process.argv.includes('--disable-gpu') ? ['--disable-gpu'] : [])],
+  const launch = (args: string[], name: string) => new Promise<void>((resolve, reject) => {
+    const child = spawn(electronBinary(), [path.join(__dirname, '..', '..'), `--desktop-test=${dir}`, ...args, ...(process.argv.includes('--disable-gpu') ? ['--disable-gpu'] : [])],
       { windowsHide: true, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     child.stdout.on('data', chunk => { output += chunk; });
     child.stderr.on('data', chunk => { output += chunk; });
-    const timeout = setTimeout(() => { child.kill(); }, 45_000);
+    const timeout = setTimeout(() => { child.kill(); }, 120_000);
     child.on('error', error => { clearTimeout(timeout); reject(error); });
-    child.on('exit', async code => {
+    child.on('exit', code => {
       clearTimeout(timeout);
-      await fs.writeFile(path.join(dir, restart ? 'restart-process.log' : 'process.log'), output);
-      console.log(output); console.log(`Evidence: ${dir}`);
-      resolve(code);
+      fs.writeFile(path.join(dir, name), output).then(() => {
+        console.log(output); console.log(`Evidence: ${dir}`);
+        if (code === 0) resolve(); else reject(Error(`Desktop check exited with code ${code}.`));
+      }).catch(reject);
     });
   });
-  const first = await launch();
-  process.exitCode = first === 0 && await launch(true) === 0 ? 0 : 1;
+  await launch(process.argv.slice(2), 'process.log');
+  if (process.argv.includes('--theme-only')) {
+    for (const theme of ['dark', 'light', 'system']) await launch([`--theme-startup=${theme}`], `restart-${theme}.log`);
+  } else {
+    await launch(['--adapter-visibility-restart'], 'restart-process.log');
+  }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

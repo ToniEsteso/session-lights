@@ -60,8 +60,10 @@ export interface SessionAdapter {
   open?(id: string, openExternal: OpenExternal): Promise<void>;
   close?(): void;
 }
+export type ThemeChoice = 'system' | 'light' | 'dark';
 export interface PanelPreferences {
   codexUsageEnabled: boolean;
+  theme: ThemeChoice;
   expanded: boolean;
   showAll: boolean;
   pinned: string[];
@@ -120,6 +122,7 @@ export interface SessionLightsBridge {
 }
 export interface SettingsPayload {
   codexUsageEnabled: boolean;
+  theme: ThemeChoice;
   version: string;
   update: UpdateState;
   adapters: { id: string; name: string; visible: boolean }[];
@@ -127,6 +130,7 @@ export interface SettingsPayload {
 }
 export type SettingsAction =
   | { type: 'codex-usage'; enabled: boolean }
+  | { type: 'theme'; theme: ThemeChoice }
   | { type: 'adapter'; id: string; visible: boolean }
   | { type: 'update'; command: UpdateCommand }
   | { type: 'close' | 'quit' };

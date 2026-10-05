@@ -338,3 +338,15 @@ The final review covered every changed file, affected IPC callers, provider isol
 **Installers:** obtain and include the lazy-val notice; verify the signed app and installer, publisherName, public token-free feed, valid signed update acceptance, clean install, real upgrade, restart, recovery, and uninstall on a disposable Windows system. These need signing credentials and two signed versions. Mac native use, universal packaging, notarization, updates, and uninstall need a Mac. No real account check or existing-record migration test was run during remediation.
 
 The independent publisher check deliberately rejects updates when the installed app is unsigned or its publisher subject differs. Certificate renewal with the same subject is intended to work but needs a signed candidate test. A publisher subject change needs a manual install. macOS keeps the dependency's native verification behavior; it remains untested locally.
+
+### Local integration and merge verification
+
+The audit-only commit b53c6fb61d047ed99d6c9b0a3cd22453b0764eb2 was merged through [PR #1](https://github.com/ToniEsteso/session-lights/pull/1). GitHub merge commit: aed80e3f10af5422c731158e4d2113d405674581. All six OS/Node matrix jobs passed for both the push and PR runs. See [PR CI](https://github.com/ToniEsteso/session-lights/actions/runs/37356955712) and [branch CI](https://github.com/ToniEsteso/session-lights/actions/runs/37356889261). Windows built and launched the package. Mac did an ad-hoc unpacked build. This is not signed Mac installation proof.
+
+Local main changed during the task. Six unpublished commits added adapter visibility, session hiding, bookmarks, and Appearance controls. Their final head was 34a1204515bad307c45ae6b4589869eff719e62a. A separate local integration branch preserved those commits. It resolved preference, IPC, Settings, and test overlaps. It retains the shared action queue and makes the warning follow the selected theme. These other commits were not added to the audit PR or pushed.
+
+The combined local source passed npm test: 29 passed, 0 failed, 0 skipped. npm run check passed. The migration audit passed for 48 TypeScript files. The software-rendered desktop check passed 125 listed checks and 6 cold restart checks. Evidence: evidence/desktop-aIzIon/. Coverage includes themes and contrast, visibility and hiding, saved bookmarks, usage consent, and the audit regressions. The optional --verify-system-theme check was not run; it changes Windows settings. No real OS theme setting was changed here.
+
+The first integrated restart assertion counted the new consent checkbox as an adapter switch. Limiting those selectors to input[data-adapter] corrected the check. The EISDIR errors in native logs are deliberate fixture failures that verify recovery from a blocked preference write. The full final native run returned exit 0.
+
+The original untracked audit is preserved under the primary checkout's ignored .tmp folder before local main is updated. The merged report includes the original findings and all remediation limits. Worktrees and test evidence are retained. Release gates above still apply.

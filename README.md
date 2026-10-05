@@ -7,7 +7,7 @@ The first version reads local **Codex desktop** sessions on Windows and macOS.
 | --- | --- | --- |
 | Green | Idle | The last turn finished or stopped. |
 | Yellow | Needs you | Codex recorded an approval or question notification. |
-| White | Working | The last recorded turn is in progress. |
+| White or blue-gray | Working | The last recorded turn is in progress. |
 | Red | Failed | The last turn failed. |
 | Gray | Unknown | Data is missing, unsupported, or too old to confirm an active turn. |
 
@@ -36,7 +36,8 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 
 ## Use the panel
 
-- Click the gear for adapter visibility, updates, and Quit. The small menu opens to the left of the panel.
+- Click the gear for Appearance, adapter switches, updates, and Quit. The small menu opens to the left of the panel.
+- Choose System, Light, or Dark in Appearance. System is the default and follows device theme changes. The choice applies at once and stays after app restarts. Use Tab to reach the theme choices and arrow keys to change the choice.
 - A yellow badge on the gear marks an available update. Downloads and restarts require a click. Installed releases check at startup and every six hours.
 
 - Text follows system display scaling. On Windows, it also follows **Settings → Accessibility → Text size** automatically, including changes while the app is running. The expanded panel and hover cards grow with the text; the compact bar keeps its width. The app checks the Windows text setting every ten seconds. macOS uses system display scaling; a separate accessibility text size reader is not implemented.

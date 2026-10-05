@@ -8,7 +8,8 @@ interface DesktopCheckOptions { app: App; win: BrowserWindow; tooltipWin: Browse
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as assert from 'node:assert/strict';
-import { screen } from 'electron';
+import { screen, nativeTheme } from 'electron';
+import { checkThemes } from './theme-smoke.js';
 import { logLine, setStatus } from '../test/fixtures.js';
 
 async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, showPanel, testDir, preferences }: DesktopCheckOptions) {
@@ -69,7 +70,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       win.webContents.sendInputEvent({ type: 'char', keyCode: 'Enter' });
       win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
       await waitNative(() => settingsWin.isVisible());
-      await waitSettings("document.querySelectorAll('input[data-adapter]').length === 2 && [...document.querySelectorAll('input[data-adapter]')].every(input => !input.checked)");
+      await waitSettings("document.querySelectorAll('input[role=switch]').length === 2 && [...document.querySelectorAll('input[role=switch]')].every(input => !input.checked)");
       await toggleAdapter('codex');
       await wait("document.querySelectorAll('.session').length === 2 && document.querySelector('#sessions').textContent.includes('Hidden Codex update')");
       assert.equal(await js(`document.querySelector('[data-key="codex:${id}"] .dot').classList.contains('error')`), true);
@@ -87,6 +88,8 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     }
     win.webContents.debugger.attach('1.3');
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+    // Legacy color assertions check the dark palette. Theme checks cover both.
+    nativeTheme.themeSource = 'dark';
     showPanel();
     await wait("document.visibilityState === 'visible'");
     await wait("document.querySelectorAll('.session').length === 2");
@@ -126,6 +129,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('#update').disabled"), true);
     assert.match(await settingsWin.webContents.executeJavaScript("document.querySelector('#update').title"), /installed release/);
     assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('h1, h2, #release-notes, #installation-help') === null"), true);
+    await settingsWin.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     // The warning and control must be visible before enabling the runtime.
     assert.match(await settingsWin.webContents.executeJavaScript("document.querySelector('#usage-warning').textContent"), /write or migrate Codex data/);
     await settingsWin.webContents.executeJavaScript("document.querySelector('#codex-usage').click()");
@@ -661,6 +665,8 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     }
     assert.deepEqual(errors, [], 'Renderer errors after system text changes.');
     report.checks.push('system text changes update the panel automatically', 'large system text fits long lists and controls up to 225 percent', 'hover cards follow system text size', 'no text selector or saved text override', 'compact panel stays narrow at every text size', 'compact gear opens settings to the left', 'development updates are disabled', 'settings close button hides the menu');
+    report.checks.push(...await checkThemes({ win, settingsWin, tooltipWin, testDir, refresh }));
+    assert.deepEqual(errors, [], 'Renderer errors after theme changes.');
     // Catch hidden-session rows leaking from a hidden adapter or lost session choices when it returns.
     await clickControl('.hide-session[data-key="atlas:other"]');
     await wait("document.querySelector('#hidden-sessions').textContent === '1 session hidden'");
@@ -679,11 +685,14 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     // Catch hidden sessions or gauges that remain visible, lost pins, stopped reads, and unsaved switches.
     await js("document.querySelector('header [data-settings]').click()");
     await waitNative(() => settingsWin.isVisible());
-    await waitSettings("document.querySelectorAll('input[role=switch]').length === 2 && [...document.querySelectorAll('input[data-adapter]')].every(input => input.checked)");
+    await waitSettings("document.querySelectorAll('input[role=switch]').length === 2 && [...document.querySelectorAll('input[role=switch]')].every(input => input.checked)");
     assert.deepEqual(await settingsJs("[...document.querySelectorAll('.adapter-row')].map(row => row.textContent)"), ['Show Codex', 'Show Atlas']);
     assert.equal(await settingsJs("[...document.querySelectorAll('.adapter-row, footer')].every(row => row.getBoundingClientRect().bottom <= innerHeight)"), true);
     await fs.writeFile(path.join(testDir, 'adapter-controls.png'), (await settingsWin.webContents.capturePage()).toPNG());
     await settingsJs("document.querySelector('#close').focus()");
+    settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+    settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
+    await waitSettings("document.activeElement.name === 'theme' && document.activeElement.matches(':focus-visible')");
     settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
     settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
     await waitSettings("document.activeElement.dataset.adapter === 'codex' && document.activeElement.matches(':focus-visible')");
