@@ -13,6 +13,7 @@ export interface CodexRecordsOptions { home?: string; root?: string; now?: () =>
 interface RolloutTurn extends RecordedTurn { waiting?: NonNullable<TurnSignal['waiting']>; turnId?: string; statusAt: number }
 interface HistoryTurn { status: string; turnId?: string }
 interface Tail { text: string; modifiedAt: number; size: number }
+interface CachedRollout { turn: RolloutTurn; modifiedAt: number; size: number }
 interface ProjectCatalog { byId: Map<string, { id: string; name: string }>; roots: { id: string; path: string }[] }
 interface ThreadRow { id: string; title: string; cwd: string; source: string; rollout_path: string; updated_at: number; name?: string; originator?: string; updated_at_ms?: number; project_id?: string }
 function parseThread(value: unknown): ThreadRow | undefined {
@@ -36,7 +37,7 @@ async function tail(file: string) {
     const data = Buffer.alloc(Math.min(stat.size, MAX_TAIL));
     const { bytesRead } = await handle.read(data, 0, data.length, start);
     const text = data.subarray(0, bytesRead).toString('utf8');
-    return { text: start ? text.slice(text.indexOf('\n') + 1) : text, modifiedAt: stat.mtimeMs };
+    return { text: start ? text.slice(text.indexOf('\n') + 1) : text, modifiedAt: stat.mtimeMs, size: stat.size };
   } finally { await handle.close(); }
 }
 
@@ -111,6 +112,7 @@ class CodexRecords {
   readonly root: string;
   private readonly now: () => number;
   private readonly fileCache = new Map<string, Tail>();
+  private readonly rolloutCache = new Map<string, CachedRollout>();
   constructor({ home = os.homedir(), root = process.env.CODEX_HOME || path.join(home, '.codex'), now = Date.now }: CodexRecordsOptions = {}) {
     this.root = path.resolve(root); this.now = now;
   }
@@ -119,13 +121,17 @@ class CodexRecords {
     const stat = await fs.stat(file);
     const previous = this.fileCache.get(file);
     if (previous?.size === stat.size && previous.modifiedAt === stat.mtimeMs) return previous;
-    const value = { ...await tail(file), size: stat.size };
+    const value = await tail(file);
     this.fileCache.set(file, value);
     return value;
   }
 
   async rolloutState(file: string): Promise<RolloutTurn> {
-    const data = await this.cachedTail(file);
+    const stat = await fs.stat(file);
+    const previous = this.rolloutCache.get(file);
+    if (previous?.size === stat.size && previous.modifiedAt === stat.mtimeMs) return previous.turn;
+    // Keep only the parsed turn. Saved chat text is not needed between reads.
+    const data = await tail(file);
     let status: string | undefined, turnId: string | undefined, statusAt = 0, lastUserAt = 0, lastProgressAt = 0;
     const requests = new Map<string, { at: number; kind: 'approval' | 'question' }>();
     for (const line of data.text.split('\n')) {
@@ -156,7 +162,9 @@ class CodexRecords {
       }
     }
     const waiting = [...requests.values()].sort((a, b) => b.at - a.at)[0];
-    return { ...(waiting ? { waiting } : {}), status, ...(turnId ? { turnId } : {}), statusAt, lastUserAt, lastProgressAt, updatedAt: data.modifiedAt };
+    const turn = { ...(waiting ? { waiting } : {}), status, ...(turnId ? { turnId } : {}), statusAt, lastUserAt, lastProgressAt, updatedAt: data.modifiedAt };
+    this.rolloutCache.set(file, { turn, size: data.size, modifiedAt: data.modifiedAt });
+    return turn;
   }
 
   async read(kind: 'desktop' | 'cli', logData = { signals: new Map<string, TurnSignal>(), found: false }): Promise<SessionReading> {
@@ -240,7 +248,8 @@ class CodexRecords {
     }
     // Release cached logs and rollouts which are no longer used.
     const activeRollouts = new Set(selected.map(row => row.rollout_path));
-    for (const [file, value] of this.fileCache) if (!activeRollouts.has(file) && now - value.modifiedAt > 2 * 86_400_000) this.fileCache.delete(file);
+    for (const file of this.rolloutCache.keys()) if (!activeRollouts.has(file)) this.rolloutCache.delete(file);
+    for (const [file, value] of this.fileCache) if (now - value.modifiedAt > 2 * 86_400_000) this.fileCache.delete(file);
     return { sessions, health: (kind === 'cli' ? 'Reading local CLI session records. Approval prompts without recorded requests cannot be detected.' : logData.found ? 'Reading local session records. State is based on the last recorded event.' :
       'Reading session records. Desktop logs are missing; approval and question detection is limited.') + historyHealth + (invalidRows ? ' Some session rows have invalid timestamps and were skipped.' : '') };
   }

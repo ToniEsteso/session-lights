@@ -1,7 +1,7 @@
 import type { IpcMainEvent, IpcMainInvokeEvent, Rectangle } from 'electron';
 import type { MonitorSnapshot, ProviderUsage, PanelMotion, PanelPayload, TooltipTarget, TooltipData, SettingsPayload } from './shared/contracts.js';
 import { parseAction, parseTooltipTarget, parseSettingsAction, errorMessage } from './shared/validation.js';
-import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, nativeTheme } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, nativeTheme, autoUpdater } from 'electron';
 import * as path from 'node:path';
 import { SessionMonitor, visibleSessions } from './core.js';
 import { sessionSections } from './shared/session-sections.js';
@@ -277,7 +277,6 @@ async function main() {
   const enabled = app.isPackaged && !demo && !testDir && existsSync(path.join(process.resourcesPath, 'app-update.yml'));
   const engine = enabled ? (await import('electron-updater')).default.autoUpdater : undefined;
   updates = new Updates(engine, 'Use an installed release to check for updates.', () => {
-    if (updates.state.kind === 'download-error') quitting = false;
     notify(); updateTrayMenu();
   });
   preferences = new Preferences(path.join(app.getPath('userData'), 'preferences.json'));
@@ -344,7 +343,6 @@ async function main() {
       case 'close': settingsWin.hide(); return;
       case 'quit': app.quit(); return;
       case 'update':
-        if (value.command === 'install' && updates.state.kind === 'ready') quitting = true;
         void updates.run(value.command); return;
       default: { const exhaustive: never = value; return exhaustive; }
     }
@@ -425,6 +423,8 @@ async function main() {
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (win) showPanel(); });
+  // Native updates can close windows before the normal before-quit event.
+  autoUpdater.on('before-quit-for-update', () => { quitting = true; });
   app.on('before-quit', () => { quitting = true; updates?.close(); stopResize(); hideTooltip(); clearTimeout(timer); clearTimeout(usageTimer); monitor?.close(); tray?.destroy(); });
   app.whenReady().then(main).catch(error => { console.error(error); app.exit(1); });
 }

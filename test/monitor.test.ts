@@ -56,6 +56,7 @@ test('async question stays yellow during background work, then clears when the u
 
 test('old running turns and missing rollouts become unknown; a missing provider reports a useful message', async () => {
   const { data, monitor, later, dir } = await setup();
+  assert.equal(required((await monitor.read()).sessions.find(s => s.id === data.ids[0])).state, 'working');
   later(16 * 60_000);
   assert.equal(required((await monitor.read()).sessions.find(s => s.id === data.ids[0])).state, 'unknown');
   const missing = new SessionMonitor([new CodexDesktopAdapter({ root: path.join(dir, 'missing') })]);

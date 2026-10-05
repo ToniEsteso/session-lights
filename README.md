@@ -186,7 +186,13 @@ npm run check
 npm test
 npm run audit:migration
 npm run test:desktop
+node build/scripts/update-recovery-test.js
+node --experimental-sqlite build/scripts/records-benchmark.js
 ```
+
+Run native desktop checks one at a time. They share the operating system desktop and keyboard focus.
+The update recovery check uses a controlled updater and verifier in the real native app. It checks that session and usage reads continue after a delayed install failure. It cannot install an update.
+The records benchmark measures three polls of 300 large saved sessions in an isolated fixture. Add `--root=<fixture folder>` to reuse the same records for a comparison.
 
 The desktop check runs the real Electron app against isolated test files.
 It checks the panel, state updates, long lists, pins, usage, dragging, and saved settings. It saves screenshots and a report under `evidence/`.

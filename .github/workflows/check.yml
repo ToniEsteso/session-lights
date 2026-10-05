@@ -19,6 +19,8 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: node build/scripts/audit-migration.js
+      - run: node build/scripts/update-recovery-test.js
+        if: runner.os == 'Windows'
       - run: npm run pack
         if: runner.os == 'Windows'
       - run: npm run test:package -- dist/win-unpacked

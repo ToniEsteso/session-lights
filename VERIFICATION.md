@@ -322,3 +322,32 @@ Checks passed on Windows:
 - `git diff --check`: passed.
 
 The desktop test uses task-owned SQLite and usage fixtures. It does not change Codex records. The `npm` wrapper could not start Node in the sandbox because of a Windows path permission error, so the equivalent Node commands ran directly. macOS still needs a native check.
+
+
+## Polling fixes, 2026-10-05
+
+The fix starts from commit 87cb581. The worktree is .worktrees/fix-monitoring-history on codex/fix-monitoring-history.
+
+Session and usage polls now continue during installer verification. Only app quit events set the quit flag. The native before-quit-for-update event permits window closure before the normal before-quit event.
+
+The Codex reader caches parsed rollout turns by file size and modification time. It no longer retains rollout text between polls. It removes parsed entries when their sessions leave the selected set. Each read still checks file metadata and resolves time-based states with the current clock.
+
+The new adapter regression checks append-only changes with an unchanged modification time, same-size rewrites, missing records, and record recovery. The stale-turn check now reads the active turn before advancing the clock.
+
+The native update check uses the real Electron app and public IPC bridges. A controlled updater and verifier produce a delayed failure. The check verifies fresh session and usage values after that failure, the rendered session title, and native update window closure. It never runs an installer. Windows CI runs this check after the migration audit.
+
+| Command | Result |
+| --- | --- |
+| npm run check | Exit 0. Both TypeScript configurations pass. |
+| node_modules/.bin/tsc.cmd -p tsconfig.json; node build/scripts/build.js | Exit 0. Current source compiles and browser and preload bundles build. |
+| node --experimental-sqlite --test build/test/*.test.js | Exit 0. 34 passed, 0 failed, 0 skipped. |
+| node build/scripts/audit-migration.js | Exit 0. 55 TypeScript files. Browser bundles have no Node imports. Preloads require only Electron. |
+| node build/scripts/update-recovery-test.js | Exit 0. Delayed failure, continued session and usage polls, rendered row, and native update window closure pass. Evidence: evidence/update-recovery-IulpaH/. |
+| node --experimental-sqlite build/scripts/desktop-test.js --disable-gpu | Exit 0. 128 desktop checks and 6 restart checks. Final evidence: evidence/desktop-5VSgiv/. |
+| New update recovery check against the original compiled app | Exit 1 as expected. Session or usage polling stopped after the failed install. Original evidence remains in the primary checkout under .tmp/review-20261005/evidence/update-recovery-lwNp80/. |
+
+The first native desktop run failed at Settings visibility while another native check used the same desktop. A serial run passed 128 desktop checks and 6 restart checks. README.md now requires serial native checks. A later run failed at the existing pointer-hover assertion. A repeat with added failure diagnostics passed the same assertions. The diagnostics changed only failure output and failure capture. Native focus and hover checks remain intermittent on this host. The fixture intentionally triggers a preferences write error to verify error handling. That logged error is expected.
+
+The benchmark compares fresh Node 22.12 processes against the same 300-session fixture. Each session has a near-limit history. Original warm polls used 312 and 343 ms of CPU time. Fixed warm polls used 15 and 31 ms. Original warm memory growth was 177 and 178 MiB. Fixed growth was 6 and 7 MiB. Measurements vary by host. Reports remain in .tmp/benchmark-before.json and .tmp/benchmark-after.json. scripts/records-benchmark.ts makes the check repeatable.
+
+One agent reviewed the complete diff and affected callers. No dependencies, credentials, environment files, or public adapter APIs changed. Real signed installation and macOS native updates remain unverified. The existing third-party notice requirement remains open. These source fixes do not satisfy those release checks.

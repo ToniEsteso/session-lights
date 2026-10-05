@@ -101,3 +101,26 @@ test('registered CLI sessions use no second usage process and reject missing wor
   assert.ok(snapshot.sessions.every(s => s.id !== 'archived' && s.id !== 'helper'));
   assert.ok(snapshot.sessions.some(s => s.id === data.ids[0]));
 });
+
+// Catch cached turn states that survive an append, same-size rewrite, or missing file.
+test('cached CLI records refresh after file changes and recover after a missing rollout', async () => {
+  const { data, cli } = await setup();
+  const file = path.join(data.root, cliId + '.jsonl');
+  const stamp = new Date(Math.floor(data.now / 1000) * 1000);
+  const state = async () => required((await cli.read()).sessions.find(session => session.id === cliId)).state;
+  await fs.utimes(file, stamp, stamp);
+  assert.equal(await state(), 'working');
+  await rolloutLine(data, cliId, data.now, 'response_item', { type: 'function_call', name: 'request_user_input', call_id: 'question' });
+  // An append can share the previous modification time on a coarse filesystem.
+  await fs.utimes(file, stamp, stamp);
+  assert.equal(await state(), 'waiting');
+  const text = await fs.readFile(file, 'utf8');
+  await fs.writeFile(file, text.replace('request_user_input', 'ignored_user_input'));
+  await fs.utimes(file, stamp, new Date(stamp.getTime() + 1000));
+  assert.equal(await state(), 'working');
+  const saved = path.join(data.root, 'saved-cache-rollout.jsonl');
+  await fs.rename(file, saved);
+  assert.equal(await state(), 'unknown');
+  await fs.rename(saved, file);
+  assert.equal(await state(), 'working');
+});
