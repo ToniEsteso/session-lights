@@ -32,6 +32,7 @@ This keeps Electron's renderer sandbox enabled in restricted workspace folders.
 
 ## Use the panel
 
+- Text follows system display scaling. On Windows, it also follows **Settings → Accessibility → Text size** automatically, including changes while the app is running. The expanded panel and hover cards grow with the text; the compact bar keeps its width. The app checks the Windows text setting every ten seconds. macOS uses system display scaling; a separate accessibility text size reader is not implemented.
 - Hover over a dot for a small detail card beside the panel. It shows the chat name, project, state, and age of the last recorded activity. It does not change the dot or take keyboard focus.
 - Click a dot to show session names. Press Escape or use the arrow in the expanded panel to collapse it.
 - The panel opens and closes with a short slide and fade. Its right edge stays fixed. The system's reduced-motion setting skips the animation.

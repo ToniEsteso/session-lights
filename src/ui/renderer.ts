@@ -127,6 +127,7 @@ function renderNow(value: PanelPayload) {
   if (signature === renderSignature) return;
   renderSignature = signature;
   const expanded = value.preferences.expanded;
+  document.body.style.setProperty('--text-scale', String(value.textScale));
   document.body.classList.toggle('resizing', Boolean(value.motion));
   document.body.style.setProperty('--compact-inset', `${value.compactInset || 0}px`);
   $('#panel').classList.toggle('expanded', expanded);
@@ -198,7 +199,8 @@ function renderNow(value: PanelPayload) {
     }
     const usageHeight = value.usage.reduce((sum, source) => sum + source.windows.length * (expanded ? 36 : 24), 0);
     const groupHeight = expanded && value.preferences.sortOrder === 'project' ? new Set(sessions.map(session => session.projectKey)).size * 24 : 0;
-    const listHeight = Math.min(sessions.length * (expanded ? 40 : 24) + groupHeight, Math.max(0, value.motion.height - (expanded ? 104 : 29) - usageHeight));
+    const scale = expanded ? value.textScale : 1;
+    const listHeight = Math.min(sessions.length * (expanded ? 40 : 24) + groupHeight, Math.max(0, value.motion.height / scale - (expanded ? 104 : 29) - usageHeight));
     effects.push($('#sessions').animate([{ height: `${previousList.height}px`, transform: `translateY(${listOffset}px)` },
       { height: `${listHeight}px`, transform: 'translateY(0)' }], { ...timing, fill: 'both' }));
     for (const element of document.querySelectorAll(expanded ? '.wide' : '.usage-gauge')) {

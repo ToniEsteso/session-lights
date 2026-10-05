@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import { SessionMonitor, visibleSessions } from './core.js';
 import { createAdapters } from './adapters/index.js';
 import { Preferences } from './preferences.js';
+import { readSystemTextScale, readTestTextScale } from './system-text.js';
 
 const testDir = process.argv.find(arg => arg.startsWith('--desktop-test='))?.split('=').slice(1).join('=');
 if (testDir) app.setPath('userData', path.join(testDir, 'profile'));
@@ -27,17 +28,32 @@ let usageTimer: NodeJS.Timeout | undefined;
 let usage: ProviderUsage[] = [];
 let tooltipWin: BrowserWindow;
 let tooltipTarget: TooltipTarget | undefined;
+let systemTextScale = 1;
+let lastTextScaleRead = 0;
 // The floating level clears Windows topmost state in the tested Electron runtime.
 const panelLevel = process.platform === 'win32' ? 'normal' : 'floating';
 // Start with the usual platform minimum, then measure the native window.
 // Windows can impose a larger minimum on some displays. The visible bar stays 26 pixels wide.
 let compactWidth = process.platform === 'win32' ? 30 : 26;
 
+function panelDisplay() {
+  return screen.getAllDisplays().find(d => d.id === (panelDrag?.displayId ?? preferences.value.displayId)) || screen.getPrimaryDisplay();
+}
+async function refreshTextScale(force = false) {
+  if (!force && !testDir && Date.now() - lastTextScaleRead < 10000) return;
+  lastTextScaleRead = Date.now();
+  const scale = testDir ? await readTestTextScale(path.join(testDir, 'system-text-percent.json')) : await readSystemTextScale();
+  if (scale !== systemTextScale) {
+    systemTextScale = scale;
+    hideTooltip(); stopResize(); positionPanel(); notify();
+  }
+}
+
 function payload(): PanelPayload {
   // All sessions stay visible, including when older settings enabled the recent filter.
   return { ...snapshot, sessions: visibleSessions(snapshot.sessions, { ...preferences.value, showAll: true }),
     total: snapshot.sessions.length, preferences: preferences.value, usage, demo,
-    motion: panelResize, compactInset: compactWidth - 26 };
+    motion: panelResize, compactInset: compactWidth - 26, textScale: systemTextScale };
 }
 function notify() {
   if (win && !win.isDestroyed()) win.webContents.send('sessions:update', payload());
@@ -68,7 +84,7 @@ function updateTooltip() {
   if (!tooltipTarget || !tooltipWin || tooltipWin.isDestroyed()) return;
   const data = tooltipData(tooltipTarget);
   if (!data) { hideTooltip(); return; }
-  tooltipWin.webContents.send('tooltip:update', data);
+  tooltipWin.webContents.send('tooltip:update', { data, textScale: systemTextScale });
 }
 function showTooltip(event: IpcMainEvent, input: unknown) {
   const value = parseTooltipTarget(input);
@@ -78,7 +94,8 @@ function showTooltip(event: IpcMainEvent, input: unknown) {
   tooltipTarget = value;
   const bounds = win.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
-  const width = Math.min(280, area.width - 16), height = 188;
+  const scale = systemTextScale;
+  const width = Math.round(Math.min(280 * scale, area.width - 16)), height = Math.round(Math.min(188 * scale, area.height - 16));
   tooltipWin.setBounds({ x: Math.round(Math.max(area.x + 8, bounds.x - width - 8)),
     y: Math.round(Math.max(area.y + 8, Math.min(bounds.y + value.y - 18, area.y + area.height - height - 8))), width, height });
   updateTooltip(); tooltipWin.showInactive(); tooltipWin.setAlwaysOnTop(true, panelLevel);
@@ -86,16 +103,17 @@ function showTooltip(event: IpcMainEvent, input: unknown) {
 function stopResize() { clearTimeout(resizeTimer); resizeTimer = undefined; panelResize = undefined; }
 function positionPanel({ animate = false, reducedMotion = false } = {}) {
   if (!win || win.isDestroyed() || (panelResize && !animate)) return;
-  const display = screen.getAllDisplays().find(d => d.id === (panelDrag?.displayId ?? preferences.value.displayId)) || screen.getPrimaryDisplay();
+  const display = panelDisplay();
   const area = display.workArea;
-  const width = preferences.value.expanded ? 328 : compactWidth;
+  const scale = preferences.value.expanded ? systemTextScale : 1;
+  const width = preferences.value.expanded ? Math.round(Math.min(328 * scale, area.width)) : compactWidth;
   const sessions = payload().sessions;
   const rows = Math.max(1, Math.min(sessions.length, 14));
   const groupHeight = preferences.value.expanded && preferences.value.sortOrder === 'project' ? new Set(sessions.map(session => session.projectKey)).size * 24 : 0;
   const limits = usage.reduce((sum, source) => sum + source.windows.length, 0);
   const overhead = preferences.value.expanded ? 104 : limits ? 29 : 17;
-  const height = Math.min(area.height - 24, Math.max(preferences.value.expanded ? 128 : 41,
-    rows * (preferences.value.expanded ? 40 : 24) + groupHeight + overhead + limits * (preferences.value.expanded ? 36 : 24)));
+  const height = Math.round(Math.min(area.height - 24, scale * Math.max(preferences.value.expanded ? 128 : 41,
+    rows * (preferences.value.expanded ? 40 : 24) + groupHeight + overhead + limits * (preferences.value.expanded ? 36 : 24))));
   const y = Math.round(Math.max(area.y + 12, Math.min(panelDrag?.y ?? preferences.value.y ?? area.y + (area.height - height) / 2, area.y + area.height - height - 12)));
   const bounds = { x: display.bounds.x + display.bounds.width - width, y, width, height };
   const current = win.getBounds();
@@ -123,6 +141,7 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   win.setAlwaysOnTop(true, panelLevel);
 }
 async function refresh() {
+  await refreshTextScale();
   snapshot = await monitor.read();
   positionPanel(); notify();
 }
@@ -186,6 +205,7 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
 async function main() {
   preferences = new Preferences(path.join(app.getPath('userData'), 'preferences.json'));
   await preferences.load();
+  await refreshTextScale(true);
   monitor = new SessionMonitor(await createAdapters({ demo, testDir }));
   usage = monitor.usageSnapshot();
   win = new BrowserWindow({ width: compactWidth, height: 100, show: false, frame: false, transparent: true,

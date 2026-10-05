@@ -491,6 +491,32 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
       'pins stay first in activity order', 'same workspace groups across providers and Windows path spellings', 'same folder name at different paths stays separate', 'missing workspace has a useful label',
       'project groups keep usage and footer visible', 'project heading tooltip shows full path and providers', 'compact project order has no headings or controls',
       'project grouping survives reload with pins and position intact', 'shared project ID groups chats with different labels', 'different project IDs with equal labels stay separate', 'project ID supplies a label when its name is missing');
+    // Simulate OS setting reads without changing the user's Windows settings.
+    for (const percent of [125, 150, 225, 100]) {
+      const scale = percent / 100;
+      await fs.writeFile(path.join(testDir, 'system-text-percent.json'), String(percent));
+      await refresh();
+      await wait(`window.sessionLights.read().then(value => value.textScale === ${scale})`);
+      assert.equal(win.getBounds().width, Math.round(328 * scale)); checkScreenEdge();
+      assert.ok(Math.abs(await js("document.querySelector('.session').getBoundingClientRect().height") - 40 * scale) < 0.5);
+      assert.equal(await js("Math.abs(document.querySelector('#panel').getBoundingClientRect().right - innerWidth) <= 1 && Math.abs(document.querySelector('#panel').getBoundingClientRect().width - innerWidth) <= 1 && document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight + 1"), true);
+      await capture(`system-text-${percent}.png`);
+      const key = await js("document.querySelector('.session-button').dataset.key");
+      await js(`window.sessionLights.tooltip({ kind: 'session', key: ${JSON.stringify(key)}, y: 40 })`);
+      await waitTooltip("document.body.style.zoom === '" + scale + "'");
+      assert.equal(tooltipWin.getBounds().width, Math.round(280 * scale));
+      await js('window.sessionLights.tooltip(null)');
+      assert.equal(await js("document.querySelector('select, #text-size') === null"), true);
+      assert.equal(await js("window.sessionLights.read().then(value => 'textSize' in value.preferences)"), false);
+      await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
+      await wait("!document.querySelector('#panel').classList.contains('expanded')");
+      assert.ok(Math.abs(win.getBounds().width - nativeWidth) <= 1);
+      assert.equal(await js("document.querySelector('#panel').getBoundingClientRect().width"), 26);
+      await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
+      await wait("document.querySelector('#panel').classList.contains('expanded')");
+    }
+    assert.deepEqual(errors, [], 'Renderer errors after system text changes.');
+    report.checks.push('system text changes update the panel automatically', 'large system text fits long lists and controls up to 225 percent', 'hover cards follow system text size', 'no text selector or saved text override', 'compact panel stays narrow at every text size');
     await fs.writeFile(path.join(testDir, 'report.json'), JSON.stringify(report, null, 2));
     console.log(`Desktop checks passed: ${report.checks.length}.`);
     app.exit(0);

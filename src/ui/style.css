@@ -18,7 +18,7 @@ body.resizing .panel:not(.expanded) { width: calc(100% - var(--compact-inset, 0p
 body.resizing .session, body.resizing .session-button { transition: height 280ms cubic-bezier(.333, 1, .667, 1); }
 body.resizing #sessions { flex-shrink: 0; overflow: visible; clip-path: inset(0 -100vw); scrollbar-width: none; }
 .panel:not(.expanded) header { position: absolute; top: 0; left: 0; right: 0; height: 8px; }
-.expanded { border-radius: 17px 0 0 17px; padding: 10px; }
+.expanded { border-radius: 17px 0 0 17px; padding: 10px; zoom: var(--text-scale, 1); max-height: calc(100vh / var(--text-scale, 1)); }
 .expanded .wide { display: block; }
 header { min-height: 8px; display: flex; align-items: center; justify-content: center; cursor: grab; user-select: none; touch-action: none; }
 body.dragging, body.dragging * { cursor: grabbing !important; }

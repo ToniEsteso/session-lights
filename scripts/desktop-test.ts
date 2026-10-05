@@ -15,6 +15,7 @@ async function main() {
   db.close();
   await fs.mkdir(path.join(dir, 'profile'), { recursive: true });
   await fs.writeFile(path.join(dir, 'profile', 'preferences.json'), JSON.stringify({ showAll: false, sortOrder: 'obsolete' }));
+  await fs.writeFile(path.join(dir, 'system-text-percent.json'), '100');
   await fs.writeFile(path.join(dir, 'usage.json'), JSON.stringify({ result: { rateLimitsByLimitId: { codex: {
     primary: { usedPercent: 24, windowDurationMins: 300, resetsAt: Math.floor(Date.now() / 1000) + 7200 },
     secondary: { usedPercent: 16, windowDurationMins: 10080, resetsAt: Math.floor(Date.now() / 1000) + 345600 }

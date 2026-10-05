@@ -30,5 +30,8 @@ function render(value: TooltipData) {
     $('#card').style.setProperty('--accent', '#8a9099');
   }
 }
-window.tooltip.subscribe(render);
+window.tooltip.subscribe(value => {
+  document.body.style.zoom = String(value.textScale);
+  render(value.data);
+});
 setInterval(() => { if (current && document.visibilityState === 'visible') render(current); }, 1000);

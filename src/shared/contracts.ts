@@ -79,6 +79,7 @@ export interface PanelPayload extends MonitorSnapshot {
   demo: boolean;
   motion: PanelMotion | undefined;
   compactInset: number;
+  textScale: number;
 }
 export type PanelAction =
   | { type: 'sort'; order: SortOrder }
@@ -105,4 +106,5 @@ export interface SessionLightsBridge {
   tooltip(value: TooltipTarget | null): void;
   subscribe(callback: (value: PanelPayload) => void): () => void;
 }
-export interface TooltipBridge { subscribe(callback: (value: TooltipData) => void): () => void }
+export interface TooltipPayload { data: TooltipData; textScale: number }
+export interface TooltipBridge { subscribe(callback: (value: TooltipPayload) => void): () => void }
