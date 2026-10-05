@@ -26,7 +26,7 @@ export class ExampleAdapter implements SessionAdapter {
 			sessions: [{
 				id: 'chat-1', title: 'Example chat', project: 'Example project',
 				projectId: 'example:project-1', state: 'idle', detail: 'Finished.',
-				updatedAt: epochMilliseconds(Date.now())
+				updatedAt: epochMilliseconds(1791187200000) // Last activity from the provider record.
 			}]
 		};
 	}
@@ -45,6 +45,8 @@ export class ExampleAdapter implements SessionAdapter {
 	}
 }
 ```
+
+Every session must supply `updatedAt` in epoch milliseconds. Use the provider's last recorded session activity, not the time of `read()`. Keep it unchanged until new activity occurs. Use `epochMilliseconds(0)` when unavailable. The panel uses it for activity sorting, the age on the right side of each expanded row, and session tooltips.
 
 Omit `readUsage()` when your provider has no limits. Omit `resetsAt` when the provider supplies no reset time.
 Return an empty `windows` array and `updatedAt: null` when usage is unavailable.

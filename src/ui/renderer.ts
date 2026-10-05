@@ -2,7 +2,7 @@ import type { PanelPayload, PanelAction, TooltipTarget } from '../shared/contrac
 import { panelText } from './text.js';
 import { element as $, svgElement, usageRow } from './dom.js';
 import { errorMessage } from '../shared/validation.js';
-const { labels, available, countdown } = panelText;
+const { labels, available, countdown, age } = panelText;
 let snapshot: PanelPayload | undefined;
 let renderSignature: string | undefined;
 let dragging: { pointerId: number; screenY: number } | undefined;
@@ -122,6 +122,7 @@ function renderNow(value: PanelPayload) {
   // Do not rebuild focused buttons during the two-second update.
   // Refresh the usage display when a reset passes, even if no source data changed.
   const signature = JSON.stringify([value,
+    value.preferences.expanded && value.sessions.map(session => age(session.updatedAt)),
     value.usage?.flatMap(source => source.windows.map(limit => [available(limit), countdown(limit.resetsAt)]))]);
   if (signature === renderSignature) return;
   renderSignature = signature;
@@ -152,8 +153,10 @@ function renderNow(value: PanelPayload) {
     const row = document.createElement('div'); row.className = 'session'; row.setAttribute('role', 'listitem');
     const button = document.createElement('button'); button.className = 'session-button';
     button.dataset.key = session.key; button.dataset.action = 'session';
+    const activityAge = age(session.updatedAt);
     button.setAttribute('aria-label', `${session.title}: ${labels[session.state]}`);
-    button.setAttribute('aria-description', [session.provider, session.workspace || session.project, session.detail].filter(Boolean).join('. '));
+    button.setAttribute('aria-description', [session.provider, session.workspace || session.project, session.detail,
+      `Last activity: ${activityAge}`].filter(Boolean).join('. '));
     const dot = document.createElement('span'); dot.className = `dot ${session.state}`;
     dot.setAttribute('aria-hidden', 'true');
     const text = document.createElement('span'); text.className = 'wide session-text';
@@ -162,7 +165,12 @@ function renderNow(value: PanelPayload) {
     const project = document.createElement('span'); project.className = 'session-project'; project.textContent = session.project;
     const meta = document.createElement('span'); meta.className = 'session-meta'; meta.textContent = `· ${session.provider} · ${labels[session.state]}`;
     detail.append(project, meta);
-    text.append(title, detail); button.append(dot, text);
+    const activity = document.createElement('time'); activity.className = 'wide session-activity';
+    const timestamp = session.updatedAt > 0 ? new Date(session.updatedAt).toJSON() : null;
+    activity.textContent = timestamp ? activityAge : '–';
+    activity.setAttribute('aria-label', `Last activity: ${timestamp ? activityAge : 'Time unavailable'}`);
+    if (timestamp) activity.dateTime = timestamp;
+    text.append(title, detail); button.append(dot, text, activity);
     button.addEventListener('click', () => act(expanded ? { type: 'open', key: session.key } : { type: 'expand' }));
     const pin = document.createElement('button'); pin.className = 'wide pin'; pin.dataset.key = session.key; pin.dataset.action = 'pin';
     const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');

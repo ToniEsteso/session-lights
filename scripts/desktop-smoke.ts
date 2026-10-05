@@ -199,6 +199,21 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     assert.equal(await js("document.querySelector('#all, #quit') === null"), true);
     assert.equal(await js("document.querySelector('.session-project').textContent"), 'project');
     assert.equal(await js("document.querySelector('.session-button').hasAttribute('title')"), false);
+    await wait("[...document.querySelectorAll('.session-activity')].every(time => time.textContent === 'just now')");
+    assert.equal(await js(`window.sessionLights.read().then(value => [...document.querySelectorAll('.session-button')].every(button => {
+      const session = value.sessions.find(session => session.key === button.dataset.key);
+      const time = button.querySelector('.session-activity');
+      const title = button.querySelector('.session-title').getBoundingClientRect();
+      const box = time.getBoundingClientRect();
+      const pin = button.parentElement.querySelector('.pin').getBoundingClientRect();
+      return Date.parse(time.dateTime) === Math.trunc(session.updatedAt) && box.left >= title.right && box.right <= pin.left &&
+        box.width + 0.5 >= time.scrollWidth && time.getAttribute('aria-label').startsWith('Last activity:');
+    }))`), true);
+    // Advance only the renderer clock. The unchanged payload must still update the row ages.
+    await js("window.activityClock = Date.now; const now = Date.now(); Date.now = () => now + 61000; void 0;");
+    await wait("[...document.querySelectorAll('.session-activity')].every(time => time.textContent === '1m ago')");
+    await js("Date.now = window.activityClock; delete window.activityClock;");
+    await wait("[...document.querySelectorAll('.session-activity')].every(time => time.textContent === 'just now')");
     assert.equal(await js("document.querySelector('#sessions').scrollHeight <= document.querySelector('#sessions').clientHeight"), true);
     // Catch removed panel title, stale sorting choices, and changed pin priority.
     assert.equal(await js("document.querySelector('.title') === null"), true);
@@ -378,7 +393,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     await capture('compact-no-chats.png');
     // Catch hard-coded provider names, limit ids, and one provider hiding another's usage.
     const providerFile = path.join(testDir, 'provider.json');
-    const atlas = { sessions: [{ id: '11111111-1111-4111-8111-111111111111', title: 'Atlas build', project: 'lab', state: 'waiting', detail: 'Input requested.', updatedAt: Date.now() }],
+    const atlas = { sessions: [{ id: '11111111-1111-4111-8111-111111111111', title: 'Atlas build', project: 'lab', state: 'waiting', detail: 'Input requested.', updatedAt: Date.now() - 300_000 }],
       windows: [{ id: 'daily', label: 'Daily', title: 'Daily allowance', remainingPercent: 31, resetsAt: Math.floor(Date.now() / 1000) + 8000 },
         { id: 'budget', label: 'Budget', remainingPercent: 50 }] };
     await fs.writeFile(providerFile, JSON.stringify(atlas)); await refresh(); await refreshUsage();
@@ -393,6 +408,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     assert.equal(await js("document.querySelector('[data-provider=atlas][data-limit=daily] .usage-value').textContent"), '31% left');
     assert.equal(await js("document.querySelector('[data-provider=atlas][data-limit=budget] .usage-value').textContent"), '50% left');
     assert.equal(await js("document.querySelector('[data-provider=atlas][data-limit=budget] .usage-reset').textContent"), 'Reset time unavailable');
+    assert.equal(await js("document.querySelector('.session-activity').textContent"), '5m ago');
     await capture('multiple-providers.png');
     await js("document.querySelector('.session-button').click()");
     await wait("window.sessionLights.read().then(() => document.querySelector('#error').hidden)");
@@ -419,7 +435,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     projectDb.close();
     const projectAtlas = { ...atlas, sessions: [
       { id: 'shared', title: 'Atlas shared folder', project: 'Alias', workspace: 'c:\\WORK\\project\\', state: 'working', detail: 'Working.', updatedAt: Date.now() },
-      { id: 'missing', title: 'No project supplied', state: 'idle', detail: 'Finished.', updatedAt: Date.now() },
+      { id: 'missing', title: 'No project supplied', state: 'idle', detail: 'Finished.', updatedAt: 0 },
       { id: 'named', title: 'Named project', project: 'Design', projectId: 'repo:design', state: 'idle', detail: 'Finished.', updatedAt: Date.now() },
       { id: 'remote', title: 'Remote design chat', projectId: 'repo:design', state: 'working', detail: 'Working.', updatedAt: Date.now() },
       { id: 'other', title: 'Other design project', project: 'Design', projectId: 'repo:other-design', state: 'idle', detail: 'Finished.', updatedAt: Date.now() }
@@ -427,6 +443,10 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     await fs.writeFile(providerFile, JSON.stringify(projectAtlas)); await refresh(); await selectSort('project');
     await wait("document.querySelectorAll('.session').length === 7 && document.querySelectorAll('.project-heading').length === 5");
     assert.equal(await js("[...document.querySelectorAll('.session-project')].some(project => project.textContent === 'No workspace')"), true);
+    assert.equal(await js(`(() => {
+      const time = document.querySelector('[data-key="atlas:missing"] .session-activity');
+      return time.textContent === '–' && !time.hasAttribute('datetime') && time.getAttribute('aria-label') === 'Last activity: Time unavailable';
+    })()`), true);
     assert.equal(await js("[...document.querySelectorAll('.session-button')].find(button => button.dataset.key === 'atlas:remote').querySelector('.session-project').textContent"), 'repo:design');
     assert.equal(await js(`(() => {
       const groups = []; for (const child of document.querySelector('#sessions').children) {
@@ -460,6 +480,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     assert.equal(errors.length, 0, errors.join('\n'));
     const report = { result: 'passed', checks: ['always on top', 'half-width compact bar', 'compact center alignment', 'equal top and bottom spacing', 'compact and expanded panels touch screen edge', 'small plain lights', 'no compact icons or grip', 'no hover highlight', 'grab and grabbing cursors', 'panel follows held drag', 'reverse drag without overshoot', 'drag position survives refresh and is saved on release', 'click light to show names', 'no panel title', 'only activity and project sorting', 'no legend or extra text', 'no recent-only or quit button', 'workspace in tooltip', 'short list needs no scrollbar', 'compact divider and two gauges', 'green gauges and limit tooltips', 'click gauge to expand', 'red yellow and green follow amount left', 'unavailable gauge clears pointer', 'compact gauges fit with no chats', 'remaining percentages and reset tooltip', 'usage bars fit expanded panel', 'usage failure clears figures and keeps sessions', 'usage connection recovers', 'Codex bucket and window duration selection', 'empty and missing usage windows', 'reset clears expired figures until new data arrives', 'usage fits with no local chats', 'live approval', 'pin', 'old chats visible with old show-all setting', 'cross hides panel and show restores it', 'live completion', 'reload and persistence', 'horizontal fit', 'no renderer errors'] };
     report.checks.push('long lists keep compact lights centered', 'long lists keep usage and controls visible', 'background updates preserve scroll position');
+    report.checks.push('last activity ages fit on the right', 'row timestamp matches adapter activity', 'row ages update without changed data', 'second provider supplies last activity', 'unavailable activity shows a dash');
     report.checks.push('expand through intermediate widths', 'collapse through intermediate widths', 'screen edge stays fixed during animation', 'refresh does not interrupt animation', 'quick reversal reaches the requested state', 'reduced motion skips animation');
     report.checks.push('styled session tooltip outside compact window', 'tooltip does not take focus', 'tooltip hides before dragging', 'usage tooltip shows scope and countdown',
       'search and state filter removed', 'sort buttons fit one row above chats', 'only one sort button selected', 'keyboard activates sorting',

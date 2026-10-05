@@ -39,6 +39,7 @@ This keeps Electron's renderer sandbox enabled in restricted workspace folders.
 - Pin a session with the bookmark icon. A filled yellow bookmark marks a pinned session. Pins stay visible after the app restarts.
 - All saved, unarchived desktop sessions appear.
 - Each row shows its project, provider, and state below the chat title. Codex uses its saved project name when a session maps to one. Otherwise, the row uses its workspace folder or `No workspace`. Projects without saved sessions do not appear. Long project names are shortened to fit. Hover over a project group heading for the full path or project ID.
+- The right side of each expanded row shows the age of its last recorded activity, such as `just now`, `5m ago`, or `2h ago`. The age updates while the panel is open. A dash means the activity time is unavailable.
 - Use the two buttons at the top to sort by latest activity or project. The selected button has a soft background. The choice is saved and also sets compact light order. Project headings appear only in the expanded list.
 - Pins come first in activity order. In project mode, pins come first within each project. Chats within a project then follow latest activity.
 - Below a thin divider, the compact panel shows two small gauges: 5-hour above weekly. Their arc and pointer show the amount left. Click a gauge to expand the panel.
@@ -101,7 +102,7 @@ An adapter has `id`, `name`, and an async `read()` method. The method returns:
   health: 'Source status shown in the panel',
   sessions: [{
     id: 'provider-local-id', title: 'Session name', project: 'Project', workspace: 'Full path',
-    state: 'idle', detail: 'Why this state applies', updatedAt: epochMilliseconds(Date.now())
+    state: 'idle', detail: 'Why this state applies', updatedAt: epochMilliseconds(1791187200000)
   }]
 }
 ```
@@ -119,7 +120,7 @@ Equal display names at different full paths stay separate. A display name withou
 The panel shows `No workspace` when an adapter has no name, path, or ID. Codex also uses it for its dated scratch folders. It gives the same label on each account and computer. The full local path still keeps separate workspaces in separate groups and appears in the detail card. An adapter can use `projectId` to group one project across different paths.
 If only a path is available, its last folder name supplies the label. If only an ID is available, the ID supplies the label.
 Each group uses one shared label so adapter aliases do not split the group.
-`updatedAt` is the last recorded activity time in milliseconds. Activity sorting depends on the adapter supplying that time.
+`updatedAt` is required. Supply the last recorded session activity as epoch milliseconds with `epochMilliseconds()`. Keep this time unchanged between reads until the session has new activity. Do not use the adapter read time. Use `epochMilliseconds(0)` when the time is unavailable. The panel uses this field for activity sorting, the age on the right side of each row, and session tooltips.
 
 Add an optional `open(id, openExternal)` method to open a chat. The adapter validates its own identifiers and links.
 Use the supplied `openExternal(url)` function for an OS link, or handle opening within the adapter.

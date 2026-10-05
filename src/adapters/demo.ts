@@ -1,6 +1,7 @@
 import { epochMilliseconds, unixSeconds } from '../shared/time.js';
 import type { SessionAdapter, SessionReading, UsageDefinition, UsageReading } from '../shared/contracts.js';
 class DemoAdapter implements SessionAdapter {
+  private readonly startedAt = Date.now();
   readonly id = 'demo';
   readonly name = 'Preview';
   readonly usage: UsageDefinition;
@@ -16,7 +17,9 @@ class DemoAdapter implements SessionAdapter {
       { id: '3', title: 'Review the tests', project: 'tools', state: 'idle', detail: 'The last turn finished.' },
       { id: '4', title: 'Update the app', project: 'desktop', state: 'error', detail: 'The last turn failed.' },
       { id: '5', title: 'Check a long task', project: 'research', state: 'unknown', detail: 'No recent activity.' }
-    ] satisfies Omit<SessionReading['sessions'][number], 'updatedAt'>[]).map(session => ({ ...session, updatedAt: epochMilliseconds(Date.now()) })) };
+    ] satisfies Omit<SessionReading['sessions'][number], 'updatedAt'>[]).map((session, index) => ({
+      ...session, updatedAt: epochMilliseconds(this.startedAt - index * 180_000)
+    })) };
   }
   async readUsage(): Promise<UsageReading> {
     return { windows: [

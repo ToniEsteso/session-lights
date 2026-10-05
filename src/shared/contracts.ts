@@ -16,6 +16,8 @@ export interface AdapterSession {
   title: string;
   state: SessionState;
   detail: string;
+  /** Last recorded session activity in epoch milliseconds, not the adapter read time.
+   * Use 0 when unavailable. Drives activity sorting, row ages, and session tooltips. */
   updatedAt: EpochMilliseconds;
   project?: string;
   workspace?: string;

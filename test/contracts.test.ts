@@ -75,6 +75,7 @@ test('a new provider supplies sessions, arbitrary usage windows, and opening wit
   assert.equal(snapshot.sessions.length, 1);
   const session = required(snapshot.sessions[0]);
   assert.equal(session.key, 'atlas:chat'); assert.equal(session.projectGroup, 'shared');
+  assert.equal(session.updatedAt, 1000);
   const usage = required((await monitor.readUsage())[0]);
   assert.equal(usage.providerId, 'atlas'); assert.equal(usage.scope, 'Workspace');
   assert.deepEqual(usage.windows, [{ id: 'daily', label: 'Daily', remainingPercent: 72 }]);
