@@ -1,4 +1,5 @@
 import type { AppUpdater } from 'electron-updater';
+import { isRecord } from './shared/validation.js';
 import { verifyWindowsInstaller } from './windows-signature.js';
 import type { UpdateCommand, UpdateState } from './shared/updates.js';
 
@@ -32,17 +33,20 @@ export class Updates {
     if (!this.engine || this.timer) return;
     void this.run('check');
     this.timer = setInterval(() => {
-      if (this.state.kind === 'idle' || this.state.kind === 'current' || this.state.kind === 'check-error') void this.run('check');
+      if (this.state.kind === 'idle' || this.state.kind === 'current' || this.state.kind === 'check-error' || this.state.kind === 'no-feed') void this.run('check');
     }, 6 * 60 * 60 * 1000);
     this.timer.unref();
   }
   async run(command: UpdateCommand) {
     const engine = this.engine;
     if (!engine || this.stopped) return;
-    if (command === 'check' && ['idle', 'current', 'check-error'].includes(this.state.kind)) {
+    if (command === 'check' && ['idle', 'current', 'check-error', 'no-feed'].includes(this.state.kind)) {
       this.set({ kind: 'checking' });
       try { await engine.checkForUpdates(); }
-      catch { this.set({ kind: 'check-error', message: 'Cannot reach the update service. Check your connection and try again.' }); }
+      catch (error) {
+        if (isRecord(error) && (error.statusCode === 404 || error.code === 'ERR_UPDATER_CHANNEL_FILE_NOT_FOUND')) this.set({ kind: 'no-feed' });
+        else this.set({ kind: 'check-error', message: 'Could not check for updates. Try again.' });
+      }
     } else if (command === 'download' && (this.state.kind === 'available' || this.state.kind === 'download-error')) {
       const version = this.state.version;
       this.set({ kind: 'downloading', version, percent: 0 });

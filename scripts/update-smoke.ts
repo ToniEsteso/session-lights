@@ -19,10 +19,11 @@ async function main() {
   const sha512 = createHash('sha512').update(bytes).digest('base64');
   const metadata: unknown = JSON.parse(await fs.readFile(path.resolve(__dirname, '..', '..', 'package.json'), 'utf8'));
   assert.ok(isRecord(metadata) && typeof metadata.version === 'string');
-  let failCheck = true, corrupt = false, latest = '0.0.0', downloads = 0;
+  let missingFeed = true, failCheck = true, corrupt = false, latest = '0.0.0', downloads = 0;
   const states: UpdateState[] = [];
   const server = createServer((request, response) => {
     if (request.url?.startsWith('/latest.yml')) {
+      if (missingFeed) { response.statusCode = 404; response.end(); return; }
       response.setHeader('Content-Type', 'application/yaml');
       response.end(failCheck ? 'not: [valid yaml' : JSON.stringify({ version: latest,
         files: [{ url: 'installer.exe', sha512, size: bytes.length }], path: 'installer.exe', sha512,
@@ -58,6 +59,10 @@ async function main() {
   try {
     assert.equal(engine.autoDownload, false); assert.equal(engine.autoInstallOnAppQuit, false);
     await updates.run('install');
+    // Catch a missing release feed falsely reported as a connection failure or an up-to-date app.
+    await updates.run('check');
+    assert.equal(snapshot().kind, 'no-feed');
+    missingFeed = false;
     await updates.run('check');
     assert.equal(snapshot().kind, 'check-error');
     assert.equal(updateView(updates.state).command, 'check');
@@ -93,7 +98,7 @@ async function main() {
     } finally { process.env.SystemRoot = systemRoot; }
     updates.close();
     await fs.writeFile(path.join(dir, 'report.json'), JSON.stringify({ installer, sha512, states, downloads,
-      checks: ['manual downloads', 'manual installation', 'check failure and retry', 'up to date', 'new version', 'checksum rejection', 'download retry', 'concurrent commands', 'real progress', 'downloaded bytes match', 'unsigned publisher rejection', 'signature tool unavailable rejection'],
+      checks: ['manual downloads', 'manual installation', 'missing feed and retry', 'check failure and retry', 'up to date', 'new version', 'checksum rejection', 'download retry', 'concurrent commands', 'real progress', 'downloaded bytes match', 'unsigned publisher rejection', 'signature tool unavailable rejection'],
       limitation: 'The installer is downloaded but not installed by this check. Unsigned files and an unavailable verifier are rejected. A signed app update and installation remain untested.' }, null, 2));
     console.log('Update checks passed: real NSIS updater, local HTTP feed, checksum failure, retry, progress, unsigned rejection, and unavailable signature verifier.');
   } finally {

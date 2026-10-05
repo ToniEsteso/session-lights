@@ -10,24 +10,20 @@
 </head>
 <body>
   <main aria-label="Settings">
-    <div class="update-row"><button id="update" disabled>Check for updates</button><button id="close" aria-label="Close settings">×</button></div>
-    <fieldset id="appearance" aria-describedby="theme-help">
+    <fieldset id="appearance">
       <legend>Appearance</legend>
       <div class="theme-choices">
         <label><input type="radio" name="theme" value="system" checked>System</label>
         <label><input type="radio" name="theme" value="light">Light</label>
         <label><input type="radio" name="theme" value="dark">Dark</label>
       </div>
-      <p id="theme-help">System follows your device theme.</p>
     </fieldset>
     <progress id="progress" max="100" aria-label="Update download" hidden></progress>
-    <fieldset aria-describedby="adapter-help">
+    <fieldset>
       <legend>Adapters</legend>
-      <p id="adapter-help">Choose which adapters appear. Monitoring continues when an adapter is hidden.</p>
       <div id="adapters"></div>
     </fieldset>
-    <label class="usage-toggle"><input id="codex-usage" type="checkbox" aria-describedby="usage-warning"> Read Codex usage limits</label>
-    <p id="usage-warning">Starts the installed Codex runtime. It can write or migrate Codex data and use your sign-in. Off by default.</p>
+    <button id="update" disabled>Check for updates</button>
     <footer><button id="quit">Quit</button><span id="version"></span></footer>
     <p id="error" role="alert" hidden></p>
   </main>

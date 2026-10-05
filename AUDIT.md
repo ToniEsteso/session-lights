@@ -2,7 +2,11 @@
 
 Audit date: 5 October 2026.
 
-The code fixes below close F1–F5, within the stated test limits. Source publication still needs consent for historical personal metadata and confirmation of code and asset rights. Installer distribution still needs the upstream lazy-val notice and signed installation checks. See [Remediation](#remediation-after-the-audit) for the current state. The original findings below describe commit 2998f3654c245e1dc8687d1dea7f23e544d3f944.
+The code fixes below close F1 and F3–F5, within the stated test limits. The owner decision below supersedes the F2 opt-in fix. Source publication still needs consent for historical personal metadata and confirmation of code and asset rights. Installer distribution still needs the upstream lazy-val notice and signed installation checks. See [Remediation](#remediation-after-the-audit) for the current state. The original findings below describe commit 2998f3654c245e1dc8687d1dea7f23e544d3f944.
+
+## Owner decision after the audit
+
+On 5 October 2026, the owner requested automatic usage reads and removal of the optional control. The runtime now starts when the app reads account limits. The opt-in remediation for F2 is superseded. Runtime startup can write or migrate the Codex home. The README and installation guide retain this behavior in their data-source description.
 
 ## Original audit state
 

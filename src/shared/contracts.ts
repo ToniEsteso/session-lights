@@ -62,7 +62,6 @@ export interface SessionAdapter {
 }
 export type ThemeChoice = 'system' | 'light' | 'dark';
 export interface PanelPreferences {
-  codexUsageEnabled: boolean;
   theme: ThemeChoice;
   expanded: boolean;
   showAll: boolean;
@@ -100,9 +99,7 @@ export type PanelAction =
   | { type: 'show-hidden' }
   | { type: 'restore-all' }
   | { type: 'open'; key: string }
-  | { type: 'move'; phase: 'start' | 'update' | 'end'; screenY: number }
-  | { type: 'hide' }
-  | { type: 'quit' };
+  | { type: 'move'; phase: 'start' | 'update' | 'end'; screenY: number };
 export type TooltipTarget = (
   | { kind: 'session'; key: string }
   | { kind: 'project'; key: string }
@@ -121,7 +118,6 @@ export interface SessionLightsBridge {
   subscribe(callback: (value: PanelPayload) => void): () => void;
 }
 export interface SettingsPayload {
-  codexUsageEnabled: boolean;
   theme: ThemeChoice;
   version: string;
   update: UpdateState;
@@ -129,7 +125,6 @@ export interface SettingsPayload {
   textScale: number;
 }
 export type SettingsAction =
-  | { type: 'codex-usage'; enabled: boolean }
   | { type: 'theme'; theme: ThemeChoice }
   | { type: 'adapter'; id: string; visible: boolean }
   | { type: 'update'; command: UpdateCommand }

@@ -36,7 +36,7 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 
 ## Use the panel
 
-- Click the gear for Appearance, adapter switches, updates, and Quit. The small menu opens to the left of the panel.
+- Click the gear for Appearance, adapter switches, updates, and Quit. The menu opens to the left of the panel. Press Escape or click outside to close it.
 - Choose System, Light, or Dark in Appearance. System is the default and follows device theme changes. The choice applies at once and stays after app restarts. Use Tab to reach the theme choices and arrow keys to change the choice.
 - A yellow badge on the gear marks an available update. Downloads and restarts require a click. Installed releases check at startup and every six hours.
 
@@ -56,13 +56,13 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 - Below a thin divider, the compact panel shows two small gauges: 5-hour above weekly. Their arc and pointer show the amount left. Click a gauge to expand the panel.
 - Gauges and usage percentages are green above 20% remaining, yellow above 5% up to 20%, and red at 5% or less. Unavailable limits show a gray gauge with no pointer.
 - The expanded panel shows usage bars, percentages, and reset countdowns. Hover over a gauge or row for a detail card with its provider, scope, amount left, countdown, exact reset time, and reading age.
-- Use the top-right cross to hide the panel. Use the tray icon to show it again.
+- Click the tray icon to hide or show the panel. Quit is in Settings.
 - Drag the blank top area to move the panel up or down. The panel follows the pointer and saves its position when you release it.
-- Use the tray menu to show the panel, move it to the screen under the pointer, or quit.
+- Use the tray menu to open Settings or move the panel to the screen under the pointer.
 
 Panel settings are stored in the operating system's app data folder for Session Lights.
 The session reader reads Codex records without changing them. It does not send session data over the network.
-Usage reads are off by default. Enable **Read Codex usage limits** in Settings to start an installed Codex runtime. It uses the existing ChatGPT sign-in and can write or migrate data in the Codex home.
+The app reads usage limits automatically through an installed Codex runtime. It uses the existing ChatGPT sign-in and can write or migrate data in the Codex home.
 Session Lights does not open credential files or handle tokens itself. Codex manages its own authentication.
 
 ## Usage limits

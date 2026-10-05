@@ -79,16 +79,21 @@ function notify() {
   updateTooltip();
 }
 function settingsPayload(): SettingsPayload {
-  return { version: app.getVersion(), update: updates.state, codexUsageEnabled: preferences.value.codexUsageEnabled, theme: preferences.value.theme, textScale: systemTextScale,
+  return { version: app.getVersion(), update: updates.state, theme: preferences.value.theme, textScale: systemTextScale,
     adapters: monitor.adapters.map(adapter => ({ id: adapter.id, name: adapter.name,
       visible: !preferences.value.hiddenAdapters.includes(adapter.id) })) };
 }
-function showSettings(y = 0) {
+async function showSettings(y = 0) {
   hideTooltip();
   const bounds = win.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
-  const width = Math.round(Math.min(292 * systemTextScale, area.width - 16));
-  const height = Math.round(Math.min((390 + monitor.adapters.length * 32) * systemTextScale, area.height - 16));
+  const width = Math.round(Math.min(236 * systemTextScale, area.width - 16));
+  settingsWin.setSize(width, Math.floor(area.height - 16));
+  settingsWin.webContents.send('settings:update', settingsPayload());
+  const contentHeight: unknown = await settingsWin.webContents.executeJavaScript(
+    'document.querySelector("main").getBoundingClientRect().height');
+  if (typeof contentHeight !== 'number' || !Number.isFinite(contentHeight)) throw Error('Cannot measure Settings.');
+  const height = Math.min(Math.ceil(contentHeight), Math.floor(area.height - 16));
   settingsWin.setBounds({ width, height,
     x: Math.round(Math.max(area.x + 8, bounds.x - width - 8)),
     y: Math.round(Math.max(area.y + 8, Math.min(bounds.y + y, area.y + area.height - height - 8))) });
@@ -107,7 +112,6 @@ function updateTrayMenu() {
         await preferences.save({ ...preferences.value, displayId: screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id, y: null }); showPanel();
       }).catch(console.error);
     } },
-    { type: 'separator' }, { label: 'Quit', click: () => app.quit() }
   ]));
 }
 function hideTooltip() { tooltipTarget = undefined; tooltipWin?.hide(); }
@@ -214,7 +218,7 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
   const prefs = preferences.value;
   hideTooltip();
   switch (value?.type) {
-    case 'settings': showSettings(value.y); return;
+    case 'settings': await showSettings(value.y); return;
     case 'sort':
       await preferences.save({ ...prefs, sortOrder: value.order }); break;
     case 'expand':
@@ -264,8 +268,6 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
       if (session) await monitor.open(session, url => shell.openExternal(url));
       return;
     }
-    case 'hide': win.hide(); return;
-    case 'quit': app.quit(); return;
     default: { const exhaustive: never = value; return exhaustive; }
   }
   positionPanel(); notify();
@@ -283,7 +285,7 @@ async function main() {
   // Set Chromium and native menus before any window can paint.
   nativeTheme.themeSource = preferences.value.theme;
   await refreshTextScale(true);
-  monitor = new SessionMonitor(await createAdapters({ demo, testDir, codexUsageEnabled: () => preferences.value.codexUsageEnabled }));
+  monitor = new SessionMonitor(await createAdapters({ demo, testDir }));
   usage = monitor.usageSnapshot();
   win = new BrowserWindow({ width: compactWidth, height: 100, show: false, frame: false, transparent: true,
     resizable: false, maximizable: false, minimizable: false, fullscreenable: false, skipTaskbar: true,
@@ -310,7 +312,7 @@ async function main() {
     return result;
   });
   ipcMain.on('panel:tooltip', showTooltip);
-  settingsWin = new BrowserWindow({ width: 292, height: 422, show: false, frame: false, transparent: true,
+  settingsWin = new BrowserWindow({ width: 236, height: 210, show: false, frame: false, transparent: true,
     resizable: false, maximizable: false, minimizable: false, skipTaskbar: true, alwaysOnTop: true,
     webPreferences: { preload: path.join(__dirname, 'settings-preload.js'), nodeIntegration: false,
       contextIsolation: true, sandbox: true } });
@@ -328,9 +330,6 @@ async function main() {
     const value = parseSettingsAction(input);
     if (!value) return;
     switch (value.type) {
-      case 'codex-usage':
-        await preferences.save({ ...preferences.value, codexUsageEnabled: value.enabled });
-        await refreshUsage(); return;
       case 'theme':
         await preferences.save({ ...preferences.value, theme: value.theme });
         nativeTheme.themeSource = value.theme;
@@ -373,7 +372,7 @@ async function main() {
     if (startupTheme === 'light' || startupTheme === 'dark' || startupTheme === 'system') {
       const { checkThemeStartup } = await import('../scripts/theme-smoke.js');
       await checkThemeStartup({ win, settingsWin, tooltipWin, testDir, refresh }, startupTheme);
-      app.exit(0); return;
+      app.quit(); return;
     }
     if (process.argv.includes('--theme-only')) {
       const { checkThemes } = await import('../scripts/theme-smoke.js');
@@ -382,7 +381,7 @@ async function main() {
       const { writeFile } = await import('node:fs/promises');
       await writeFile(path.join(testDir, 'theme-report.json'), JSON.stringify({ checks }, null, 2));
       console.log(`Theme checks passed: ${checks.length}.`);
-      app.exit(0); return;
+      app.quit(); return;
     }
     const { run } = await import('../scripts/desktop-smoke.js');
     return run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, showPanel, testDir, preferences });

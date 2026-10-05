@@ -24,6 +24,12 @@ export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refre
       await new Promise(resolve => setTimeout(resolve, 30));
     }
   };
+  const closeSettings = async () => {
+    settingsWin.focus();
+    settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+    await wait(async () => !settingsWin.isVisible());
+  };
   const themeMatches = async (dark: boolean) => {
     const query = `matchMedia('(prefers-color-scheme: dark)').matches === ${dark} && getComputedStyle(document.documentElement).colorScheme === '${dark ? 'dark' : 'light'}'`;
     return (await Promise.all([win, settingsWin, tooltipWin].map(window => window.webContents.executeJavaScript(query)))).every(Boolean);
@@ -72,7 +78,7 @@ export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refre
         db.close(); await refresh();
       }
     }
-    await settings("document.querySelector('#close').click()");
+    await closeSettings();
     const key: string = await panel("document.querySelector('.session-button').dataset.key");
     await panel(`window.sessionLights.tooltip({ kind: 'session', key: ${JSON.stringify(key)}, y: 45 })`);
     await wait(async () => tooltipWin.isVisible() && await tooltipWin.webContents.executeJavaScript("document.querySelector('#title').textContent.length > 0"));
@@ -118,7 +124,7 @@ export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refre
   }
   // Native radio arrows change the selected theme and keep keyboard focus visible.
   settingsWin.focus();
-  await settings("document.querySelector('#close').focus()");
+  await settings("document.querySelector('#quit').focus()");
   settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
   settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
   await wait(async () => await settings("document.activeElement.value === 'system'"));

@@ -3,11 +3,11 @@ import * as path from 'node:path';
 import type { PanelPreferences } from './shared/contracts.js';
 import { SORT_ORDERS } from './shared/contracts.js';
 import { isRecord, hasErrorCode } from './shared/validation.js';
-const DEFAULTS: PanelPreferences = { theme: 'system', expanded: false, showAll: true, codexUsageEnabled: false, pinned: [], hidden: [], hiddenAdapters: [], displayId: null, y: null, sortOrder: 'activity' };
+const DEFAULTS: PanelPreferences = { theme: 'system', expanded: false, showAll: true, pinned: [], hidden: [], hiddenAdapters: [], displayId: null, y: null, sortOrder: 'activity' };
 export function clean(input: unknown = {}): PanelPreferences {
   const value = isRecord(input) ? input : {};
   return { theme: value.theme === 'light' || value.theme === 'dark' ? value.theme : 'system',
-    expanded: value.expanded === true, showAll: value.showAll !== false, codexUsageEnabled: value.codexUsageEnabled === true,
+    expanded: value.expanded === true, showAll: value.showAll !== false,
     pinned: Array.isArray(value.pinned) ? [...new Set(value.pinned.filter((v: unknown): v is string => typeof v === 'string').slice(0, 500))] : [],
     hidden: Array.isArray(value.hidden) ? [...new Set(value.hidden.filter((v: unknown): v is string => typeof v === 'string'))] : [],
     hiddenAdapters: Array.isArray(value.hiddenAdapters) ? [...new Set(value.hiddenAdapters.filter((v: unknown): v is string => typeof v === 'string'))] : [],

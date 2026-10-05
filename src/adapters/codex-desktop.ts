@@ -11,7 +11,7 @@ import type { RecordedTurn, TurnSignal } from '../core.js';
 import type { CodexUsageOptions } from './codex-usage.js';
 import { isRecord, hasErrorCode } from '../shared/validation.js';
 
-export interface CodexDesktopOptions { home?: string; root?: string; logs?: string; now?: () => number; usageOptions?: CodexUsageOptions; usageEnabled?: () => boolean }
+export interface CodexDesktopOptions { home?: string; root?: string; logs?: string; now?: () => number; usageOptions?: CodexUsageOptions }
 interface RolloutTurn extends RecordedTurn { turnId?: string; statusAt: number }
 interface HistoryTurn { status: string; turnId?: string }
 interface Tail { text: string; modifiedAt: number; size: number }
@@ -144,22 +144,18 @@ class CodexDesktopAdapter implements SessionAdapter {
   private readonly fileCache = new Map<string, Tail>();
   private usageReader: CodexUsage | undefined;
   private readonly usageOptions: CodexUsageOptions | undefined;
-  private readonly usageEnabled: () => boolean;
   constructor({ home = os.homedir(), root = process.env.CODEX_HOME || path.join(home, '.codex'),
-    logs = desktopLogs(process.platform, home), now = Date.now, usageOptions, usageEnabled = () => false }: CodexDesktopOptions = {}) {
+    logs = desktopLogs(process.platform, home), now = Date.now, usageOptions }: CodexDesktopOptions = {}) {
     this.root = root; this.logs = logs; this.now = now;
     this.usage = { scope: 'Account-wide usage', windows: [
       { id: 'fiveHour', label: '5h', title: '5-hour limit' }, { id: 'weekly', label: 'Weekly', title: 'Weekly limit' }
     ] };
-    this.usageOptions = usageOptions; this.usageEnabled = usageEnabled;
+    this.usageOptions = usageOptions;
   }
 
   async readUsage() {
-    const disabled = { windows: [], message: 'Codex usage is off. Enable it in Settings to start the Codex runtime.', updatedAt: null };
-    if (!this.usageEnabled()) { this.usageReader?.close(); this.usageReader = undefined; return disabled; }
     const reader = this.usageReader ||= new CodexUsage(this.usageOptions);
-    const value = await reader.read();
-    return this.usageEnabled() && reader === this.usageReader ? value : disabled;
+    return reader.read();
   }
   close() { this.usageReader?.close(); this.usageReader = undefined; }
   async open(id: string, openExternal: OpenExternal) {

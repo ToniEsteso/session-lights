@@ -28,16 +28,13 @@ export function parseAction(value: unknown): PanelAction | undefined {
         return { type: 'move', phase: value.phase, screenY: value.screenY };
       }
       return;
-    case 'hide': case 'quit': case 'show-hidden': case 'restore-all': return { type: value.type };
+    case 'show-hidden': case 'restore-all': return { type: value.type };
     default: return;
   }
 }
 export function parseSettingsAction(value: unknown): SettingsAction | undefined {
   if (!isRecord(value)) return;
   switch (value.type) {
-    case 'codex-usage':
-      if (typeof value.enabled === 'boolean') return { type: 'codex-usage', enabled: value.enabled };
-      return;
     case 'theme':
       if (value.theme === 'system' || value.theme === 'light' || value.theme === 'dark') return { type: 'theme', theme: value.theme };
       return;

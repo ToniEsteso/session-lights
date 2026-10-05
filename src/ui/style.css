@@ -23,8 +23,6 @@ body.resizing #sessions { flex-shrink: 0; overflow: visible; clip-path: inset(0 
 header { min-height: 8px; display: flex; align-items: center; justify-content: center; cursor: grab; user-select: none; touch-action: none; }
 body.dragging, body.dragging * { cursor: grabbing !important; }
 .expanded header { min-height: 26px; justify-content: flex-end; gap: 8px; }
-.quiet { font-size: 13px; color: var(--muted); padding: 2px 7px; }
-.expanded #hide { width: 22px; height: 24px; padding: 0; }
 #sessions { overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--border) transparent; flex-shrink: 1; min-height: 0; }
 .panel:not(.expanded) #sessions { scrollbar-width: none; }
 .session { height: 24px; display: flex; align-items: center; }
@@ -115,7 +113,6 @@ footer { display: flex; align-items: center; justify-content: center; min-height
 .expanded #expand { margin-left: auto; }
 #adapters-hidden { flex-shrink: 0; margin: 7px 5px; color: var(--muted); font-size: 11px; }
 #adapters-hidden p { margin: 4px 0; }
-#adapters-hidden .hidden-detail { font-size: 10px; color: var(--muted); }
 #empty-settings { display: flex; align-items: center; padding: 7px 0; }
 .expanded #empty-settings { color: var(--status-waiting); text-decoration: underline; text-underline-offset: 3px; }
 .panel:not(.expanded) #adapters-hidden { margin: 0; }

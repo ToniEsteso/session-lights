@@ -52,40 +52,29 @@ test('a stopped or silent service clears usage and reconnects on the next read',
 });
 
 
-test('Codex adapter starts usage only after opt-in and stops it when disabled', async t => {
+// Catch default usage that waits for an optional setting before reading the account.
+test('Codex adapter reads account limits automatically and closes its runtime', async t => {
   const { reader, file } = await setup(); reader.close();
   const { CodexDesktopAdapter } = await import('../src/adapters/codex-desktop.js');
   const { SessionMonitor } = await import('../src/core.js');
   const marker = path.join(path.dirname(file), 'started');
   const service = path.join(path.dirname(file), 'service.cjs');
   await fs.writeFile(service, `require('node:fs').writeFileSync(process.env.SESSION_LIGHTS_START_MARKER, String(process.pid)); require(${JSON.stringify(path.join(__dirname, 'usage-server.js'))});`);
-  let enabled = false;
-  const options = { command: process.execPath, args: [service], timeout: 3000,
-    env: { ...process.env, SESSION_LIGHTS_USAGE_FIXTURE: file, SESSION_LIGHTS_START_MARKER: marker } };
-  const defaultAdapter = new CodexDesktopAdapter({ usageOptions: options });
-  t.after(() => defaultAdapter.close());
-  const defaults = new SessionMonitor([defaultAdapter]);
-  assert.match(required((await defaults.readUsage())[0]).message ?? '', /off/);
-  await assert.rejects(fs.access(marker));
-  const adapter = new CodexDesktopAdapter({ usageOptions: options, usageEnabled: () => enabled });
+  const adapter = new CodexDesktopAdapter({ usageOptions: {
+    command: process.execPath, args: [service], timeout: 3000,
+    env: { ...process.env, SESSION_LIGHTS_USAGE_FIXTURE: file, SESSION_LIGHTS_START_MARKER: marker }
+  } });
   t.after(() => adapter.close());
   const monitor = new SessionMonitor([adapter]);
-  assert.match(required((await monitor.readUsage())[0]).message ?? '', /off/);
-  await assert.rejects(fs.access(marker));
-  enabled = true;
-  assert.equal(required((await monitor.readUsage())[0]).windows[0]?.remainingPercent, 76);
+  const usage = required((await monitor.readUsage())[0]);
+  assert.equal(usage.windows.find(window => window.id === 'fiveHour')?.remainingPercent, 76);
+  assert.equal(usage.windows.find(window => window.id === 'weekly')?.remainingPercent, 84);
   const childPid = Number(await fs.readFile(marker, 'utf8'));
-  assert.ok(Number.isInteger(childPid) && childPid > 0);
-  enabled = false;
-  const stopped = required((await monitor.readUsage())[0]);
-  assert.ok(stopped.windows.every(window => window.remainingPercent === undefined));
-  assert.match(stopped.message ?? '', /off/);
+  adapter.close();
   const deadline = Date.now() + 3000;
   while (true) {
     try { process.kill(childPid, 0); } catch { break; }
-    assert.ok(Date.now() < deadline, 'Disabling usage must stop its child process.');
+    assert.ok(Date.now() < deadline, 'Closing the adapter must stop its runtime.');
     await new Promise(resolve => setTimeout(resolve, 20));
   }
-  enabled = true;
-  assert.equal(required((await monitor.readUsage())[0]).windows[0]?.remainingPercent, 76);
 });

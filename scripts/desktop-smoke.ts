@@ -51,6 +51,12 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       await new Promise(resolve => setTimeout(resolve, 30));
     }
   };
+  const closeSettings = async () => {
+    settingsWin.focus();
+    settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+    await waitNative(() => !settingsWin.isVisible());
+  };
   const toggleAdapter = async (id: string) => {
     await settingsJs(`[...document.querySelectorAll('input[data-adapter]')].find(input => input.dataset.adapter === ${JSON.stringify(id)}).focus()`);
     settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Space' });
@@ -75,7 +81,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       await wait("document.querySelectorAll('.session').length === 2 && document.querySelector('#sessions').textContent.includes('Hidden Codex update')");
       assert.equal(await js(`document.querySelector('[data-key="codex:${id}"] .dot').classList.contains('error')`), true);
       assert.equal(await js("document.querySelectorAll('[data-provider=codex]').length"), 2);
-      await settingsJs("document.querySelector('#close').click()");
+      await closeSettings();
       const saved = new Preferences(preferences.file); await saved.load();
       assert.equal(saved.value.pinned.length, 1);
       assert.equal(await js("document.querySelectorAll('.pin[aria-pressed=true]').length"), 1);
@@ -84,7 +90,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
         'all-hidden empty state survives a full app restart', 'switch choices survive a full app restart',
         'empty-state Settings link works with Enter', 'restored adapter shows the latest saved sessions and usage', 'pins survive hiding and restart', 'no renderer errors'
       ] }, null, 2));
-      console.log('Adapter restart checks passed: 6.'); app.exit(0); return;
+      console.log('Adapter restart checks passed: 6.'); app.quit(); return;
     }
     win.webContents.debugger.attach('1.3');
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
@@ -130,17 +136,12 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     assert.match(await settingsWin.webContents.executeJavaScript("document.querySelector('#update').title"), /installed release/);
     assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('h1, h2, #release-notes, #installation-help') === null"), true);
     await settingsWin.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-    // The warning and control must be visible before enabling the runtime.
-    assert.match(await settingsWin.webContents.executeJavaScript("document.querySelector('#usage-warning').textContent"), /write or migrate Codex data/);
-    await settingsWin.webContents.executeJavaScript("document.querySelector('#codex-usage').click()");
-    await wait("window.sessionLights.read().then(value => value.preferences.codexUsageEnabled === false && value.usage.find(source => source.providerId === 'codex').windows.every(window => window.remainingPercent === undefined))");
-    const usagePreferences = new Preferences(preferences.file); await usagePreferences.load();
-    assert.equal(usagePreferences.value.codexUsageEnabled, false);
-    await settingsWin.webContents.executeJavaScript("document.querySelector('#codex-usage').click()");
-    await wait("window.sessionLights.read().then(value => value.preferences.codexUsageEnabled === true && value.usage.find(source => source.providerId === 'codex').windows.some(window => window.remainingPercent === 76))");
-    assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight && document.querySelector('#usage-warning').getBoundingClientRect().bottom < document.querySelector('footer').getBoundingClientRect().top"), true);
+    // Catch old saved opt-out flags still suppressing usage and excess Settings height.
+    await wait("window.sessionLights.read().then(value => value.usage.find(source => source.providerId === 'codex').windows.some(window => window.remainingPercent === 76))");
+    assert.equal(await settingsJs("document.querySelector('#codex-usage, #close, #theme-help, #adapter-help') === null"), true);
+    assert.equal(await settingsJs("document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight && innerHeight - document.querySelector('footer').getBoundingClientRect().bottom <= 12"), true);
     await fs.writeFile(path.join(testDir, 'settings.png'), (await settingsWin.webContents.capturePage()).toPNG());
-    await settingsWin.webContents.executeJavaScript("document.querySelector('#close').click()");
+    await closeSettings();
     await waitNative(() => !settingsWin.isVisible());
     assert.equal(await js("[...document.querySelectorAll('.dot')].every(dot => dot.textContent === '' && dot.getBoundingClientRect().width <= 10.5)"), true);
     assert.equal(await js("document.querySelector('.grip') === null && getComputedStyle(document.querySelector('footer')).display === 'flex' && getComputedStyle(document.querySelector('#expand')).display === 'none'"), true);
@@ -292,10 +293,10 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       const tools = document.querySelector('.sort-tools').getBoundingClientRect();
       const header = document.querySelector('header').getBoundingClientRect();
       const list = document.querySelector('#sessions').getBoundingClientRect();
-      const close = document.querySelector('#hide').getBoundingClientRect();
+      const settings = document.querySelector('header [data-settings]').getBoundingClientRect();
       const choices = [...document.querySelectorAll('[data-sort]')].map(button => button.getBoundingClientRect());
       return tools.top >= header.top && tools.bottom <= header.bottom && tools.bottom <= list.top &&
-        tools.right < close.left && close.right <= header.right && choices.length === 2 &&
+        tools.right < settings.left && settings.right <= header.right && choices.length === 2 &&
         choices.every(box => box.width > 0 && box.left >= tools.left && box.right <= tools.right && box.top === choices[0].top);
     })()`), true);
     const selectSort = async (order: SortOrder) => {
@@ -353,6 +354,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await wait("[...document.querySelectorAll('.usage-value')].every(value => value.textContent === 'Unavailable')");
     assert.equal(await js("document.querySelectorAll('.session').length"), 2);
     assert.equal(await js("[...document.querySelectorAll('.usage-track')].every(track => !track.hasAttribute('aria-valuenow'))"), true);
+    assert.equal(await js("[...document.querySelectorAll('.usage-reset')].every(reset => reset.hidden && !reset.textContent)"), true);
     await capture('usage-unavailable.png');
     await js("document.querySelector('#expand').click()");
     await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
@@ -405,14 +407,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await capture('expanded.png');
     await js("document.querySelector('.pin').click()");
     await wait("document.querySelector('.pin').getAttribute('aria-pressed') === 'true'");
-    await js("document.querySelector('#hide').click()");
-    const hideDeadline = Date.now() + 5000;
-    while (win.isVisible()) {
-      if (Date.now() > hideDeadline) throw Error('The cross did not hide the panel.');
-      await new Promise(resolve => setTimeout(resolve, 30));
-    }
-    showPanel();
-    await wait("document.visibilityState === 'visible' && document.querySelectorAll('.session').length === 2");
+    assert.equal(await js("document.querySelector('#hide, #quit') === null"), true);
     setStatus(data, id, 'completed'); await refresh();
     await wait("document.querySelectorAll('.dot.idle').length === 2");
     await win.webContents.reload();
@@ -475,7 +470,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     assert.equal(await js("document.querySelector('[data-provider=atlas][data-limit=daily] .usage-value').textContent"), '31% left');
     assert.equal(await js("document.querySelector('[data-provider=atlas][data-limit=budget] .usage-value').textContent"), '50% left');
-    assert.equal(await js("document.querySelector('[data-provider=atlas][data-limit=budget] .usage-reset').textContent"), 'Reset time unavailable');
+    assert.equal(await js("document.querySelector('[data-provider=atlas][data-limit=budget] .usage-reset').textContent"), '');
     assert.equal(await js("document.querySelector('.session-activity').textContent"), '5m ago');
     await capture('multiple-providers.png');
     await js("document.querySelector('.session-button').click()");
@@ -607,7 +602,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await selectSort('project');
     await capture('bookmarks-restored-project.png');
     assert.deepEqual(errors, [], 'Renderer errors after hiding and restoring.');
-    const report = { result: 'passed', checks: ['always on top', 'half-width compact bar', 'compact center alignment', 'equal top and bottom spacing', 'compact and expanded panels touch screen edge', 'small plain lights', 'no compact icons or grip', 'no hover highlight', 'grab and grabbing cursors', 'panel follows held drag', 'reverse drag without overshoot', 'drag position survives refresh and is saved on release', 'click light to show names', 'no panel title', 'only activity and project sorting', 'no legend or extra text', 'no recent-only or quit button', 'workspace in tooltip', 'short list needs no scrollbar', 'compact divider and two gauges', 'green gauges and limit tooltips', 'click gauge to expand', 'red yellow and green follow amount left', 'unavailable gauge clears pointer', 'compact gauges fit with no chats', 'remaining percentages and reset tooltip', 'usage bars fit expanded panel', 'usage failure clears figures and keeps sessions', 'usage connection recovers', 'Codex bucket and window duration selection', 'empty and missing usage windows', 'reset clears expired figures until new data arrives', 'usage fits with no local chats', 'live approval', 'pin', 'old chats visible with old show-all setting', 'cross hides panel and show restores it', 'live completion', 'reload and persistence', 'horizontal fit', 'no renderer errors'] };
+    const report = { result: 'passed', checks: ['always on top', 'half-width compact bar', 'compact center alignment', 'equal top and bottom spacing', 'compact and expanded panels touch screen edge', 'small plain lights', 'no compact icons or grip', 'no hover highlight', 'grab and grabbing cursors', 'panel follows held drag', 'reverse drag without overshoot', 'drag position survives refresh and is saved on release', 'click light to show names', 'no panel title', 'only activity and project sorting', 'no legend or extra text', 'no recent-only or quit button', 'workspace in tooltip', 'short list needs no scrollbar', 'compact divider and two gauges', 'green gauges and limit tooltips', 'click gauge to expand', 'red yellow and green follow amount left', 'unavailable gauge clears pointer', 'compact gauges fit with no chats', 'remaining percentages and reset tooltip', 'usage bars fit expanded panel', 'usage failure clears figures and keeps sessions', 'usage connection recovers', 'Codex bucket and window duration selection', 'empty and missing usage windows', 'reset clears expired figures until new data arrives', 'usage fits with no local chats', 'live approval', 'pin', 'old chats visible with old show-all setting', 'panel has no close or quit control', 'live completion', 'reload and persistence', 'horizontal fit', 'no renderer errors'] };
     report.checks.push('bookmarks stay above all project groups', 'bookmarks stay above activity sessions', 'hide control removes a session', 'hidden count stays at the bottom', 'hidden sessions stay hidden after refresh and reload', 'compact lights exclude hidden sessions', 'keyboard opens hidden sessions', 'individual restore preserves a bookmark', 'restore all returns every session', 'all sessions can be hidden and restored');
     report.checks.push('long lists keep compact lights centered', 'long lists keep usage and controls visible', 'background updates preserve scroll position');
     report.checks.push('last activity ages fit on the right', 'row timestamp matches adapter activity', 'row ages update without changed data', 'second provider supplies last activity', 'unavailable activity shows a dash');
@@ -648,7 +643,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       assert.equal(await settingsJs("[...document.querySelectorAll('.adapter-row, footer')].every(row => row.getBoundingClientRect().bottom <= innerHeight + 1)"), true);
       await settingsJs('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       await fs.writeFile(path.join(testDir, `adapter-controls-text-${percent}.png`), (await settingsWin.webContents.capturePage()).toPNG());
-      await settingsJs("document.querySelector('#close').click()");
+      await closeSettings();
       const key = await js("document.querySelector('.session-button').dataset.key");
       await js(`window.sessionLights.tooltip({ kind: 'session', key: ${JSON.stringify(key)}, y: 40 })`);
       await waitTooltip("document.body.style.zoom === '" + scale + "'");
@@ -664,7 +659,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       await wait("document.querySelector('#panel').classList.contains('expanded')");
     }
     assert.deepEqual(errors, [], 'Renderer errors after system text changes.');
-    report.checks.push('system text changes update the panel automatically', 'large system text fits long lists and controls up to 225 percent', 'hover cards follow system text size', 'no text selector or saved text override', 'compact panel stays narrow at every text size', 'compact gear opens settings to the left', 'development updates are disabled', 'settings close button hides the menu');
+    report.checks.push('system text changes update the panel automatically', 'large system text fits long lists and controls up to 225 percent', 'hover cards follow system text size', 'no text selector or saved text override', 'compact panel stays narrow at every text size', 'compact gear opens settings to the left', 'development updates are disabled', 'Escape closes Settings');
     report.checks.push(...await checkThemes({ win, settingsWin, tooltipWin, testDir, refresh }));
     assert.deepEqual(errors, [], 'Renderer errors after theme changes.');
     // Catch hidden-session rows leaking from a hidden adapter or lost session choices when it returns.
@@ -676,7 +671,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await wait("document.querySelectorAll('.session').length === 2 && document.querySelector('#hidden-sessions').hidden");
     await toggleAdapter('atlas');
     await wait("document.querySelectorAll('.session').length === 6 && document.querySelector('#hidden-sessions').textContent === '1 session hidden'");
-    await settingsJs("document.querySelector('#close').click()");
+    await closeSettings();
     await clickControl('#hidden-sessions');
     await wait("document.querySelectorAll('.hidden-session').length === 1");
     await clickControl('.restore-all');
@@ -686,10 +681,10 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await js("document.querySelector('header [data-settings]').click()");
     await waitNative(() => settingsWin.isVisible());
     await waitSettings("document.querySelectorAll('input[role=switch]').length === 2 && [...document.querySelectorAll('input[role=switch]')].every(input => input.checked)");
-    assert.deepEqual(await settingsJs("[...document.querySelectorAll('.adapter-row')].map(row => row.textContent)"), ['Show Codex', 'Show Atlas']);
+    assert.deepEqual(await settingsJs("[...document.querySelectorAll('.adapter-row')].map(row => row.textContent)"), ['Codex', 'Atlas']);
     assert.equal(await settingsJs("[...document.querySelectorAll('.adapter-row, footer')].every(row => row.getBoundingClientRect().bottom <= innerHeight)"), true);
     await fs.writeFile(path.join(testDir, 'adapter-controls.png'), (await settingsWin.webContents.capturePage()).toPNG());
-    await settingsJs("document.querySelector('#close').focus()");
+    await settingsJs("document.querySelector('#quit').focus()");
     settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
     settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
     await waitSettings("document.activeElement.name === 'theme' && document.activeElement.matches(':focus-visible')");
@@ -700,7 +695,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await wait("document.querySelectorAll('.session').length === 5 && document.querySelectorAll('[data-provider=codex]').length === 0");
     assert.equal(await js("window.sessionLights.read().then(value => value.sources.every(source => source.id !== 'codex') && value.sessions.every(session => session.providerId !== 'codex'))"), true);
     assert.equal(await settingsJs("document.activeElement.dataset.adapter"), 'codex');
-    await settingsJs("document.querySelector('#close').click()");
+    await closeSettings();
     await capture('adapter-one-hidden.png');
     await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded') && document.querySelectorAll('.session').length === 5");
@@ -719,7 +714,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await waitNative(() => settingsWin.isVisible());
     await toggleAdapter('codex');
     await wait("document.querySelectorAll('.session').length === 7 && document.querySelector('[data-provider=codex][data-limit=fiveHour] .usage-value').textContent === '60% left'");
-    await settingsJs("document.querySelector('#close').click()");
+    await closeSettings();
     await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("document.querySelector('#panel').classList.contains('expanded') && document.querySelector('#sessions').textContent.includes('Hidden Codex update')");
     assert.equal(await js(`document.querySelector('[data-key="codex:${id}"] .dot').classList.contains('error')`), true);
@@ -736,18 +731,18 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await wait("document.querySelectorAll('.session').length === 5");
     await toggleAdapter('atlas');
     await wait("!document.querySelector('#adapters-hidden').hidden && document.querySelectorAll('.session, .usage-row, .project-heading').length === 0");
-    await settingsJs("document.querySelector('#close').click()");
+    await closeSettings();
     assert.equal(await js("['#adapters-hidden', 'footer'].every(selector => { const box = document.querySelector(selector).getBoundingClientRect(); return box.height > 0 && box.bottom <= innerHeight; })"), true);
     await capture('adapter-all-hidden.png');
     await js("document.querySelector('#empty-settings').click()");
     await waitNative(() => settingsWin.isVisible());
-    await settingsJs("document.querySelector('#close').click()");
+    await closeSettings();
     await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded')");
     await capture('adapter-all-hidden-compact.png');
     await js("document.querySelector('#empty-settings').click()");
     await waitNative(() => settingsWin.isVisible());
-    await settingsJs("document.querySelector('#close').click()");
+    await closeSettings();
     await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("document.querySelector('#panel').classList.contains('expanded')");
     assert.deepEqual(errors, []);
@@ -757,7 +752,10 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       'failed preference write restores the switch and keeps sessions visible', 'all-hidden state explains the result and links to Settings', 'empty state fits compact and expanded panels');
     await fs.writeFile(path.join(testDir, 'report.json'), JSON.stringify(report, null, 2));
     console.log(`Desktop checks passed: ${report.checks.length}.`);
-    app.exit(0);
+    // Catch Quit that leaves the app or its automatic usage runtime running.
+    await js("document.querySelector('header [data-settings]').click()");
+    await waitNative(() => settingsWin.isVisible());
+    void settingsJs("document.querySelector('#quit').click()").catch(() => { /* Quit can close the renderer before the click reply. */ });
   } catch (error) {
     try { await capture('failure.png'); } catch (captureError) { console.error('Screenshot failed:', errorMessage(captureError)); }
     console.error(error); app.exit(1);

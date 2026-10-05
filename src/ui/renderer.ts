@@ -77,7 +77,9 @@ function renderUsage(value: PanelPayload) {
     gauge.setAttribute('aria-label', `${label}: ${ready ? `${percentage}% remaining` : 'Unavailable'}`);
     gauge.setAttribute('aria-description', [source.scope, countdown(limit.resetsAt), source.message].filter(Boolean).join('. '));
     gauge.addEventListener('click', () => act({ type: 'expand' }));
-    $('.usage-reset', row).textContent = ready || limit.resetsAt ? countdown(limit.resetsAt) : source.message || 'Waiting for a new reading.';
+    const reset = $('.usage-reset', row);
+    reset.textContent = ready && limit.resetsAt ? countdown(limit.resetsAt) : '';
+    reset.hidden = !reset.textContent;
     fragment.append(row);
   }
   $('#usage').replaceChildren(fragment); $('#usage').hidden = !$('#usage').children.length;
@@ -268,7 +270,6 @@ for (const button of document.querySelectorAll<HTMLButtonElement>('[data-setting
 }
 $('#empty').addEventListener('click', () => { if (!snapshot?.preferences.expanded) act({ type: 'expand' }); });
 $('#hidden-sessions').addEventListener('click', () => act({ type: 'show-hidden' }));
-$('#hide').addEventListener('click', () => act({ type: 'hide' }));
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-sort]')) {
   button.addEventListener('click', () => {
     const order = button.dataset.sort;

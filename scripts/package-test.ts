@@ -54,7 +54,7 @@ async function main() {
   assert.ok(output.includes(`Version: ${source.version}.`));
   assert.match(output, /Update mode: idle\./);
   assert.match(output, /Usage windows: 0\./);
-  assert.deepEqual(await fs.readdir(env.CODEX_HOME), [], 'Default launch must not initialize Codex data.');
+  assert.deepEqual(await fs.readdir(env.CODEX_HOME), [], 'A missing runtime must not create Codex data.');
   console.log('Package check passed: compiled files, version, update feed, help, native app, and tray.');
   console.log(output);
 }
