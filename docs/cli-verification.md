@@ -55,7 +55,7 @@ A directory-only package lacked `app-update.yml`. The complete Windows package g
 - [Resume process](../evidence/cli-live/resume-process.json)
 - [Live account windows](../evidence/cli-live/account-usage.json)
 - [Final tests](../evidence/cli-tests-final.log)
-- [Package launch](../evidence/package-launch.log)
+- [Package launch](../evidence/cli-package-launch.log)
 
 ## Limits
 
