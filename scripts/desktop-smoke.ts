@@ -10,7 +10,7 @@ import * as path from 'node:path';
 import * as assert from 'node:assert/strict';
 import { screen, nativeTheme } from 'electron';
 import { checkThemes } from './theme-smoke.js';
-import { logLine, setStatus } from '../test/fixtures.js';
+import { logLine, setStatus, rolloutLine } from '../test/fixtures.js';
 
 async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, showPanel, testDir, preferences }: DesktopCheckOptions) {
   const errors: string[] = [];
@@ -34,7 +34,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       await new Promise(resolve => setTimeout(resolve, 30));
     }
   };
-  const js = (code: string) => win.webContents.executeJavaScript(code);
+  const js = (code: string) => win.webContents.executeJavaScript(code).catch(error => { throw Error(`Panel check failed: ${code}\n${errorMessage(error)}`); });
   const wait = async (condition: string) => {
     const deadline = Date.now() + 5000;
     while (!await js(condition)) { if (Date.now() > deadline) throw Error(`UI did not reach: ${condition}`); await new Promise(resolve => setTimeout(resolve, 30)); }
@@ -65,6 +65,31 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
   const data = { root: path.join(testDir, 'codex'), log: path.join(testDir, 'logs', ...new Date().toISOString().slice(0, 10).split('-'), 'desktop.log') };
   const id = '11111111-1111-4111-8111-111111111111';
   try {
+    const liveCliId = process.argv.find(arg => arg.startsWith('--live-cli='))?.slice('--live-cli='.length);
+    if (liveCliId) {
+      const expected = process.argv.find(arg => arg.startsWith('--live-cli-state='))?.slice('--live-cli-state='.length);
+      showPanel();
+      const key = JSON.stringify('codex-cli:' + liveCliId);
+      await wait(`window.sessionLights.read().then(value => value.sessions.some(session => session.key === ${key}${expected ? ' && session.state === ' + JSON.stringify(expected) : ''}))`);
+      await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
+      await wait("document.querySelector('#panel').classList.contains('expanded')");
+      const selected = `document.querySelector('[data-key="codex-cli:${liveCliId}"]')`;
+      await wait(`Boolean(${selected})`);
+      assert.match(await js(`${selected}.getAttribute('aria-description')`), /Codex CLI/);
+      const state = await js(`window.sessionLights.read().then(value => value.sessions.find(session => session.key === ${key}).state)`);
+      assert.equal(await js(`${selected}.querySelector('.dot').classList.contains(${JSON.stringify(state)})`), true);
+      assert.equal(await js("document.querySelectorAll('.usage-row').length"), 2);
+      await capture('live-cli.png');
+      await js("document.querySelector('header [data-settings]').click()");
+      await waitNative(() => settingsWin.isVisible());
+      await toggleAdapter('codex-cli'); await wait(`!${selected}`);
+      await toggleAdapter('codex-cli'); await wait(`Boolean(${selected})`);
+      await fs.writeFile(path.join(testDir, 'live-cli-settings.png'), (await settingsWin.webContents.capturePage()).toPNG());
+      await closeSettings();
+      assert.deepEqual(errors, []);
+      await fs.writeFile(path.join(testDir, 'live-cli-report.json'), JSON.stringify({ result: 'passed', sessionId: liveCliId, state, checks: ['live CLI record reaches the native light', 'one set of account gauges', 'CLI switch hides and restores its live session', 'no renderer errors'] }, null, 2));
+      console.log(`Live CLI panel checks passed: 4; state=${state}.`); app.quit(); return;
+    }
     if (process.argv.includes('--adapter-visibility-restart')) {
       showPanel();
       await wait("!document.querySelector('#adapters-hidden').hidden && document.querySelectorAll('.session, .usage-row').length === 0");
@@ -76,7 +101,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       win.webContents.sendInputEvent({ type: 'char', keyCode: 'Enter' });
       win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
       await waitNative(() => settingsWin.isVisible());
-      await waitSettings("document.querySelectorAll('input[role=switch]').length === 2 && [...document.querySelectorAll('input[role=switch]')].every(input => !input.checked)");
+      await waitSettings("document.querySelectorAll('input[role=switch]').length === 3 && [...document.querySelectorAll('input[role=switch]')].every(input => !input.checked)");
       await toggleAdapter('codex');
       await wait("document.querySelectorAll('.session').length === 2 && document.querySelector('#sessions').textContent.includes('Hidden Codex update')");
       assert.equal(await js(`document.querySelector('[data-key="codex:${id}"] .dot').classList.contains('error')`), true);
@@ -524,6 +549,8 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     assert.equal(await js("[...document.querySelectorAll('.project-heading')].at(-1).querySelector('.project-name').textContent"), 'No workspace');
     assert.equal(await js("['#usage', 'footer'].every(selector => document.querySelector(selector).getBoundingClientRect().bottom <= innerHeight + 0.5)"), true);
     await capture('project-groups.png');
+    // Hover events are ignored during a sort resize. Check the stable panel.
+    await wait('window.sessionLights.read().then(value => !value.motion)');
     const projectHover = await js("(() => { const box = document.querySelector('.project-heading').getBoundingClientRect(); return { x: Math.round(box.x + 10), y: Math.round(box.y + 12) }; })()");
     win.webContents.sendInputEvent({ type: 'mouseMove', ...projectHover, globalX: win.getBounds().x + projectHover.x, globalY: win.getBounds().y + projectHover.y });
     await waitTooltip("document.querySelector('#meta').textContent.includes('Codex') && document.querySelector('#meta').textContent.includes('Atlas')");
@@ -677,11 +704,34 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await clickControl('.restore-all');
     await wait("document.querySelectorAll('.session').length === 7 && document.querySelector('#hidden-sessions').hidden");
     report.checks.push('session hiding survives adapter hiding and hidden counts exclude hidden adapters');
+    // Catch missing CLI lights, duplicate usage, and a CLI switch that hides desktop sessions.
+    const cliId = '33333333-3333-4333-8333-333333333333';
+    const cliDb = new DatabaseSync(path.join(data.root, 'state_5.sqlite'));
+    const cliRollout = path.join(data.root, cliId + '.jsonl');
+    cliDb.prepare('INSERT INTO threads VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 0)').run(cliId, 'CLI panel check', testDir, 'cli', 'codex-tui', cliRollout, Math.floor(Date.now() / 1000));
+    cliDb.close();
+    await rolloutLine(data, cliId, Date.now(), 'event_msg', { type: 'task_started', turn_id: 'cli-ui' });
+    await refresh();
+    await wait("document.querySelectorAll('.session').length === 8 && document.querySelector('[data-key=\"codex-cli:" + cliId + "\"] .dot').classList.contains('working')");
+    assert.equal(await js("document.querySelectorAll('[data-provider=codex]').length"), 2);
+    await js("document.querySelector('header [data-settings]').click()");
+    await waitNative(() => settingsWin.isVisible());
+    await toggleAdapter('codex-cli');
+    await wait("document.querySelectorAll('.session').length === 7 && !document.querySelector('[data-key=\"codex-cli:" + cliId + "\"]')");
+    await rolloutLine(data, cliId, Date.now() + 1, 'event_msg', { type: 'task_complete', turn_id: 'cli-ui' });
+    await refresh(); await toggleAdapter('codex-cli');
+    await wait("Boolean(document.querySelector('[data-key=\"codex-cli:" + cliId + "\"] .dot.idle'))");
+    await fs.writeFile(path.join(testDir, 'cli-adapter-settings.png'), (await settingsWin.webContents.capturePage()).toPNG());
+    await closeSettings(); await capture('cli-sessions.png');
+    const archiveCli = new DatabaseSync(path.join(data.root, 'state_5.sqlite'));
+    archiveCli.prepare('UPDATE threads SET archived = 1 WHERE id = ?').run(cliId); archiveCli.close();
+    await refresh(); await wait("document.querySelectorAll('.session').length === 7");
+    report.checks.push('CLI sessions appear beside desktop sessions with one set of account limits', 'CLI switch hides only CLI sessions and restores their latest state', 'archived CLI sessions leave the panel');
     // Catch hidden sessions or gauges that remain visible, lost pins, stopped reads, and unsaved switches.
     await js("document.querySelector('header [data-settings]').click()");
     await waitNative(() => settingsWin.isVisible());
-    await waitSettings("document.querySelectorAll('input[role=switch]').length === 2 && [...document.querySelectorAll('input[role=switch]')].every(input => input.checked)");
-    assert.deepEqual(await settingsJs("[...document.querySelectorAll('.adapter-row')].map(row => row.textContent)"), ['Codex', 'Atlas']);
+    await waitSettings("document.querySelectorAll('input[role=switch]').length === 3 && [...document.querySelectorAll('input[role=switch]')].every(input => input.checked)");
+    assert.deepEqual(await settingsJs("[...document.querySelectorAll('.adapter-row')].map(row => row.textContent)"), ['Codex', 'Codex CLI', 'Atlas']);
     assert.equal(await settingsJs("[...document.querySelectorAll('.adapter-row, footer')].every(row => row.getBoundingClientRect().bottom <= innerHeight)"), true);
     await fs.writeFile(path.join(testDir, 'adapter-controls.png'), (await settingsWin.webContents.capturePage()).toPNG());
     await settingsJs("document.querySelector('#quit').focus()");
@@ -730,6 +780,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await toggleAdapter('codex');
     await wait("document.querySelectorAll('.session').length === 5");
     await toggleAdapter('atlas');
+    await toggleAdapter('codex-cli');
     await wait("!document.querySelector('#adapters-hidden').hidden && document.querySelectorAll('.session, .usage-row, .project-heading').length === 0");
     await closeSettings();
     assert.equal(await js("['#adapters-hidden', 'footer'].every(selector => { const box = document.querySelector(selector).getBoundingClientRect(); return box.height > 0 && box.bottom <= innerHeight; })"), true);

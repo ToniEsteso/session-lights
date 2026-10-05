@@ -49,6 +49,15 @@ The Codex adapter checks those values before using them.
 The settings and IPC parsers accept `unknown` and produce domain values.
 New providers must check their own external input before returning `SessionReading` or `UsageReading`.
 
+## Codex sources
+
+The desktop and CLI adapters share `CodexRecords` for read-only SQLite and session JSONL parsing.
+Desktop keeps the `codex` ID. CLI uses `codex-cli`. This preserves existing desktop pins and hidden-session keys.
+Desktop waiting signals come from notification logs. CLI waiting signals come from recorded input and permission tool calls, matched to their outputs by call ID. Unrecorded shell approvals remain a detection limit.
+Both adapters use the same Codex project namespace. Their session filters do not overlap.
+The desktop adapter owns account usage. `codex-runtime.ts` supplies runtime discovery for both usage reads and CLI resume. CLI resume prefers the packaged CLI over the standalone desktop binary.
+CLI opening checks the saved session and workspace, then starts an interactive terminal with the selected session ID.
+
 ## Compilation and packaging
 
 `tsconfig.base.json` enables strict checks, checked array access, exact optional properties, and unused code checks.

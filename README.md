@@ -1,12 +1,12 @@
 # Session Lights
 
 A small panel attached to the right edge of your screen. It stays above normal app windows.
-The first version reads local **Codex desktop** sessions on Windows and macOS.
+The panel reads local **Codex desktop and CLI** sessions on Windows and macOS. Each source has its own adapter switch.
 
 | Color | State | Meaning |
 | --- | --- | --- |
 | Green | Idle | The last turn finished or stopped. |
-| Yellow | Needs you | Codex recorded an approval or question notification. |
+| Yellow | Needs you | Codex recorded an approval notification or an unanswered input request. |
 | White or blue-gray | Working | The last recorded turn is in progress. |
 | Red | Failed | The last turn failed. |
 | Gray | Unknown | Data is missing, unsupported, or too old to confirm an active turn. |
@@ -44,10 +44,10 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 - Hover over a dot for a small detail card beside the panel. It shows the chat name, project, state, and age of the last recorded activity. It does not change the dot or take keyboard focus.
 - Click a dot to show session names. Press Escape or use the arrow in the expanded panel to collapse it.
 - The panel opens and closes with a short slide and fade. Its right edge stays fixed. The system's reduced-motion setting skips the animation.
-- Click a name in the expanded panel to open the chat in Codex.
+- Click a name in the expanded panel to open a desktop chat or resume a CLI session.
 - Pin a session with the bookmark icon. A filled yellow bookmark marks a pinned session. Bookmarked sessions stay in a separate section at the top in both sort modes. Pins survive app restarts.
 - All adapters appear by default. In Settings, use the Adapters switches to hide or show an adapter and its sessions and usage. Changes apply at once and stay saved after a restart. Hidden adapters continue monitoring; their session data and pins stay intact. If all adapters are hidden, use Open Settings in the panel to show one again.
-- All saved, unarchived desktop sessions from visible adapters appear unless you hide them.
+- All saved, unarchived desktop and CLI sessions from visible adapters appear unless you hide them.
 - Each row shows its project, provider, and state below the chat title. Codex uses its saved project name when a session maps to one. Otherwise, the row uses its workspace folder or `No workspace`. Projects without saved sessions do not appear. Long project names are shortened to fit. Hover over a project group heading for the full path or project ID.
 - The right side of each expanded row shows the age of its last recorded activity, such as `just now`, `5m ago`, or `2h ago`. The age updates while the panel is open. A dash means the activity time is unavailable.
 - Use the two buttons at the top to sort by latest activity or project. The selected button has an underline. The choice is saved and also sets compact light order. Project headings appear only in the expanded list.
@@ -76,28 +76,43 @@ The reader does not request chats, model responses, or reset credits. Codex runt
 On Windows, it finds the installed desktop runtime or a native/npm Codex CLI on PATH.
 On macOS, it tries the Codex app bundle, PATH, and common Homebrew/CLI paths. These Mac paths remain unverified here.
 If discovery fails, set `SESSION_LIGHTS_CODEX_BINARY` to the absolute path of an existing native Codex executable before starting the panel.
+The runtime override affects account usage reads. CLI resume discovers its own installed CLI.
 No Codex package is bundled with this app. A working Codex runtime and ChatGPT sign-in are required for live limits.
 
 ## Data source and limits
 
-The adapter reads `state_*.sqlite`, `thread_history_*.sqlite`, and session JSONL records under `CODEX_HOME`, or `~/.codex`.
-It reads desktop notification logs from `%LOCALAPPDATA%/Codex/Logs` on Windows and `~/Library/Logs/com.openai.codex` on macOS.
-It checks for changes every two seconds. It excludes archived chats, CLI chats, IDE chats, and internal subagents.
+Both adapters read `state_*.sqlite`, `thread_history_*.sqlite`, and session JSONL records under `CODEX_HOME`, or `~/.codex`.
+The desktop adapter reads notification logs from `%LOCALAPPDATA%/Codex/Logs` on Windows and `~/Library/Logs/com.openai.codex` on macOS.
+It checks for changes every two seconds. The desktop adapter excludes CLI chats, IDE chats, and internal subagents. The CLI adapter reads only records with the `cli` source. Both exclude archived sessions.
 
 These local file formats are not a supported monitoring API. They can change after a Codex update.
 This app shows the **last recorded state**, not a direct connection to Codex's running process.
 A turn with no activity for 15 minutes becomes gray. It can still be working.
-Yellow requires a desktop notification log entry. A prompt may not create that entry while Codex has focus or when notifications are disabled.
-New user input clears a question. Tool output clears an approval. A finished turn clears both.
+For desktop sessions, yellow requires a desktop notification log entry. A prompt may not create that entry while Codex has focus or when notifications are disabled.
+For desktop sessions, new user input clears a question. Tool output clears an approval. A finished turn clears both.
+The CLI adapter detects recorded `request_user_input` and `request_permissions` calls. Their matching tool output clears the waiting light. Background tool output does not clear it. A new turn or a finished turn clears pending requests.
+The CLI does not record every shell or file approval prompt in its session history. Those prompts cannot produce a reliable yellow light.
 Only local sessions with local records are supported. Remote/cloud sessions are not included.
-The adapter reads the last 512 KiB of each record or log file. Older pending notifications outside that range can be missed.
+The adapter reads the last 512 KiB of each record or log file. Older pending notifications or input requests outside that range can be missed.
 If the turn history database cannot be read, the adapter uses session records and reports the limit in its status tooltip. Conflicting records show Unknown until the current turn can be confirmed. Invalid timestamp rows are skipped without hiding healthy chats.
 macOS window behavior and its default log path need validation on a Mac. Windows native tests are included.
 
 Codex documents runtime states in its [app-server protocol](https://learn.chatgpt.com/docs/app-server).
 Chat links use the [documented desktop link format](https://learn.chatgpt.com/docs/reference/commands).
+Click a CLI session in the expanded panel to start `codex resume <session-id>` in a new terminal at its saved workspace. On Windows, the launcher prefers a packaged native or npm CLI on PATH. The desktop app's standalone runtime does not have the CLI package needed for its daemon. On macOS, the launcher uses Terminal. A missing CLI or workspace produces an error in the panel.
+Account limits remain under the Codex adapter and cover both desktop and CLI use. The CLI adapter does not start a second usage reader. Hiding the Codex adapter also hides its account gauges.
+
 Starting a separate app-server does not give this panel the desktop app's live runtime state.
 The local session reader opens Codex records read-only. The optional usage process has the separate side effects described above.
+
+To check the installed CLI and its local records, run:
+
+```sh
+npm run build
+node --experimental-sqlite build/scripts/cli-check.js
+```
+
+Add `--id=<session-id> --expect=idle` to check a known session. Add `--open` to test terminal resume. Add `--panel` to check its light and adapter switch in a separate native test profile. Add `--root=<Codex home>` when testing records outside the default Codex home.
 
 ## Extend
 

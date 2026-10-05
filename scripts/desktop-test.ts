@@ -11,6 +11,8 @@ async function main() {
   const data = await fixture(dir);
   // Older settings must not hide old chats after the filter control is removed.
   const db = new DatabaseSync(path.join(data.root, 'state_5.sqlite'));
+  // The legacy CLI placeholder has no rollout. The smoke check adds a real CLI fixture below.
+  db.prepare('UPDATE threads SET archived = 1 WHERE id = ?').run('cli');
   db.prepare('UPDATE threads SET updated_at = ? WHERE id = ?').run(Math.floor((Date.now() - 2 * 86_400_000) / 1000), data.ids[1]);
   db.close();
   await fs.mkdir(path.join(dir, 'profile'), { recursive: true });
