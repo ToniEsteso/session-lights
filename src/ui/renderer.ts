@@ -16,7 +16,7 @@ let effects: Animation[] = [];
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let tooltipTimer: ReturnType<typeof setTimeout> | undefined;
 let tooltipElement: HTMLElement | undefined;
-const tooltipSelector = '.session-button, .usage-row, .project-heading, #empty';
+const tooltipSelector = '.session-button, .usage-row, .project-heading, #empty, #empty-settings';
 
 function hideTooltip() {
   clearTimeout(tooltipTimer); tooltipTimer = undefined; tooltipElement = undefined;
@@ -143,7 +143,8 @@ function renderNow(value: PanelPayload) {
   $('#expand').setAttribute('aria-expanded', String(expanded));
   $('#expand').setAttribute('aria-label', expanded ? 'Hide session names' : 'Show session names');
   $('#expand').title = expanded ? 'Hide session names' : 'Show session names';
-  $('#empty').hidden = value.sessions.length > 0 || value.showHidden;
+  const allHidden = value.sources.length === 0;
+  $('#empty').hidden = value.sessions.length > 0 || value.showHidden || allHidden;
   $('#empty .wide').textContent = value.hiddenSessions.length ? 'All sessions are hidden.' : 'No local sessions.';
   $('#empty').setAttribute('aria-label', value.hiddenSessions.length ? 'All sessions are hidden. Show session list.' : 'No sessions. Show session list.');
   const hiddenToggle = $('#hidden-sessions');
@@ -151,6 +152,7 @@ function renderNow(value: PanelPayload) {
   hiddenToggle.textContent = `${value.hiddenSessions.length} ${value.hiddenSessions.length === 1 ? 'session' : 'sessions'} hidden`;
   hiddenToggle.setAttribute('aria-expanded', String(value.showHidden));
   hiddenToggle.title = value.showHidden ? 'Close hidden sessions' : 'Show hidden sessions';
+  $('#adapters-hidden').hidden = !allHidden;
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-sort]')) {
     button.setAttribute('aria-pressed', String(button.dataset.sort === (value.preferences.sortOrder || 'activity')));
   }
@@ -259,6 +261,7 @@ function renderNow(value: PanelPayload) {
     }
   }
 }
+$('#empty-settings').addEventListener('click', () => act({ type: 'settings', y: $('#empty-settings').getBoundingClientRect().top }));
 $('#expand').addEventListener('click', () => act({ type: 'expand' }));
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-settings]')) {
   button.addEventListener('click', () => act({ type: 'settings', y: button.getBoundingClientRect().top }));

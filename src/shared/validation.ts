@@ -35,6 +35,9 @@ export function parseAction(value: unknown): PanelAction | undefined {
 export function parseSettingsAction(value: unknown): SettingsAction | undefined {
   if (!isRecord(value)) return;
   switch (value.type) {
+    case 'adapter':
+      if (typeof value.id === 'string' && typeof value.visible === 'boolean') return { type: 'adapter', id: value.id, visible: value.visible };
+      return;
     case 'update':
       if (value.command === 'check' || value.command === 'download' || value.command === 'install') return { type: 'update', command: value.command };
       return;

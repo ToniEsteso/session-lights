@@ -1,7 +1,7 @@
 :root { color-scheme: dark; font: 12px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #e9eceb; }
 * { box-sizing: border-box; }
 body { margin: 0; background: transparent; overflow: hidden; }
-main { height: 100vh; padding: 8px; border: 1px solid #ffffff20; border-radius: 10px; background: #181b20; }
+main { height: calc(100vh / var(--text-scale, 1)); zoom: var(--text-scale, 1); overflow-y: auto; padding: 8px; border: 1px solid #ffffff20; border-radius: 10px; background: #181b20; }
 button { font: inherit; color: inherit; cursor: pointer; border: 0; background: transparent; border-radius: 5px; }
 button:hover { background: #ffffff0b; }
 button:focus-visible { outline: 2px solid #ffd45e; outline-offset: -2px; }
@@ -16,3 +16,13 @@ footer { display: flex; align-items: center; justify-content: space-between; mar
 progress { display: block; width: calc(100% - 16px); height: 2px; margin: 0 8px; accent-color: #ffd45e; }
 [hidden] { display: none !important; }
 #error { color: #ff807c; font-size: 11px; margin: 4px 8px 0; }
+fieldset { min-width: 0; margin: 6px 0; padding: 8px; border: 0; border-top: 1px solid #ffffff0c; }
+legend { padding: 0 4px; font-weight: 600; }
+#adapter-help { margin: 0 0 6px; color: #9aa6b2; font-size: 11px; }
+.adapter-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; cursor: pointer; }
+.adapter-row span { overflow-wrap: anywhere; }
+.adapter-row input { appearance: none; position: relative; flex-shrink: 0; width: 30px; height: 18px; margin: 0; border: 1px solid #677580; border-radius: 10px; background: #30363d; cursor: pointer; }
+.adapter-row input::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #b8c1c9; }
+.adapter-row input:checked { border-color: #8cce6b; background: #8cce6b; }
+.adapter-row input:checked::after { left: 14px; background: #181b20; }
+.adapter-row input:focus-visible { outline: 2px solid #ffd45e; outline-offset: 3px; }

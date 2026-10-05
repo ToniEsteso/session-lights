@@ -113,3 +113,9 @@ footer { display: flex; align-items: center; justify-content: center; min-height
 .hidden-toggle { padding: 5px 6px; border-radius: 6px; font-size: 10px; color: #aeb9c2; }
 .hidden-toggle[aria-expanded='true'] { color: #e9eceb; background: #ffffff0d; }
 .expanded #expand { margin-left: auto; }
+#adapters-hidden { flex-shrink: 0; margin: 7px 5px; color: #9aa6ad; font-size: 11px; }
+#adapters-hidden p { margin: 4px 0; }
+#adapters-hidden .hidden-detail { font-size: 10px; color: #7f8b96; }
+#empty-settings { display: flex; align-items: center; padding: 7px 0; }
+.expanded #empty-settings { color: #ffd45e; text-decoration: underline; text-underline-offset: 3px; }
+.panel:not(.expanded) #adapters-hidden { margin: 0; }

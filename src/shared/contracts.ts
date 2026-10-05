@@ -65,6 +65,7 @@ export interface PanelPreferences {
   showAll: boolean;
   pinned: string[];
   hidden: string[];
+  hiddenAdapters: string[];
   displayId: number | null;
   y: number | null;
   sortOrder: SortOrder;
@@ -116,8 +117,14 @@ export interface SessionLightsBridge {
   tooltip(value: TooltipTarget | null): void;
   subscribe(callback: (value: PanelPayload) => void): () => void;
 }
-export interface SettingsPayload { version: string; update: UpdateState }
+export interface SettingsPayload {
+  version: string;
+  update: UpdateState;
+  adapters: { id: string; name: string; visible: boolean }[];
+  textScale: number;
+}
 export type SettingsAction =
+  | { type: 'adapter'; id: string; visible: boolean }
   | { type: 'update'; command: UpdateCommand }
   | { type: 'close' | 'quit' };
 export interface SettingsBridge {

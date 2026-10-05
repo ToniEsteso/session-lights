@@ -80,7 +80,7 @@ function visibleSessions(sessions: Session[], preferences: PanelPreferences, now
   const pinned = new Set(preferences.pinned || []);
   const hidden = new Set(preferences.hidden);
   const activity = (a: Session, b: Session) => (Number.isFinite(b.updatedAt) ? b.updatedAt : 0) - (Number.isFinite(a.updatedAt) ? a.updatedAt : 0);
-  return sessions.filter(s => !hidden.has(s.key) && (preferences.showAll || pinned.has(s.key) || s.updatedAt >= now - DAY)).sort((a, b) => {
+  return sessions.filter(s => !hidden.has(s.key) && !preferences.hiddenAdapters.includes(s.providerId) && (preferences.showAll || pinned.has(s.key) || s.updatedAt >= now - DAY)).sort((a, b) => {
     const pins = Number(pinned.has(b.key)) - Number(pinned.has(a.key));
     if (pins) return pins;
     if (pinned.has(a.key)) return activity(a, b) || a.key.localeCompare(b.key);

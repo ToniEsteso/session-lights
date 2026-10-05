@@ -62,12 +62,15 @@ async function refreshTextScale(force = false) {
 function payload(): PanelPayload {
   const hidden = new Set(preferences.value.hidden);
   const hiddenSessions = visibleSessions(snapshot.sessions.filter(session => hidden.has(session.key)), { ...preferences.value, showAll: true, hidden: [] });
-  // Ignore the old recent filter. Only explicit hiding removes a session.
-  return { ...snapshot, sessions: visibleSessions(snapshot.sessions, { ...preferences.value, showAll: true }),
+  // Ignore the old recent filter. Explicit session and adapter hiding still apply.
+  const sessions = visibleSessions(snapshot.sessions, { ...preferences.value, showAll: true });
+  const sources = snapshot.sources.filter(source => !preferences.value.hiddenAdapters.includes(source.id));
+  const visibleUsage = usage.filter(source => !preferences.value.hiddenAdapters.includes(source.providerId));
+  return { sources, sessions,
     update: updates.state,
     hiddenSessions,
     showHidden: preferences.value.expanded && showHidden && hiddenSessions.length > 0,
-    total: snapshot.sessions.length, preferences: preferences.value, usage, demo,
+    total: sessions.length, preferences: preferences.value, usage: visibleUsage, demo,
     motion: panelResize, compactInset: compactWidth - 26, textScale: systemTextScale };
 }
 function notify() {
@@ -75,12 +78,17 @@ function notify() {
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('settings:update', settingsPayload());
   updateTooltip();
 }
-function settingsPayload(): SettingsPayload { return { version: app.getVersion(), update: updates.state }; }
+function settingsPayload(): SettingsPayload {
+  return { version: app.getVersion(), update: updates.state, textScale: systemTextScale,
+    adapters: monitor.adapters.map(adapter => ({ id: adapter.id, name: adapter.name,
+      visible: !preferences.value.hiddenAdapters.includes(adapter.id) })) };
+}
 function showSettings(y = 0) {
   hideTooltip();
   const bounds = win.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
-  const width = Math.min(236, area.width - 16), height = Math.min(96, area.height - 16);
+  const width = Math.round(Math.min(236 * systemTextScale, area.width - 16));
+  const height = Math.round(Math.min((184 + monitor.adapters.length * 32) * systemTextScale, area.height - 16));
   settingsWin.setBounds({ width, height,
     x: Math.round(Math.max(area.x + 8, bounds.x - width - 8)),
     y: Math.round(Math.max(area.y + 8, Math.min(bounds.y + y, area.y + area.height - height - 8))) });
@@ -104,24 +112,27 @@ function updateTrayMenu() {
 }
 function hideTooltip() { tooltipTarget = undefined; tooltipWin?.hide(); }
 function tooltipData(target: TooltipTarget | undefined): TooltipData | undefined {
+  const view = payload();
   if (target?.kind === 'session') {
-    const session = snapshot.sessions.find(session => session.key === target.key);
+    const session = [...view.sessions, ...(view.showHidden ? view.hiddenSessions : [])].find(session => session.key === target.key);
     return session && { kind: 'session', ...session };
   }
   if (target?.kind === 'usage') {
-    const source = usage.find(source => source.providerId === target.providerId);
+    const source = view.usage.find(source => source.providerId === target.providerId);
     const limit = source?.windows.find(limit => limit.id === target.id);
     return source && limit && { kind: 'usage', ...limit, provider: source.provider, scope: source.scope,
       message: source.message, updatedAt: source.updatedAt };
   }
   if (target?.kind === 'project') {
-    const sessions = snapshot.sessions.filter(session => session.projectKey === target.key);
+    const sessions = view.sessions.filter(session => session.projectKey === target.key);
     const first = sessions[0];
     if (first) return { kind: 'health', title: first.projectGroup,
       meta: [...new Set(sessions.map(session => session.provider))].join(' · '),
       detail: first.workspace || (first.projectId ? `Project ID: ${first.projectId}` : 'No working path was supplied.') };
   }
-  if (target?.kind === 'empty') return { kind: 'health', title: 'No local sessions', detail: snapshot.sources.map(source => source.health).join(' ') };
+  if (target?.kind === 'empty') return view.sources.length ?
+    { kind: 'health', title: 'No local sessions', detail: view.sources.map(source => source.health).join(' ') } :
+    { kind: 'health', title: 'All adapters are hidden', detail: 'Open Settings to show an adapter. Monitoring continues.' };
 }
 function updateTooltip() {
   if (!tooltipTarget || !tooltipWin || tooltipWin.isDestroyed()) return;
@@ -150,13 +161,14 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const area = display.workArea;
   const scale = preferences.value.expanded ? systemTextScale : 1;
   const width = preferences.value.expanded ? Math.round(Math.min(328 * scale, area.width)) : compactWidth;
-  const value = payload();
-  const sessions = value.showHidden ? [...value.sessions, ...value.hiddenSessions] : value.sessions;
+  const view = payload();
+  const sessions = view.showHidden ? [...view.sessions, ...view.hiddenSessions] : view.sessions;
   const rows = Math.max(1, Math.min(sessions.length, 14));
-  const groupHeight = preferences.value.expanded ? sessionSections(value).filter(section => section.title).length * 24 : 0;
-  const limits = usage.reduce((sum, source) => sum + source.windows.length, 0);
+  const groupHeight = preferences.value.expanded ? sessionSections(view).filter(section => section.title).length * 24 : 0;
+  const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
   const overhead = preferences.value.expanded ? 104 : limits ? 62 : 51;
-  const height = Math.round(Math.min(area.height - 24, scale * Math.max(preferences.value.expanded ? 128 : 41,
+  const minimum = preferences.value.expanded ? (view.sources.length ? 128 : 184) : 41;
+  const height = Math.round(Math.min(area.height - 24, scale * Math.max(minimum,
     rows * (preferences.value.expanded ? 40 : 24) + groupHeight + overhead + limits * (preferences.value.expanded ? 36 : 24))));
   const y = Math.round(Math.max(area.y + 12, Math.min(panelDrag?.y ?? preferences.value.y ?? area.y + (area.height - height) / 2, area.y + area.height - height - 12)));
   const bounds = { x: display.bounds.x + display.bounds.width - width, y, width, height };
@@ -309,11 +321,18 @@ async function main() {
     if (event.sender !== settingsWin.webContents || event.senderFrame !== settingsWin.webContents.mainFrame) throw Error('Unknown sender.');
   };
   ipcMain.handle('settings:read', event => { checkSettingsSender(event); return settingsPayload(); });
-  ipcMain.handle('settings:action', async (event, input: unknown) => {
+  const settingsAction = async (event: IpcMainInvokeEvent, input: unknown) => {
     checkSettingsSender(event);
     const value = parseSettingsAction(input);
     if (!value) return;
     switch (value.type) {
+      case 'adapter': {
+        if (!monitor.adapters.some(adapter => adapter.id === value.id)) return;
+        const hiddenAdapters = preferences.value.hiddenAdapters.filter(id => id !== value.id);
+        if (!value.visible) hiddenAdapters.push(value.id);
+        await preferences.save({ ...preferences.value, hiddenAdapters });
+        hideTooltip(); stopResize(); positionPanel(); notify(); return;
+      }
       case 'close': settingsWin.hide(); return;
       case 'quit': app.quit(); return;
       case 'update':
@@ -321,6 +340,11 @@ async function main() {
         void updates.run(value.command); return;
       default: { const exhaustive: never = value; return exhaustive; }
     }
+  };
+  ipcMain.handle('settings:action', (event, input: unknown) => {
+    const result = actionQueue.then(() => settingsAction(event, input));
+    actionQueue = result.catch(() => {});
+    return result;
   });
   await settingsWin.loadFile(path.join(__dirname, 'ui', 'settings.html'));
   await refresh();

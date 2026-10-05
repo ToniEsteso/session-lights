@@ -19,6 +19,11 @@
     </header>
     <div id="sessions" role="list" aria-label="Sessions"></div>
     <button id="empty" aria-label="No sessions. Show session list." hidden><span class="empty-dot" aria-hidden="true"></span><span class="wide">No local sessions.</span></button>
+    <section id="adapters-hidden" aria-label="All adapters are hidden" hidden>
+      <p class="wide">All adapters are hidden.</p>
+      <p class="wide hidden-detail">Monitoring continues.</p>
+      <button id="empty-settings" aria-label="All adapters are hidden. Open Settings." aria-haspopup="dialog"><span class="compact empty-dot" aria-hidden="true"></span><span class="wide">Open Settings</span></button>
+    </section>
     <section id="usage" aria-label="Usage limits" hidden></section>
     <template id="usage-template">
       <div class="usage-row">
