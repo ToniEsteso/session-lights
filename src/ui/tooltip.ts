@@ -1,5 +1,4 @@
 import type { TooltipData } from '../shared/contracts.js';
-import { STATES } from '../shared/contracts.js';
 import { panelText } from './text.js';
 import { element as $ } from './dom.js';
 let current: TooltipData | undefined;
@@ -13,7 +12,7 @@ function render(value: TooltipData) {
     $('#status').textContent = text.labels[value.state];
     $('#detail').textContent = value.detail;
     $('#time').textContent = `Last recorded activity: ${text.age(value.updatedAt)}`;
-    $('#card').style.setProperty('--accent', STATES[value.state].color);
+    $('#card').style.setProperty('--accent', `var(--status-${value.state})`);
   } else if (value.kind === 'usage') {
     const available = text.available(value);
     $('#meta').textContent = [value.provider, value.scope].filter(Boolean).join(' · ');
@@ -23,11 +22,11 @@ function render(value: TooltipData) {
     $('#time').textContent = [typeof value.resetsAt === 'number' && Number.isFinite(value.resetsAt) && `Reset: ${new Date(value.resetsAt * 1000).toLocaleString()}`,
       value.updatedAt && `Read ${text.age(value.updatedAt)}`].filter(Boolean).join(' · ');
     $('#meter span').style.width = `${available ? value.remainingPercent : 0}%`;
-    $('#card').style.setProperty('--accent', !available ? '#8a9099' : value.remainingPercent <= 5 ? '#ff807c' : value.remainingPercent <= 20 ? '#ffd45e' : '#8cce6b');
+    $('#card').style.setProperty('--accent', !available ? 'var(--status-unknown)' : value.remainingPercent <= 5 ? 'var(--status-error)' : value.remainingPercent <= 20 ? 'var(--status-waiting)' : 'var(--status-idle)');
   } else {
     $('#meta').textContent = value.meta || 'Sources'; $('#title').textContent = value.title;
     $('#status').textContent = ''; $('#detail').textContent = value.detail; $('#time').textContent = '';
-    $('#card').style.setProperty('--accent', '#8a9099');
+    $('#card').style.setProperty('--accent', 'var(--status-unknown)');
   }
 }
 window.tooltip.subscribe(value => {

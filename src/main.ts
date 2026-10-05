@@ -1,7 +1,7 @@
 import type { IpcMainEvent, IpcMainInvokeEvent, Rectangle } from 'electron';
 import type { MonitorSnapshot, ProviderUsage, PanelMotion, PanelPayload, TooltipTarget, TooltipData, SettingsPayload } from './shared/contracts.js';
 import { parseAction, parseTooltipTarget, parseSettingsAction, errorMessage } from './shared/validation.js';
-import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, nativeTheme } from 'electron';
 import * as path from 'node:path';
 import { SessionMonitor, visibleSessions } from './core.js';
 import { createAdapters } from './adapters/index.js';
@@ -69,12 +69,12 @@ function notify() {
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('settings:update', settingsPayload());
   updateTooltip();
 }
-function settingsPayload(): SettingsPayload { return { version: app.getVersion(), update: updates.state }; }
+function settingsPayload(): SettingsPayload { return { version: app.getVersion(), update: updates.state, theme: preferences.value.theme }; }
 function showSettings(y = 0) {
   hideTooltip();
   const bounds = win.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
-  const width = Math.min(236, area.width - 16), height = Math.min(96, area.height - 16);
+  const width = Math.min(236, area.width - 16), height = Math.min(194, area.height - 16);
   settingsWin.setBounds({ width, height,
     x: Math.round(Math.max(area.x + 8, bounds.x - width - 8)),
     y: Math.round(Math.max(area.y + 8, Math.min(bounds.y + y, area.y + area.height - height - 8))) });
@@ -251,6 +251,8 @@ async function main() {
   });
   preferences = new Preferences(path.join(app.getPath('userData'), 'preferences.json'));
   await preferences.load();
+  // Set Chromium and native menus before any window can paint.
+  nativeTheme.themeSource = preferences.value.theme;
   await refreshTextScale(true);
   monitor = new SessionMonitor(await createAdapters({ demo, testDir }));
   usage = monitor.usageSnapshot();
@@ -279,7 +281,7 @@ async function main() {
     return result;
   });
   ipcMain.on('panel:tooltip', showTooltip);
-  settingsWin = new BrowserWindow({ width: 236, height: 96, show: false, frame: false, transparent: true,
+  settingsWin = new BrowserWindow({ width: 236, height: 194, show: false, frame: false, transparent: true,
     resizable: false, maximizable: false, minimizable: false, skipTaskbar: true, alwaysOnTop: true,
     webPreferences: { preload: path.join(__dirname, 'settings-preload.js'), nodeIntegration: false,
       contextIsolation: true, sandbox: true } });
@@ -292,11 +294,20 @@ async function main() {
     if (event.sender !== settingsWin.webContents || event.senderFrame !== settingsWin.webContents.mainFrame) throw Error('Unknown sender.');
   };
   ipcMain.handle('settings:read', event => { checkSettingsSender(event); return settingsPayload(); });
-  ipcMain.handle('settings:action', async (event, input: unknown) => {
+  ipcMain.handle('settings:action', (event, input: unknown) => {
+    const result = actionQueue.then(() => settingsAction(event, input));
+    actionQueue = result.catch(() => {});
+    return result;
+  });
+  async function settingsAction(event: IpcMainInvokeEvent, input: unknown) {
     checkSettingsSender(event);
     const value = parseSettingsAction(input);
     if (!value) return;
     switch (value.type) {
+      case 'theme':
+        await preferences.save({ ...preferences.value, theme: value.theme });
+        nativeTheme.themeSource = value.theme;
+        notify(); return;
       case 'close': settingsWin.hide(); return;
       case 'quit': app.quit(); return;
       case 'update':
@@ -304,7 +315,7 @@ async function main() {
         void updates.run(value.command); return;
       default: { const exhaustive: never = value; return exhaustive; }
     }
-  });
+  }
   await settingsWin.loadFile(path.join(__dirname, 'ui', 'settings.html'));
   await refresh();
   tooltipWin = new BrowserWindow({ width: 280, height: 188, show: false, frame: false, transparent: true,
@@ -319,6 +330,21 @@ async function main() {
   await win.loadFile(path.join(__dirname, 'ui', 'index.html'));
   if (testDir) {
     await refreshUsage();
+    const startupTheme = process.argv.find(arg => arg.startsWith('--theme-startup='))?.slice('--theme-startup='.length);
+    if (startupTheme === 'light' || startupTheme === 'dark' || startupTheme === 'system') {
+      const { checkThemeStartup } = await import('../scripts/theme-smoke.js');
+      await checkThemeStartup({ win, settingsWin, tooltipWin, testDir, refresh }, startupTheme);
+      app.exit(0); return;
+    }
+    if (process.argv.includes('--theme-only')) {
+      const { checkThemes } = await import('../scripts/theme-smoke.js');
+      showPanel();
+      const checks = await checkThemes({ win, settingsWin, tooltipWin, testDir, refresh });
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(path.join(testDir, 'theme-report.json'), JSON.stringify({ checks }, null, 2));
+      console.log(`Theme checks passed: ${checks.length}.`);
+      app.exit(0); return;
+    }
     const { run } = await import('../scripts/desktop-smoke.js');
     return run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, showPanel, testDir, preferences });
   }

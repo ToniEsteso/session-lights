@@ -21,18 +21,25 @@ async function main() {
     secondary: { usedPercent: 16, windowDurationMins: 10080, resetsAt: Math.floor(Date.now() / 1000) + 345600 }
   } } } }));
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-  const child = spawn(electronBinary(), [path.join(__dirname, '..', '..'), `--desktop-test=${dir}`],
-    { windowsHide: true, env, stdio: ['ignore', 'pipe', 'pipe'] });
-  let output = '';
-  child.stdout.on('data', chunk => { output += chunk; });
-  child.stderr.on('data', chunk => { output += chunk; });
-  const timeout = setTimeout(() => { child.kill(); }, 30_000);
-  child.on('error', error => { console.error(error); process.exitCode = 1; clearTimeout(timeout); });
-  child.on('exit', async code => {
-    clearTimeout(timeout);
-    await fs.writeFile(path.join(dir, 'process.log'), output);
-    console.log(output); console.log(`Evidence: ${dir}`);
-    process.exitCode = code === 0 ? 0 : 1;
+  const launch = (args: string[], name: string) => new Promise<void>((resolve, reject) => {
+    const child = spawn(electronBinary(), [path.join(__dirname, '..', '..'), `--desktop-test=${dir}`, ...args],
+      { windowsHide: true, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let output = '';
+    child.stdout.on('data', chunk => { output += chunk; });
+    child.stderr.on('data', chunk => { output += chunk; });
+    const timeout = setTimeout(() => { child.kill(); }, 120_000);
+    child.on('error', error => { clearTimeout(timeout); reject(error); });
+    child.on('exit', code => {
+      clearTimeout(timeout);
+      fs.writeFile(path.join(dir, name), output).then(() => {
+        console.log(output); console.log(`Evidence: ${dir}`);
+        if (code === 0) resolve(); else reject(Error(`Desktop check exited with code ${code}.`));
+      }).catch(reject);
+    });
   });
+  await launch(process.argv.slice(2), 'process.log');
+  if (process.argv.includes('--theme-only')) {
+    for (const theme of ['dark', 'light', 'system']) await launch([`--theme-startup=${theme}`], `restart-${theme}.log`);
+  }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

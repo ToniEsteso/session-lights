@@ -60,7 +60,9 @@ export interface SessionAdapter {
   open?(id: string, openExternal: OpenExternal): Promise<void>;
   close?(): void;
 }
+export type ThemeChoice = 'system' | 'light' | 'dark';
 export interface PanelPreferences {
+  theme: ThemeChoice;
   expanded: boolean;
   showAll: boolean;
   pinned: string[];
@@ -109,8 +111,9 @@ export interface SessionLightsBridge {
   tooltip(value: TooltipTarget | null): void;
   subscribe(callback: (value: PanelPayload) => void): () => void;
 }
-export interface SettingsPayload { version: string; update: UpdateState }
+export interface SettingsPayload { version: string; update: UpdateState; theme: ThemeChoice }
 export type SettingsAction =
+  | { type: 'theme'; theme: ThemeChoice }
   | { type: 'update'; command: UpdateCommand }
   | { type: 'close' | 'quit' };
 export interface SettingsBridge {

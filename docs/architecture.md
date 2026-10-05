@@ -13,7 +13,7 @@ Its optional capabilities are `readUsage()`, `open()`, and `close()`.
 `UsageDefinition` declares scope and known window labels. `UsageReading` contains the current values and reading time.
 A provider can return any usage window ID. The monitor joins definitions and readings by that ID.
 
-`SessionState` derives from `STATES`. State labels and colors therefore have one owner.
+`SessionState` derives from `STATES`. State labels have one owner. `src/ui/theme.css` supplies shared color variables for each theme.
 `PanelAction` and `TooltipTarget` are discriminated unions.
 The main process checks each action variant. An added action produces a compiler error until the handler covers it.
 All three preload bridges use the same types as the renderers.
@@ -82,6 +82,8 @@ The local UI configuration also gives editors the browser project when they open
 `npm test` builds and runs the real SQLite and child-process tests.
 `npm run audit:migration` verifies source coverage and the generated browser and preload boundaries.
 `npm run test:desktop` runs the native Electron app with isolated files and records its checks and screenshots.
+Use `node --experimental-sqlite build/scripts/desktop-test.js --theme-only` after a build for the focused theme checks and cold restarts.
+Add `--verify-system-theme` on Windows to check real operating system theme changes. This optional check restores the original theme setting.
 `npm run test:package -- <folder>` compares packaged files with build output and checks a native launch.
 The package launch check uses isolated files and verifies the installed version, update setup, and native window.
 

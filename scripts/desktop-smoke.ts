@@ -8,7 +8,8 @@ interface DesktopCheckOptions { app: App; win: BrowserWindow; tooltipWin: Browse
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as assert from 'node:assert/strict';
-import { screen } from 'electron';
+import { screen, nativeTheme } from 'electron';
+import { checkThemes } from './theme-smoke.js';
 import { logLine, setStatus } from '../test/fixtures.js';
 
 async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, showPanel, testDir, preferences }: DesktopCheckOptions) {
@@ -47,6 +48,8 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
   try {
     win.webContents.debugger.attach('1.3');
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+    // Legacy color assertions check the dark palette. Theme checks cover both.
+    nativeTheme.themeSource = 'dark';
     showPanel();
     await wait("document.visibilityState === 'visible'");
     await wait("document.querySelectorAll('.session').length === 2");
@@ -512,14 +515,14 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       await fs.writeFile(path.join(testDir, 'system-text-percent.json'), String(percent));
       await refresh();
       await wait(`window.sessionLights.read().then(value => value.textScale === ${scale})`);
-      assert.equal(win.getBounds().width, Math.round(328 * scale)); checkScreenEdge();
+      assert.ok(Math.abs(win.getBounds().width - Math.round(328 * scale)) <= 1, 'Panel width exceeds native DPI rounding tolerance.'); checkScreenEdge();
       assert.ok(Math.abs(await js("document.querySelector('.session').getBoundingClientRect().height") - 40 * scale) < 0.5);
       assert.equal(await js("Math.abs(document.querySelector('#panel').getBoundingClientRect().right - innerWidth) <= 1 && Math.abs(document.querySelector('#panel').getBoundingClientRect().width - innerWidth) <= 1 && document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight + 1"), true);
       await capture(`system-text-${percent}.png`);
       const key = await js("document.querySelector('.session-button').dataset.key");
       await js(`window.sessionLights.tooltip({ kind: 'session', key: ${JSON.stringify(key)}, y: 40 })`);
       await waitTooltip("document.body.style.zoom === '" + scale + "'");
-      assert.equal(tooltipWin.getBounds().width, Math.round(280 * scale));
+      assert.ok(Math.abs(tooltipWin.getBounds().width - Math.round(280 * scale)) <= 1, 'Tooltip width exceeds native DPI rounding tolerance.');
       await js('window.sessionLights.tooltip(null)');
       assert.equal(await js("document.querySelector('select, #text-size') === null"), true);
       assert.equal(await js("window.sessionLights.read().then(value => 'textSize' in value.preferences)"), false);
@@ -532,6 +535,8 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     }
     assert.deepEqual(errors, [], 'Renderer errors after system text changes.');
     report.checks.push('system text changes update the panel automatically', 'large system text fits long lists and controls up to 225 percent', 'hover cards follow system text size', 'no text selector or saved text override', 'compact panel stays narrow at every text size', 'compact gear opens settings to the left', 'development updates are disabled', 'settings close button hides the menu');
+    report.checks.push(...await checkThemes({ win, settingsWin, tooltipWin, testDir, refresh }));
+    assert.deepEqual(errors, [], 'Renderer errors after theme changes.');
     await fs.writeFile(path.join(testDir, 'report.json'), JSON.stringify(report, null, 2));
     console.log(`Desktop checks passed: ${report.checks.length}.`);
     app.exit(0);

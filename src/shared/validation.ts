@@ -35,6 +35,9 @@ export function parseAction(value: unknown): PanelAction | undefined {
 export function parseSettingsAction(value: unknown): SettingsAction | undefined {
   if (!isRecord(value)) return;
   switch (value.type) {
+    case 'theme':
+      if (value.theme === 'system' || value.theme === 'light' || value.theme === 'dark') return { type: 'theme', theme: value.theme };
+      return;
     case 'update':
       if (value.command === 'check' || value.command === 'download' || value.command === 'install') return { type: 'update', command: value.command };
       return;
