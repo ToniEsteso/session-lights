@@ -52,7 +52,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     }
   };
   const toggleAdapter = async (id: string) => {
-    await settingsJs(`[...document.querySelectorAll('input')].find(input => input.dataset.adapter === ${JSON.stringify(id)}).focus()`);
+    await settingsJs(`[...document.querySelectorAll('input[data-adapter]')].find(input => input.dataset.adapter === ${JSON.stringify(id)}).focus()`);
     settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Space' });
     settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Space' });
   };

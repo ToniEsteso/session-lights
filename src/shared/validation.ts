@@ -35,14 +35,14 @@ export function parseAction(value: unknown): PanelAction | undefined {
 export function parseSettingsAction(value: unknown): SettingsAction | undefined {
   if (!isRecord(value)) return;
   switch (value.type) {
+    case 'codex-usage':
+      if (typeof value.enabled === 'boolean') return { type: 'codex-usage', enabled: value.enabled };
+      return;
     case 'theme':
       if (value.theme === 'system' || value.theme === 'light' || value.theme === 'dark') return { type: 'theme', theme: value.theme };
       return;
     case 'adapter':
       if (typeof value.id === 'string' && typeof value.visible === 'boolean') return { type: 'adapter', id: value.id, visible: value.visible };
-      return;
-    case 'codex-usage':
-      if (typeof value.enabled === 'boolean') return { type: 'codex-usage', enabled: value.enabled };
       return;
     case 'update':
       if (value.command === 'check' || value.command === 'download' || value.command === 'install') return { type: 'update', command: value.command };

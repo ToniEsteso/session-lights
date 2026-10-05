@@ -6,6 +6,8 @@ let snapshot: SettingsPayload | undefined;
 const switches = new Map<string, HTMLInputElement>();
 function render(value: SettingsPayload) {
   snapshot = value;
+  const usage = $('#codex-usage');
+  if (usage instanceof HTMLInputElement) usage.checked = value.codexUsageEnabled;
   for (const input of document.querySelectorAll<HTMLInputElement>('input[name=theme]')) input.checked = input.value === value.theme;
   document.body.style.setProperty('--text-scale', String(value.textScale));
   for (const adapter of value.adapters) {
@@ -24,8 +26,6 @@ function render(value: SettingsPayload) {
     }
     input.checked = adapter.visible;
   }
-  const usage = $('#codex-usage');
-  if (usage instanceof HTMLInputElement) usage.checked = value.codexUsageEnabled;
   const view = updateView(value.update);
   $('#version').textContent = `v${value.version}`;
   $('#update').textContent = view.label;

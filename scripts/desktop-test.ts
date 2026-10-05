@@ -22,7 +22,7 @@ async function main() {
   } } } }));
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
   const launch = (args: string[], name: string) => new Promise<void>((resolve, reject) => {
-    const child = spawn(electronBinary(), [path.join(__dirname, '..', '..'), `--desktop-test=${dir}`, ...args],
+    const child = spawn(electronBinary(), [path.join(__dirname, '..', '..'), `--desktop-test=${dir}`, ...args, ...(process.argv.includes('--disable-gpu') ? ['--disable-gpu'] : [])],
       { windowsHide: true, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     child.stdout.on('data', chunk => { output += chunk; });
