@@ -31,15 +31,18 @@ This keeps Electron's renderer sandbox enabled in restricted workspace folders.
 
 ## Use the panel
 
-- Hover over a dot to see the session name, working folder, and state.
+- Hover over a dot for a small detail card beside the panel. It shows the chat name, project, state, and age of the last recorded activity. It does not change the dot or take keyboard focus.
 - Click a dot to show session names. Press Escape or use the arrow in the expanded panel to collapse it.
 - The panel opens and closes with a short slide and fade. Its right edge stays fixed. The system's reduced-motion setting skips the animation.
 - Click a name in the expanded panel to open the chat in Codex.
-- Pin a session with the diamond. Pins stay visible after the app restarts.
+- Pin a session with the bookmark icon. A filled yellow bookmark marks a pinned session. Pins stay visible after the app restarts.
 - All saved, unarchived desktop sessions appear.
+- Each row shows its project, provider, and state below the chat title. Codex uses its saved project name when a session maps to one. Otherwise, the row uses its workspace folder or `No workspace`. Projects without saved sessions do not appear. Long project names are shortened to fit. Hover over a project group heading for the full path or project ID.
+- Use the two buttons at the top to sort by latest activity or project. The selected button has a soft background. The choice is saved and also sets compact light order. Project headings appear only in the expanded list.
+- Pins come first in activity order. In project mode, pins come first within each project. Chats within a project then follow latest activity.
 - Below a thin divider, the compact panel shows two small gauges: 5-hour above weekly. Their arc and pointer show the amount left. Click a gauge to expand the panel.
-- Gauges are green above 20% remaining, yellow above 5% up to 20%, and red at 5% or less. Unavailable limits show a gray gauge with no pointer.
-- The expanded panel shows usage bars and percentages. Hover over a gauge or row for the limit name, amount left, and reset time.
+- Gauges and usage percentages are green above 20% remaining, yellow above 5% up to 20%, and red at 5% or less. Unavailable limits show a gray gauge with no pointer.
+- The expanded panel shows usage bars, percentages, and reset countdowns. Hover over a gauge or row for a detail card with its provider, scope, amount left, countdown, exact reset time, and reading age.
 - Use the top-right cross to hide the panel. Use the tray icon to show it again.
 - Drag the blank top area to move the panel up or down. The panel follows the pointer and saves its position when you release it.
 - Use the tray menu to show the panel, move it to the screen under the pointer, or quit.
@@ -85,21 +88,64 @@ The local reader lets the panel work without changing the user's Codex setup.
 
 ## Extend
 
-Add an adapter under `src/adapters/` and register it in `src/main.cjs`.
+Add an adapter under `src/adapters/` and register it in `src/adapters/index.cjs`.
+Use a unique adapter `id`. No changes to the main process or UI are needed to register another provider.
 An adapter has `id`, `name`, and an async `read()` method. The method returns:
 
 ```js
 {
   health: 'Source status shown in the panel',
   sessions: [{
-    id: 'provider-local-id', title: 'Session name', project: 'Project',
+    id: 'provider-local-id', title: 'Session name', project: 'Project', workspace: 'Full path',
     state: 'idle', detail: 'Why this state applies', updatedAt: Date.now()
   }]
 }
 ```
 
 The monitor gives each session a provider-specific key and isolates source failures.
-The panel uses the same five states for all sources. Add a provider's open action in the main process.
+The panel uses the same five states for all sources. Project fields have these meanings:
+
+- `project`: a short display name. This name appears in each row.
+- `workspace`: an optional full folder path. The panel uses it for project grouping when no project ID is supplied.
+- `projectId`: an optional shared project ID. Use it when a project has no local path, or needs an identity other than its folder. It takes priority over the path. Use the same ID in each adapter that refers to the same project. Prefix provider-local IDs with the provider ID to prevent accidental matches.
+
+Without an ID, the same full path groups chats across providers. Windows paths ignore letter case, slash direction, and trailing slashes.
+Other paths keep their case. Path matching does not resolve symlinks or treat different worktrees as the same folder.
+Equal display names at different full paths stay separate. A display name without a path or ID stays within its provider.
+The panel shows `No workspace` when an adapter has no name, path, or ID. Codex also uses it for its dated scratch folders. It gives the same label on each account and computer. The full local path still keeps separate workspaces in separate groups and appears in the detail card. An adapter can use `projectId` to group one project across different paths.
+If only a path is available, its last folder name supplies the label. If only an ID is available, the ID supplies the label.
+Each group uses one shared label so adapter aliases do not split the group.
+`updatedAt` is the last recorded activity time in milliseconds. Activity sorting depends on the adapter supplying that time.
+
+Add an optional `open(id, openExternal)` method to open a chat. The adapter validates its own identifiers and links.
+Use the supplied `openExternal(url)` function for an OS link, or handle opening within the adapter.
+
+For usage, add an optional `readUsage()` method. The panel then shows the provider's gauges without UI changes.
+An adapter can define `usage` for scope and known limit labels. These limits remain visible as unavailable during startup or a failed read:
+
+```js
+this.usage = {
+  scope: 'Account-wide usage',
+  windows: [{ id: 'daily', label: 'Daily', title: 'Daily allowance' }]
+};
+```
+
+`readUsage()` returns a reading in this form:
+
+```js
+{
+  windows: [{ id: 'daily', label: 'Daily', remainingPercent: 72, resetsAt: 1791200000 }],
+  updatedAt: Date.now(), message: ''
+}
+```
+
+Limit IDs are unique within each provider. Labels and limits belong to the adapter. `remainingPercent` is a number from 0 to 100.
+`resetsAt` is an optional Unix time in seconds. `updatedAt` uses milliseconds. A limit without a reset time can still show its amount left.
+The shared UI handles colors, countdowns, tooltips, and missing data. It has no Codex-specific limit names.
+The monitor refreshes usage once a minute. Usage failures do not hide other providers' limits or stop session reads.
+Add an optional `close()` method to release child processes or other resources when the app quits.
+Codex runtime discovery, authentication requests, limit selection, labels, scope, and chat links all stay in its adapter files.
+
 Claude, OpenCode, and other tools are not yet implemented.
 
 ## Checks

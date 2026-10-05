@@ -3,6 +3,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { DatabaseSync } = require('node:sqlite');
 const { resolveState } = require('../core.cjs');
+const { CodexUsage } = require('./codex-usage.cjs');
 
 const MAX_TAIL = 512 * 1024;
 async function tail(file) {
@@ -55,11 +56,74 @@ function parseLog(text, signals) {
   }
 }
 
+function isCodexScratchWorkspace(cwd) {
+  const parts = cwd.replaceAll('\\', '/').split('/').filter(Boolean);
+  return parts.some((part, index) => part.toLowerCase() === 'codex' && /^\d{4}-\d{2}-\d{2}$/.test(parts[index + 1] || ''));
+}
+
+function codexPath(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const windows = /^[a-z]:[\\/]/i.test(value) || /^\\\\/.test(value) || /^\/\/[^/]/.test(value);
+  const api = windows ? path.win32 : path.posix;
+  let clean = value.trim();
+  if (windows) clean = clean.replace(/^\\\\\?\\UNC\\/i, '\\\\').replace(/^\\\\\?\\/, '');
+  const normalized = api.resolve(clean);
+  return { api, windows, normalized: windows ? normalized.toLowerCase() : normalized };
+}
+
+function pathContains(root, child) {
+  const rootPath = codexPath(root), childPath = codexPath(child);
+  if (!rootPath || !childPath || rootPath.windows !== childPath.windows) return false;
+  const relative = rootPath.api.relative(rootPath.normalized, childPath.normalized);
+  return relative === '' || (relative !== '..' && !relative.startsWith(`..${rootPath.api.sep}`) && !rootPath.api.isAbsolute(relative));
+}
+
+function readProjectCatalog(db) {
+  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(row => row.name));
+  const byId = new Map(), roots = [];
+  if (tables.has('projects')) {
+    const columns = new Set(db.prepare('PRAGMA table_info(projects)').all().map(column => column.name));
+    if (columns.has('id') && columns.has('name')) for (const row of db.prepare('SELECT id, name FROM projects').all()) {
+      if (row.id == null) continue;
+      byId.set(String(row.id), { id: String(row.id), name: typeof row.name === 'string' ? row.name.trim() : '' });
+    }
+  }
+  if (tables.has('project_roots')) {
+    const columns = new Set(db.prepare('PRAGMA table_info(project_roots)').all().map(column => column.name));
+    if (columns.has('project_id') && columns.has('path')) for (const row of db.prepare('SELECT project_id, path FROM project_roots').all()) {
+      if (row.project_id != null && typeof row.path === 'string' && row.path.trim()) roots.push({ id: String(row.project_id), path: row.path.trim() });
+    }
+  }
+  return { byId, roots };
+}
+
+function findCodexProject(row, catalog) {
+  if (row.project_id != null) {
+    const project = catalog.byId.get(String(row.project_id));
+    if (project) return project;
+  }
+  const root = catalog.roots.filter(projectRoot => pathContains(projectRoot.path, row.cwd))
+    .sort((a, b) => codexPath(b.path).normalized.length - codexPath(a.path).normalized.length)[0];
+  return root ? catalog.byId.get(root.id) : undefined;
+}
+
 class CodexDesktopAdapter {
   constructor({ home = os.homedir(), root = process.env.CODEX_HOME || path.join(home, '.codex'),
-    logs = desktopLogs(process.platform, home), now = Date.now } = {}) {
+    logs = desktopLogs(process.platform, home), now = Date.now, usageOptions } = {}) {
     this.id = 'codex'; this.name = 'Codex'; this.root = root; this.logs = logs; this.now = now;
     this.fileCache = new Map();
+    this.usage = { scope: 'Account-wide usage', windows: [
+      { id: 'fiveHour', label: '5h', title: '5-hour limit' }, { id: 'weekly', label: 'Weekly', title: 'Weekly limit' }
+    ] };
+    this.usageReader = new CodexUsage(usageOptions);
+  }
+
+  readUsage() { return this.usageReader.read(); }
+  close() { this.usageReader.close(); }
+  async open(id, openExternal) {
+    if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) throw Error('Invalid Codex chat link.');
+    try { await openExternal(`codex://threads/${id}`); }
+    catch { throw Error('Cannot open Codex. Check that the desktop app is installed.'); }
   }
 
   async cachedTail(file) {
@@ -115,12 +179,14 @@ class CodexDesktopAdapter {
     try { stateFile = await newestDatabase(this.root, 'state'); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (!stateFile) return { sessions: [], health: 'No Codex session database. Open a local Codex desktop chat.' };
-    const rows = readDatabase(stateFile, db => {
+    const state = readDatabase(stateFile, db => {
       const columns = new Set(db.prepare('PRAGMA table_info(threads)').all().map(c => c.name));
       if (!['id', 'title', 'cwd', 'source', 'rollout_path', 'updated_at', 'archived'].every(c => columns.has(c))) throw Error('Unsupported Codex database.');
-      const extras = ['name', 'originator', 'updated_at_ms'].filter(c => columns.has(c));
-      return db.prepare(`SELECT id, title, cwd, source, rollout_path, updated_at${extras.map(c => `, ${c}`).join('')} FROM threads WHERE archived = 0`).all();
+      const extras = ['name', 'originator', 'updated_at_ms', 'project_id'].filter(c => columns.has(c));
+      return { rows: db.prepare(`SELECT id, title, cwd, source, rollout_path, updated_at${extras.map(c => `, ${c}`).join('')} FROM threads WHERE archived = 0`).all(),
+        projects: readProjectCatalog(db) };
     });
+    const { rows, projects } = state;
     const desktop = [];
     for (const row of rows) {
       if (!['vscode', 'app', 'desktop'].includes(row.source) || typeof row.id !== 'string' || !row.id) continue;
@@ -168,8 +234,12 @@ class CodexDesktopAdapter {
       }, now);
       const title = [row.name, row.title].find(value => typeof value === 'string' && value.trim()) || 'Untitled session';
       const cwd = typeof row.cwd === 'string' ? row.cwd : '';
+      const codexProject = findCodexProject(row, projects);
+      const project = codexProject?.name || (isCodexScratchWorkspace(cwd) ? 'No workspace' : path.basename(cwd.replaceAll('\\', '/')) || cwd);
+      const localProjectId = row.project_id == null ? undefined : String(row.project_id);
+      const projectId = localProjectId ? `codex:${localProjectId}` : undefined;
       sessions.push({ id: row.id, title: title.replace(/\s+/g, ' ').trim().slice(0, 160),
-        project: path.basename(cwd.replaceAll('\\', '/')) || cwd, updatedAt, ...state });
+        project, projectId, workspace: cwd, updatedAt, ...state });
     }
     // Release cached logs and rollouts which are no longer used.
     const activeRollouts = new Set(desktop.map(row => row.rollout_path));

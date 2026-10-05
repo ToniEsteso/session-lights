@@ -1,9 +1,8 @@
 const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell } = require('electron');
 const path = require('node:path');
 const { SessionMonitor, visibleSessions } = require('./core.cjs');
-const { CodexDesktopAdapter } = require('./adapters/codex-desktop.cjs');
-const { CodexUsage } = require('./adapters/codex-usage.cjs');
-const { Preferences } = require('./preferences.cjs');
+const { createAdapters } = require('./adapters/index.cjs');
+const { Preferences, SORT_ORDERS } = require('./preferences.cjs');
 
 const testDir = process.argv.find(arg => arg.startsWith('--desktop-test='))?.split('=').slice(1).join('=');
 if (testDir) app.setPath('userData', path.join(testDir, 'profile'));
@@ -13,7 +12,8 @@ let win, tray, preferences, monitor, snapshot = { sessions: [], sources: [] }, t
 let actionQueue = Promise.resolve();
 let panelDrag;
 let panelResize, resizeTimer, resizeId = 0;
-let usageReader, usageTimer, usage = { windows: [], message: 'Reading usage limits.', updatedAt: null };
+let usageTimer, usage = [];
+let tooltipWin, tooltipTarget;
 // The floating level clears Windows topmost state in the tested Electron runtime.
 const panelLevel = process.platform === 'win32' ? 'normal' : 'floating';
 // Windows imposes a 30-pixel window minimum. The visible bar stays 26 pixels wide.
@@ -27,6 +27,45 @@ function payload() {
 }
 function notify() {
   if (win && !win.isDestroyed()) win.webContents.send('sessions:update', payload());
+  updateTooltip();
+}
+function hideTooltip() { tooltipTarget = undefined; tooltipWin?.hide(); }
+function tooltipData(target) {
+  if (target?.kind === 'session') {
+    const session = snapshot.sessions.find(session => session.key === target.key);
+    return session && { kind: 'session', ...session };
+  }
+  if (target?.kind === 'usage') {
+    const source = usage.find(source => source.providerId === target.providerId);
+    const limit = source?.windows.find(limit => limit.id === target.id);
+    return limit && { kind: 'usage', ...limit, provider: source.provider, scope: source.scope,
+      message: source.message, updatedAt: source.updatedAt };
+  }
+  if (target?.kind === 'project') {
+    const sessions = snapshot.sessions.filter(session => session.projectKey === target.key);
+    if (sessions.length) return { kind: 'health', title: sessions[0].projectGroup,
+      meta: [...new Set(sessions.map(session => session.provider))].join(' · '),
+      detail: sessions[0].workspace || (sessions[0].projectId ? `Project ID: ${sessions[0].projectId}` : 'No working path was supplied.') };
+  }
+  if (target?.kind === 'empty') return { kind: 'health', title: 'No local sessions', detail: snapshot.sources.map(source => source.health).join(' ') };
+}
+function updateTooltip() {
+  if (!tooltipTarget || !tooltipWin || tooltipWin.isDestroyed()) return;
+  const data = tooltipData(tooltipTarget);
+  if (!data) { hideTooltip(); return; }
+  tooltipWin.webContents.send('tooltip:update', data);
+}
+function showTooltip(event, value) {
+  if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) return;
+  if (!value) { hideTooltip(); return; }
+  if (!win.isVisible() || panelDrag || panelResize || !Number.isFinite(value.y) || !tooltipData(value)) return;
+  tooltipTarget = value;
+  const bounds = win.getBounds();
+  const area = screen.getDisplayMatching(bounds).workArea;
+  const width = Math.min(280, area.width - 16), height = 188;
+  tooltipWin.setBounds({ x: Math.round(Math.max(area.x + 8, bounds.x - width - 8)),
+    y: Math.round(Math.max(area.y + 8, Math.min(bounds.y + value.y - 18, area.y + area.height - height - 8))), width, height });
+  updateTooltip(); tooltipWin.showInactive(); tooltipWin.setAlwaysOnTop(true, panelLevel);
 }
 function stopResize() { clearTimeout(resizeTimer); resizeTimer = undefined; panelResize = undefined; }
 function positionPanel({ animate = false, reducedMotion = false } = {}) {
@@ -34,9 +73,13 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const display = screen.getAllDisplays().find(d => d.id === (panelDrag?.displayId ?? preferences.value.displayId)) || screen.getPrimaryDisplay();
   const area = display.workArea;
   const width = preferences.value.expanded ? 328 : compactWidth;
-  const rows = Math.max(1, Math.min(payload().sessions.length, 14));
-  const height = Math.min(area.height - 24, Math.max(preferences.value.expanded ? 128 : 101,
-    rows * (preferences.value.expanded ? 40 : 24) + (preferences.value.expanded ? 146 : 77)));
+  const sessions = payload().sessions;
+  const rows = Math.max(1, Math.min(sessions.length, 14));
+  const groupHeight = preferences.value.expanded && preferences.value.sortOrder === 'project' ? new Set(sessions.map(session => session.projectKey)).size * 24 : 0;
+  const limits = usage.reduce((sum, source) => sum + source.windows.length, 0);
+  const overhead = preferences.value.expanded ? 104 : limits ? 29 : 17;
+  const height = Math.min(area.height - 24, Math.max(preferences.value.expanded ? 128 : 41,
+    rows * (preferences.value.expanded ? 40 : 24) + groupHeight + overhead + limits * (preferences.value.expanded ? 36 : 24)));
   const y = Math.round(Math.max(area.y + 12, Math.min(panelDrag?.y ?? preferences.value.y ?? area.y + (area.height - height) / 2, area.y + area.height - height - 12)));
   const bounds = { x: display.bounds.x + display.bounds.width - width, y, width, height };
   const current = win.getBounds();
@@ -68,15 +111,19 @@ async function refresh() {
   positionPanel(); notify();
 }
 async function refreshUsage() {
-  const value = await usageReader.read();
-  if (!quitting) { usage = value; notify(); }
+  const value = await monitor.readUsage();
+  if (!quitting) { usage = value; positionPanel(); notify(); }
 }
 function showPanel() { positionPanel(); win.showInactive(); win.setAlwaysOnTop(true, panelLevel); }
 
 async function action(event, value) {
   if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw Error('Unknown sender.');
   const prefs = preferences.value;
+  hideTooltip();
   switch (value?.type) {
+    case 'sort':
+      if (!SORT_ORDERS.includes(value.order)) return;
+      await preferences.save({ ...prefs, sortOrder: value.order }); break;
     case 'expand':
       await preferences.save({ ...prefs, expanded: !prefs.expanded });
       positionPanel({ animate: true, reducedMotion: value.reducedMotion === true }); notify(); return;
@@ -109,10 +156,7 @@ async function action(event, value) {
     }
     case 'open': {
       const session = snapshot.sessions.find(s => s.key === value.key);
-      if (session?.provider === 'Codex' && /^[0-9a-f-]{36}$/i.test(session.id)) {
-        try { await shell.openExternal(`codex://threads/${session.id}`); }
-        catch { throw Error('Cannot open Codex. Check that the desktop app is installed.'); }
-      }
+      if (session) await monitor.open(session, url => shell.openExternal(url));
       return;
     }
     case 'hide': win.hide(); return;
@@ -125,22 +169,8 @@ async function action(event, value) {
 async function main() {
   preferences = new Preferences(path.join(app.getPath('userData'), 'preferences.json'));
   await preferences.load();
-  usageReader = demo ? { async read() { return { windows: [
-    { id: 'fiveHour', label: '5h', remainingPercent: 65, resetsAt: Math.floor(Date.now() / 1000) + 7200 },
-    { id: 'weekly', label: 'Weekly', remainingPercent: 83, resetsAt: Math.floor(Date.now() / 1000) + 345600 }
-  ], message: 'Preview data.', updatedAt: Date.now() }; }, close() {} } : new CodexUsage(testDir ? {
-    command: process.execPath, args: [path.join(__dirname, '..', 'test', 'usage-server.cjs')],
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', SESSION_LIGHTS_USAGE_FIXTURE: path.join(testDir, 'usage.json') }
-  } : {});
-  monitor = new SessionMonitor(demo ? [{ id: 'demo', name: 'Preview', async read() {
-    return { health: 'Preview data. Run without --demo to read Codex.', sessions: [
-      { id: '1', title: 'Fix the sign-in form', project: 'website', state: 'waiting', detail: 'Codex requested approval.', updatedAt: Date.now() },
-      { id: '2', title: 'Build the API', project: 'service', state: 'working', detail: 'The turn is in progress.', updatedAt: Date.now() },
-      { id: '3', title: 'Review the tests', project: 'tools', state: 'idle', detail: 'The last turn finished.', updatedAt: Date.now() },
-      { id: '4', title: 'Update the app', project: 'desktop', state: 'error', detail: 'The last turn failed.', updatedAt: Date.now() },
-      { id: '5', title: 'Check a long task', project: 'research', state: 'unknown', detail: 'No recent activity.', updatedAt: Date.now() }
-    ] };
-  } }] : [new CodexDesktopAdapter(testDir ? { root: path.join(testDir, 'codex'), logs: path.join(testDir, 'logs') } : {})]);
+  monitor = new SessionMonitor(createAdapters({ demo, testDir }));
+  usage = monitor.usageSnapshot();
   win = new BrowserWindow({ width: compactWidth, height: 100, show: false, frame: false, transparent: true,
     resizable: false, maximizable: false, minimizable: false, fullscreenable: false, skipTaskbar: true,
     alwaysOnTop: true, hasShadow: false, title: 'Session Lights',
@@ -153,6 +183,7 @@ async function main() {
   }
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => event.preventDefault());
+  win.on('hide', hideTooltip); win.on('blur', hideTooltip);
   win.on('close', event => { if (!quitting) { event.preventDefault(); win.hide(); } });
   ipcMain.handle('sessions:read', event => {
     if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw Error('Unknown sender.');
@@ -163,11 +194,21 @@ async function main() {
     actionQueue = result.catch(() => {});
     return result;
   });
+  ipcMain.on('panel:tooltip', showTooltip);
   await refresh();
+  tooltipWin = new BrowserWindow({ width: 280, height: 188, show: false, frame: false, transparent: true,
+    focusable: false, resizable: false, skipTaskbar: true, alwaysOnTop: true, hasShadow: false,
+    webPreferences: { preload: path.join(__dirname, 'tooltip-preload.cjs'), nodeIntegration: false,
+      contextIsolation: true, sandbox: true, backgroundThrottling: false } });
+  tooltipWin.setIgnoreMouseEvents(true);
+  tooltipWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  tooltipWin.webContents.on('will-navigate', event => event.preventDefault());
+  if (process.platform === 'darwin') tooltipWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  await tooltipWin.loadFile(path.join(__dirname, 'ui', 'tooltip.html'));
   await win.loadFile(path.join(__dirname, 'ui', 'index.html'));
   if (testDir) {
     await refreshUsage();
-    return require('../scripts/desktop-smoke.cjs').run({ app, win, refresh, refreshUsage, showPanel, testDir, preferences });
+    return require('../scripts/desktop-smoke.cjs').run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, testDir, preferences });
   }
 
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect x="6" y="1" width="12" height="22" rx="6" fill="#25292d"/><circle cx="12" cy="6" r="3" fill="#8cce6b"/><circle cx="12" cy="12" r="3" fill="#ffd45e"/><circle cx="12" cy="18" r="3" fill="#f5f5ef"/></svg>';
@@ -192,7 +233,7 @@ async function main() {
   showPanel();
   console.log(`Session Lights is running. Local sessions: ${snapshot.sessions.length}. Panel above other windows: ${win.isAlwaysOnTop()}.`);
   if (process.argv.includes('--launch-check')) {
-    await refreshUsage(); console.log(`Codex usage windows: ${usage.windows.length}.`);
+    await refreshUsage(); console.log(`Usage windows: ${usage.reduce((sum, source) => sum + source.windows.filter(limit => Number.isFinite(limit.remainingPercent)).length, 0)}.`);
     app.quit(); return;
   }
   const pollUsage = async () => {
@@ -205,7 +246,7 @@ async function main() {
     if (!quitting) timer = setTimeout(poll, 2000);
   };
   timer = setTimeout(poll, 2000);
-  const displayChanged = () => { stopResize(); positionPanel(); notify(); };
+  const displayChanged = () => { hideTooltip(); stopResize(); positionPanel(); notify(); };
   screen.on('display-removed', displayChanged); screen.on('display-metrics-changed', displayChanged);
   app.on('activate', showPanel);
 }
@@ -213,6 +254,6 @@ async function main() {
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (win) showPanel(); });
-  app.on('before-quit', () => { quitting = true; stopResize(); clearTimeout(timer); clearTimeout(usageTimer); usageReader?.close(); tray?.destroy(); });
+  app.on('before-quit', () => { quitting = true; stopResize(); hideTooltip(); clearTimeout(timer); clearTimeout(usageTimer); monitor?.close(); tray?.destroy(); });
   app.whenReady().then(main).catch(error => { console.error(error); app.exit(1); });
 }

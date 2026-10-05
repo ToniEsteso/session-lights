@@ -1,12 +1,14 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const DEFAULTS = { expanded: false, showAll: true, pinned: [], displayId: null, y: null };
+const SORT_ORDERS = Object.freeze(['activity', 'project']);
+const DEFAULTS = { expanded: false, showAll: true, pinned: [], displayId: null, y: null, sortOrder: 'activity' };
 function clean(value = {}) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) value = {};
   return { expanded: value.expanded === true, showAll: value.showAll !== false,
     pinned: Array.isArray(value.pinned) ? [...new Set(value.pinned.filter(v => typeof v === 'string').slice(0, 500))] : [],
     displayId: Number.isInteger(value.displayId) ? value.displayId : null,
-    y: Number.isFinite(value.y) ? value.y : null };
+    y: Number.isFinite(value.y) ? value.y : null,
+    sortOrder: SORT_ORDERS.includes(value.sortOrder) ? value.sortOrder : 'activity' };
 }
 class Preferences {
   constructor(file) { this.file = file; this.value = { ...DEFAULTS, pinned: [] }; }
@@ -24,4 +26,4 @@ class Preferences {
     return this.value;
   }
 }
-module.exports = { Preferences };
+module.exports = { Preferences, SORT_ORDERS };

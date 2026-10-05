@@ -28,7 +28,7 @@ async function main() {
   await fs.writeFile(path.join(root, 'evidence', 'package-launch.log'), output);
   assert.equal(code, 0, output);
   assert.match(output, /Session Lights is running\. Local sessions: \d+\. Panel above other windows: true\./);
-  assert.match(output, /Codex usage windows: 2\./);
+  assert.match(output, /Usage windows: 2\./);
   console.log('Package check passed: source files match; native app and tray start; real session reader runs.');
   console.log(output);
 }

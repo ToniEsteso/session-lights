@@ -85,6 +85,45 @@ test('an unsupported history database does not hide readable desktop chats', asy
   assert.match(result.sources[0].health, /history.*unavailable/i);
 });
 
+test('Codex uses saved project names from thread IDs or the closest saved workspace root', async () => {
+  const { data, monitor } = await setup();
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(path.join(data.root, 'state_5.sqlite'));
+  db.exec('ALTER TABLE threads ADD COLUMN project_id TEXT; CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT); CREATE TABLE project_roots (project_id TEXT, position INTEGER, path TEXT);');
+  db.prepare('INSERT INTO projects VALUES (?, ?)').run('parent', 'Workspaces');
+  db.prepare('INSERT INTO projects VALUES (?, ?)').run('child', 'Vault');
+  db.prepare('INSERT INTO project_roots VALUES (?, ?, ?)').run('parent', 0, String.raw`\\?\C:\work`);
+  db.prepare('INSERT INTO project_roots VALUES (?, ?, ?)').run('child', 0, String.raw`\\?\C:\work\project`);
+  db.prepare('UPDATE threads SET project_id = ? WHERE id = ?').run('parent', data.ids[1]);
+  db.close();
+  monitor.adapters.push({ id: 'atlas', name: 'Atlas', async read() { return { sessions: [
+    { id: 'atlas-chat', title: 'Atlas folder chat', project: 'Atlas project', workspace: 'C:/work/project', state: 'idle' }
+  ] }; } });
+
+  const sessions = (await monitor.read()).sessions;
+  const workspaceChat = sessions.find(session => session.id === data.ids[0]);
+  assert.equal(workspaceChat.project, 'Vault');
+  assert.equal(workspaceChat.projectGroup, sessions.find(session => session.provider === 'Atlas').projectGroup);
+  assert.equal(sessions.find(session => session.id === data.ids[1]).project, 'Workspaces');
+});
+
+test('shared project IDs join providers while provider-local IDs stay separate', async () => {
+  const makeAdapter = (id, name, projectId) => ({
+    id, name,
+    async read() { return { sessions: [{ id: 'chat', title: `${name} chat`, project: `${name} project`, projectId, state: 'idle' }] }; }
+  });
+  const shared = (await new SessionMonitor([
+    makeAdapter('codex', 'Codex', 'shared-project'), makeAdapter('atlas', 'Atlas', 'shared-project')
+  ]).read()).sessions;
+  assert.equal(shared.find(session => session.provider === 'Codex').projectGroup, 'Atlas project');
+  assert.equal(shared.find(session => session.provider === 'Atlas').projectGroup, 'Atlas project');
+  const separate = (await new SessionMonitor([
+    makeAdapter('codex', 'Codex', 'codex:local-project'), makeAdapter('atlas', 'Atlas', 'atlas:local-project')
+  ]).read()).sessions;
+  assert.notEqual(separate.find(session => session.provider === 'Codex').projectGroup,
+    separate.find(session => session.provider === 'Atlas').projectGroup);
+});
+
 test('pinned old sessions stay visible after preferences are saved and the app restarts', async () => {
   const { dir, monitor, data } = await setup();
   const sessions = (await monitor.read()).sessions;
