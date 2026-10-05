@@ -42,9 +42,49 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await js('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     await fs.writeFile(path.join(testDir, name), (await win.webContents.capturePage()).toPNG());
   };
+  const settingsJs = (code: string) => settingsWin.webContents.executeJavaScript(code);
+  const waitSettings = async (condition: string) => {
+    const deadline = Date.now() + 5000;
+    while (!await settingsJs(condition)) {
+      if (Date.now() > deadline) throw Error(`Settings did not reach: ${condition}`);
+      await new Promise(resolve => setTimeout(resolve, 30));
+    }
+  };
+  const toggleAdapter = async (id: string) => {
+    await settingsJs(`[...document.querySelectorAll('input')].find(input => input.dataset.adapter === ${JSON.stringify(id)}).focus()`);
+    settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Space' });
+    settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Space' });
+  };
   const data = { root: path.join(testDir, 'codex'), log: path.join(testDir, 'logs', ...new Date().toISOString().slice(0, 10).split('-'), 'desktop.log') };
   const id = '11111111-1111-4111-8111-111111111111';
   try {
+    if (process.argv.includes('--adapter-visibility-restart')) {
+      showPanel();
+      await wait("!document.querySelector('#adapters-hidden').hidden && document.querySelectorAll('.session, .usage-row').length === 0");
+      win.focus();
+      await waitNative(() => win.isFocused());
+      await js("document.querySelector('#empty-settings').focus()");
+      await wait("document.activeElement.id === 'empty-settings'");
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+      win.webContents.sendInputEvent({ type: 'char', keyCode: 'Enter' });
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
+      await waitNative(() => settingsWin.isVisible());
+      await waitSettings("document.querySelectorAll('input').length === 2 && [...document.querySelectorAll('input')].every(input => !input.checked)");
+      await toggleAdapter('codex');
+      await wait("document.querySelectorAll('.session').length === 2 && document.querySelector('#sessions').textContent.includes('Hidden Codex update')");
+      assert.equal(await js(`document.querySelector('[data-key="codex:${id}"] .dot').classList.contains('error')`), true);
+      assert.equal(await js("document.querySelectorAll('[data-provider=codex]').length"), 2);
+      await settingsJs("document.querySelector('#close').click()");
+      const saved = new Preferences(preferences.file); await saved.load();
+      assert.equal(saved.value.pinned.length, 1);
+      assert.equal(await js("document.querySelectorAll('.pin[aria-pressed=true]').length"), 1);
+      assert.deepEqual(errors, []);
+      await fs.writeFile(path.join(testDir, 'adapter-restart-report.json'), JSON.stringify({ result: 'passed', checks: [
+        'all-hidden empty state survives a full app restart', 'switch choices survive a full app restart',
+        'empty-state Settings link works with Enter', 'restored adapter shows the latest saved sessions and usage', 'pins survive hiding and restart', 'no renderer errors'
+      ] }, null, 2));
+      console.log('Adapter restart checks passed: 6.'); app.exit(0); return;
+    }
     win.webContents.debugger.attach('1.3');
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
     showPanel();
@@ -512,14 +552,21 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       await fs.writeFile(path.join(testDir, 'system-text-percent.json'), String(percent));
       await refresh();
       await wait(`window.sessionLights.read().then(value => value.textScale === ${scale})`);
-      assert.equal(win.getBounds().width, Math.round(328 * scale)); checkScreenEdge();
+      assert.ok(Math.abs(win.getBounds().width - Math.round(328 * scale)) <= 1, 'Scaled native width exceeds DPI rounding tolerance.'); checkScreenEdge();
       assert.ok(Math.abs(await js("document.querySelector('.session').getBoundingClientRect().height") - 40 * scale) < 0.5);
       assert.equal(await js("Math.abs(document.querySelector('#panel').getBoundingClientRect().right - innerWidth) <= 1 && Math.abs(document.querySelector('#panel').getBoundingClientRect().width - innerWidth) <= 1 && document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight + 1"), true);
       await capture(`system-text-${percent}.png`);
+      await js("document.querySelector('header [data-settings]').click()");
+      await waitNative(() => settingsWin.isVisible());
+      await waitSettings(`document.body.style.getPropertyValue('--text-scale') === '${scale}'`);
+      assert.equal(await settingsJs("[...document.querySelectorAll('.adapter-row, footer')].every(row => row.getBoundingClientRect().bottom <= innerHeight + 1)"), true);
+      await settingsJs('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      await fs.writeFile(path.join(testDir, `adapter-controls-text-${percent}.png`), (await settingsWin.webContents.capturePage()).toPNG());
+      await settingsJs("document.querySelector('#close').click()");
       const key = await js("document.querySelector('.session-button').dataset.key");
       await js(`window.sessionLights.tooltip({ kind: 'session', key: ${JSON.stringify(key)}, y: 40 })`);
       await waitTooltip("document.body.style.zoom === '" + scale + "'");
-      assert.equal(tooltipWin.getBounds().width, Math.round(280 * scale));
+      assert.ok(Math.abs(tooltipWin.getBounds().width - Math.round(280 * scale)) <= 1, 'Scaled tooltip width exceeds DPI rounding tolerance.');
       await js('window.sessionLights.tooltip(null)');
       assert.equal(await js("document.querySelector('select, #text-size') === null"), true);
       assert.equal(await js("window.sessionLights.read().then(value => 'textSize' in value.preferences)"), false);
@@ -532,6 +579,76 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     }
     assert.deepEqual(errors, [], 'Renderer errors after system text changes.');
     report.checks.push('system text changes update the panel automatically', 'large system text fits long lists and controls up to 225 percent', 'hover cards follow system text size', 'no text selector or saved text override', 'compact panel stays narrow at every text size', 'compact gear opens settings to the left', 'development updates are disabled', 'settings close button hides the menu');
+    // Catch hidden sessions or gauges that remain visible, lost pins, stopped reads, and unsaved switches.
+    await js("document.querySelector('header [data-settings]').click()");
+    await waitNative(() => settingsWin.isVisible());
+    await waitSettings("document.querySelectorAll('input[role=switch]').length === 2 && [...document.querySelectorAll('input')].every(input => input.checked)");
+    assert.deepEqual(await settingsJs("[...document.querySelectorAll('.adapter-row')].map(row => row.textContent)"), ['Show Codex', 'Show Atlas']);
+    assert.equal(await settingsJs("[...document.querySelectorAll('.adapter-row, footer')].every(row => row.getBoundingClientRect().bottom <= innerHeight)"), true);
+    await fs.writeFile(path.join(testDir, 'adapter-controls.png'), (await settingsWin.webContents.capturePage()).toPNG());
+    await settingsJs("document.querySelector('#close').focus()");
+    settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+    settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
+    await waitSettings("document.activeElement.dataset.adapter === 'codex' && document.activeElement.matches(':focus-visible')");
+    await toggleAdapter('codex');
+    await wait("document.querySelectorAll('.session').length === 5 && document.querySelectorAll('[data-provider=codex]').length === 0");
+    assert.equal(await js("window.sessionLights.read().then(value => value.sources.every(source => source.id !== 'codex') && value.sessions.every(session => session.providerId !== 'codex'))"), true);
+    assert.equal(await settingsJs("document.activeElement.dataset.adapter"), 'codex');
+    await settingsJs("document.querySelector('#close').click()");
+    await capture('adapter-one-hidden.png');
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
+    await wait("!document.querySelector('#panel').classList.contains('expanded') && document.querySelectorAll('.session').length === 5");
+    assert.equal(await js("document.querySelectorAll('[data-provider=codex]').length"), 0);
+    await capture('adapter-one-hidden-compact.png');
+    const hiddenDb = new DatabaseSync(path.join(data.root, 'state_5.sqlite'));
+    hiddenDb.prepare('UPDATE threads SET title = ? WHERE id = ?').run('Hidden Codex update', id); hiddenDb.close();
+    setStatus(data, id, 'failed');
+    await refresh();
+    const hiddenUsage = { result: { rateLimitsByLimitId: { codex: {
+      primary: { usedPercent: 40, windowDurationMins: 300, resetsAt: Math.floor(Date.now() / 1000) + 7200 },
+      secondary: { usedPercent: 16, windowDurationMins: 10080, resetsAt: Math.floor(Date.now() / 1000) + 345600 }
+    } } } };
+    await fs.writeFile(path.join(testDir, 'usage.json'), JSON.stringify(hiddenUsage)); await refreshUsage();
+    await js("document.querySelector('footer [data-settings]').click()");
+    await waitNative(() => settingsWin.isVisible());
+    await toggleAdapter('codex');
+    await wait("document.querySelectorAll('.session').length === 7 && document.querySelector('[data-provider=codex][data-limit=fiveHour] .usage-value').textContent === '60% left'");
+    await settingsJs("document.querySelector('#close').click()");
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
+    await wait("document.querySelector('#panel').classList.contains('expanded') && document.querySelector('#sessions').textContent.includes('Hidden Codex update')");
+    assert.equal(await js(`document.querySelector('[data-key="codex:${id}"] .dot').classList.contains('error')`), true);
+    assert.equal(await js("document.querySelectorAll('.pin[aria-pressed=true]').length"), 1);
+    // A failed preference write must restore the switch and keep the displayed adapter visible.
+    await fs.mkdir(`${preferences.file}.tmp`);
+    await js("document.querySelector('header [data-settings]').click()");
+    await waitNative(() => settingsWin.isVisible());
+    await toggleAdapter('codex');
+    await waitSettings("!document.querySelector('#error').hidden && document.querySelector('[data-adapter=codex]').checked");
+    assert.equal(await js("document.querySelectorAll('.session').length"), 7);
+    await fs.rename(`${preferences.file}.tmp`, path.join(testDir, 'failed-write-temp'));
+    await toggleAdapter('codex');
+    await wait("document.querySelectorAll('.session').length === 5");
+    await toggleAdapter('atlas');
+    await wait("!document.querySelector('#adapters-hidden').hidden && document.querySelectorAll('.session, .usage-row, .project-heading').length === 0");
+    await settingsJs("document.querySelector('#close').click()");
+    assert.equal(await js("['#adapters-hidden', 'footer'].every(selector => { const box = document.querySelector(selector).getBoundingClientRect(); return box.height > 0 && box.bottom <= innerHeight; })"), true);
+    await capture('adapter-all-hidden.png');
+    await js("document.querySelector('#empty-settings').click()");
+    await waitNative(() => settingsWin.isVisible());
+    await settingsJs("document.querySelector('#close').click()");
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
+    await wait("!document.querySelector('#panel').classList.contains('expanded')");
+    await capture('adapter-all-hidden-compact.png');
+    await js("document.querySelector('#empty-settings').click()");
+    await waitNative(() => settingsWin.isVisible());
+    await settingsJs("document.querySelector('#close').click()");
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
+    await wait("document.querySelector('#panel').classList.contains('expanded')");
+    assert.deepEqual(errors, []);
+    report.checks.push('all registered adapters have labelled switches and start visible with legacy settings', 'Tab reaches the adapter switch with a visible focus outline',
+      'Space hides the adapter immediately and keeps switch focus', 'hidden adapters have no sessions, usage, sources, or project headings',
+      'visibility applies to compact and expanded views', 'hidden adapters keep reading session and usage changes', 'showing an adapter restores pins and current readings',
+      'failed preference write restores the switch and keeps sessions visible', 'all-hidden state explains the result and links to Settings', 'empty state fits compact and expanded panels');
     await fs.writeFile(path.join(testDir, 'report.json'), JSON.stringify(report, null, 2));
     console.log(`Desktop checks passed: ${report.checks.length}.`);
     app.exit(0);

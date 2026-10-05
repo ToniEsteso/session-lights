@@ -11,6 +11,11 @@
   <main aria-label="Settings">
     <div class="update-row"><button id="update" disabled>Check for updates</button><button id="close" aria-label="Close settings">×</button></div>
     <progress id="progress" max="100" aria-label="Update download" hidden></progress>
+    <fieldset aria-describedby="adapter-help">
+      <legend>Adapters</legend>
+      <p id="adapter-help">Choose which adapters appear. Monitoring continues when an adapter is hidden.</p>
+      <div id="adapters"></div>
+    </fieldset>
     <footer><button id="quit">Quit</button><span id="version"></span></footer>
     <p id="error" role="alert" hidden></p>
   </main>

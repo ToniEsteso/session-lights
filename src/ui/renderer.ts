@@ -15,7 +15,7 @@ let effects: Animation[] = [];
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let tooltipTimer: ReturnType<typeof setTimeout> | undefined;
 let tooltipElement: HTMLElement | undefined;
-const tooltipSelector = '.session-button, .usage-row, .project-heading, #empty';
+const tooltipSelector = '.session-button, .usage-row, .project-heading, #empty, #empty-settings';
 
 function hideTooltip() {
   clearTimeout(tooltipTimer); tooltipTimer = undefined; tooltipElement = undefined;
@@ -141,7 +141,9 @@ function renderNow(value: PanelPayload) {
   $('#expand').setAttribute('aria-expanded', String(expanded));
   $('#expand').setAttribute('aria-label', expanded ? 'Hide session names' : 'Show session names');
   $('#expand').title = expanded ? 'Hide session names' : 'Show session names';
-  $('#empty').hidden = value.sessions.length > 0;
+  const allHidden = value.sources.length === 0;
+  $('#empty').hidden = value.sessions.length > 0 || allHidden;
+  $('#adapters-hidden').hidden = !allHidden;
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-sort]')) {
     button.setAttribute('aria-pressed', String(button.dataset.sort === (value.preferences.sortOrder || 'activity')));
   }
@@ -216,6 +218,7 @@ function renderNow(value: PanelPayload) {
     }
   }
 }
+$('#empty-settings').addEventListener('click', () => act({ type: 'settings', y: $('#empty-settings').getBoundingClientRect().top }));
 $('#expand').addEventListener('click', () => act({ type: 'expand' }));
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-settings]')) {
   button.addEventListener('click', () => act({ type: 'settings', y: button.getBoundingClientRect().top }));
