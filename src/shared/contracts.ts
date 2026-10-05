@@ -61,6 +61,7 @@ export interface SessionAdapter {
   close?(): void;
 }
 export interface PanelPreferences {
+  codexUsageEnabled: boolean;
   expanded: boolean;
   showAll: boolean;
   pinned: string[];
@@ -109,8 +110,9 @@ export interface SessionLightsBridge {
   tooltip(value: TooltipTarget | null): void;
   subscribe(callback: (value: PanelPayload) => void): () => void;
 }
-export interface SettingsPayload { version: string; update: UpdateState }
+export interface SettingsPayload { version: string; update: UpdateState; codexUsageEnabled: boolean }
 export type SettingsAction =
+  | { type: 'codex-usage'; enabled: boolean }
   | { type: 'update'; command: UpdateCommand }
   | { type: 'close' | 'quit' };
 export interface SettingsBridge {

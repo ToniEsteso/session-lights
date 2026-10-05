@@ -5,6 +5,8 @@ import { errorMessage } from '../shared/validation.js';
 let snapshot: SettingsPayload | undefined;
 function render(value: SettingsPayload) {
   snapshot = value;
+  const usage = $('#codex-usage');
+  if (usage instanceof HTMLInputElement) usage.checked = value.codexUsageEnabled;
   const view = updateView(value.update);
   $('#version').textContent = `v${value.version}`;
   $('#update').textContent = view.label;
@@ -22,6 +24,9 @@ async function act(value: SettingsAction) {
   try { await window.settings.action(value); $('#error').hidden = true; }
   catch (error) { $('#error').textContent = errorMessage(error); $('#error').hidden = false; }
 }
+$('#codex-usage').addEventListener('change', event => {
+  if (event.target instanceof HTMLInputElement) void act({ type: 'codex-usage', enabled: event.target.checked });
+});
 $('#update').addEventListener('click', () => {
   if (!snapshot) return;
   const command = updateView(snapshot.update).command;

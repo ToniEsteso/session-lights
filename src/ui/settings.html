@@ -11,6 +11,8 @@
   <main aria-label="Settings">
     <div class="update-row"><button id="update" disabled>Check for updates</button><button id="close" aria-label="Close settings">×</button></div>
     <progress id="progress" max="100" aria-label="Update download" hidden></progress>
+    <label class="usage-toggle"><input id="codex-usage" type="checkbox" aria-describedby="usage-warning"> Read Codex usage limits</label>
+    <p id="usage-warning">Starts the installed Codex runtime. It can write or migrate Codex data and use your sign-in. Off by default.</p>
     <footer><button id="quit">Quit</button><span id="version"></span></footer>
     <p id="error" role="alert" hidden></p>
   </main>

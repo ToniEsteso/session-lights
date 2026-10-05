@@ -11,13 +11,17 @@ import type { RecordedTurn, TurnSignal } from '../core.js';
 import type { CodexUsageOptions } from './codex-usage.js';
 import { isRecord, hasErrorCode } from '../shared/validation.js';
 
-export interface CodexDesktopOptions { home?: string; root?: string; logs?: string; now?: () => number; usageOptions?: CodexUsageOptions }
+export interface CodexDesktopOptions { home?: string; root?: string; logs?: string; now?: () => number; usageOptions?: CodexUsageOptions; usageEnabled?: () => boolean }
+interface RolloutTurn extends RecordedTurn { turnId?: string; statusAt: number }
+interface HistoryTurn { status: string; turnId?: string }
 interface Tail { text: string; modifiedAt: number; size: number }
 interface ProjectCatalog { byId: Map<string, { id: string; name: string }>; roots: { id: string; path: string }[] }
 interface ThreadRow { id: string; title: string; cwd: string; source: string; rollout_path: string; updated_at: number; name?: string; originator?: string; updated_at_ms?: number; project_id?: string }
 function parseThread(value: unknown): ThreadRow | undefined {
   if (!isRecord(value) || typeof value.id !== 'string' ||
-      typeof value.source !== 'string' || typeof value.updated_at !== 'number') return;
+      typeof value.source !== 'string' || typeof value.updated_at !== 'number' ||
+      !Number.isFinite(value.updated_at) || value.updated_at < 0 || value.updated_at > 8.64e12 ||
+      (value.updated_at_ms != null && (typeof value.updated_at_ms !== 'number' || !Number.isFinite(value.updated_at_ms) || value.updated_at_ms < 0 || value.updated_at_ms > 8.64e15))) return;
   const row: ThreadRow = { id: value.id, title: typeof value.title === 'string' ? value.title : '', cwd: typeof value.cwd === 'string' ? value.cwd : '', source: value.source, rollout_path: typeof value.rollout_path === 'string' ? value.rollout_path : '', updated_at: value.updated_at };
   if (typeof value.name === 'string') row.name = value.name;
   if (typeof value.originator === 'string') row.originator = value.originator;
@@ -138,18 +142,26 @@ class CodexDesktopAdapter implements SessionAdapter {
   private readonly logs: string;
   private readonly now: () => number;
   private readonly fileCache = new Map<string, Tail>();
-  private readonly usageReader: CodexUsage;
+  private usageReader: CodexUsage | undefined;
+  private readonly usageOptions: CodexUsageOptions | undefined;
+  private readonly usageEnabled: () => boolean;
   constructor({ home = os.homedir(), root = process.env.CODEX_HOME || path.join(home, '.codex'),
-    logs = desktopLogs(process.platform, home), now = Date.now, usageOptions }: CodexDesktopOptions = {}) {
+    logs = desktopLogs(process.platform, home), now = Date.now, usageOptions, usageEnabled = () => false }: CodexDesktopOptions = {}) {
     this.root = root; this.logs = logs; this.now = now;
     this.usage = { scope: 'Account-wide usage', windows: [
       { id: 'fiveHour', label: '5h', title: '5-hour limit' }, { id: 'weekly', label: 'Weekly', title: 'Weekly limit' }
     ] };
-    this.usageReader = new CodexUsage(usageOptions);
+    this.usageOptions = usageOptions; this.usageEnabled = usageEnabled;
   }
 
-  readUsage() { return this.usageReader.read(); }
-  close() { this.usageReader.close(); }
+  async readUsage() {
+    const disabled = { windows: [], message: 'Codex usage is off. Enable it in Settings to start the Codex runtime.', updatedAt: null };
+    if (!this.usageEnabled()) { this.usageReader?.close(); this.usageReader = undefined; return disabled; }
+    const reader = this.usageReader ||= new CodexUsage(this.usageOptions);
+    const value = await reader.read();
+    return this.usageEnabled() && reader === this.usageReader ? value : disabled;
+  }
+  close() { this.usageReader?.close(); this.usageReader = undefined; }
   async open(id: string, openExternal: OpenExternal) {
     if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) throw Error('Invalid Codex chat link.');
     try { await openExternal(`codex://threads/${id}`); }
@@ -182,9 +194,9 @@ class CodexDesktopAdapter implements SessionAdapter {
     return { signals, found };
   }
 
-  async rolloutState(file: string): Promise<RecordedTurn> {
+  async rolloutState(file: string): Promise<RolloutTurn> {
     const data = await this.cachedTail(file);
-    let status: string | undefined, lastUserAt = 0, lastProgressAt = 0;
+    let status: string | undefined, turnId: string | undefined, statusAt = 0, lastUserAt = 0, lastProgressAt = 0;
     for (const line of data.text.split('\n')) {
       let record: unknown;
       try { record = JSON.parse(line); } catch { continue; } // A live writer can leave a partial line.
@@ -192,15 +204,17 @@ class CodexDesktopAdapter implements SessionAdapter {
       const payload = isRecord(record.payload) ? record.payload : {};
       const at = Date.parse(typeof record.timestamp === 'string' ? record.timestamp : '') || 0;
       if (record.type === 'event_msg') {
-        if (payload.type === 'task_started') status = 'inProgress';
-        if (payload.type === 'task_complete') status = 'completed';
-        if (payload.type === 'turn_aborted') status = 'interrupted';
+        if (['task_started', 'task_complete', 'turn_aborted'].includes(typeof payload.type === 'string' ? payload.type : '')) {
+          status = payload.type === 'task_started' ? 'inProgress' : payload.type === 'task_complete' ? 'completed' : 'interrupted';
+          turnId = typeof payload.turn_id === 'string' ? payload.turn_id : undefined;
+          statusAt = at;
+        }
         if (payload.type === 'user_message') lastUserAt = at;
       }
       if (record.type === 'response_item' && payload.type === 'message' && payload.role === 'user') lastUserAt = at;
       if (record.type === 'response_item' && ['function_call_output', 'custom_tool_call_output'].includes(typeof payload.type === 'string' ? payload.type : '')) lastProgressAt = at;
     }
-    return { status, lastUserAt, lastProgressAt, updatedAt: data.modifiedAt };
+    return { status, ...(turnId ? { turnId } : {}), statusAt, lastUserAt, lastProgressAt, updatedAt: data.modifiedAt };
   }
 
   async read(): Promise<SessionReading> {
@@ -213,10 +227,11 @@ class CodexDesktopAdapter implements SessionAdapter {
       const columns = new Set(db.prepare('PRAGMA table_info(threads)').all().map(c => c.name));
       if (!['id', 'title', 'cwd', 'source', 'rollout_path', 'updated_at', 'archived'].every(c => columns.has(c))) throw Error('Unsupported Codex database.');
       const extras = ['name', 'originator', 'updated_at_ms', 'project_id'].filter(c => columns.has(c));
-      return { rows: db.prepare(`SELECT id, title, cwd, source, rollout_path, updated_at${extras.map(c => `, ${c}`).join('')} FROM threads WHERE archived = 0`).all().flatMap(value => { const row = parseThread(value); return row ? [row] : []; }),
-        projects: readProjectCatalog(db) };
+      const values = db.prepare(`SELECT id, title, cwd, source, rollout_path, updated_at${extras.map(c => `, ${c}`).join('')} FROM threads WHERE archived = 0`).all();
+      const rows = values.flatMap(value => { const row = parseThread(value); return row ? [row] : []; });
+      return { rows, invalidRows: values.length - rows.length, projects: readProjectCatalog(db) };
     });
-    const { rows, projects } = state;
+    const { rows, projects, invalidRows } = state;
     const desktop: ThreadRow[] = [];
     for (const row of rows) {
       if (!['vscode', 'app', 'desktop'].includes(row.source) || typeof row.id !== 'string' || !row.id) continue;
@@ -234,13 +249,16 @@ class CodexDesktopAdapter implements SessionAdapter {
       }
       if (/codex desktop/i.test(origin || '')) desktop.push(row);
     }
-    const turns = new Map<string, string | undefined>();
+    const turns = new Map<string, HistoryTurn>();
     let historyHealth = '';
     try {
       const historyFile = await newestDatabase(this.root, 'thread_history');
       if (historyFile) readDatabase(historyFile, db => {
-        const query = db.prepare('SELECT status FROM thread_turns WHERE thread_id = ? ORDER BY rollout_ordinal DESC LIMIT 1');
-        for (const row of desktop) { const status = query.get(row.id)?.status; turns.set(row.id, typeof status === 'string' ? status : undefined); };
+        const query = db.prepare('SELECT status, turn_id FROM thread_turns WHERE thread_id = ? ORDER BY rollout_ordinal DESC LIMIT 1');
+        for (const row of desktop) {
+          const turn = query.get(row.id);
+          if (turn && typeof turn.status === 'string') turns.set(row.id, { status: turn.status, ...(typeof turn.turn_id === 'string' ? { turnId: turn.turn_id } : {}) });
+        }
       });
     } catch {
       turns.clear();
@@ -251,13 +269,22 @@ class CodexDesktopAdapter implements SessionAdapter {
     catch { logData = { signals: new Map(), found: false }; }
     const sessions: SessionReading['sessions'] = [];
     for (const row of desktop) {
-      let recorded: RecordedTurn | undefined;
+      let recorded: RolloutTurn | undefined;
       try { recorded = await this.rolloutState(row.rollout_path); }
       catch { recorded = undefined; }
       const updatedAt = epochMilliseconds(Math.max(0, row.updated_at_ms || row.updated_at * 1000, recorded?.updatedAt || 0));
       const signal = logData.signals.get(row.id) || { lastUserAt: 0, lastProgressAt: 0 };
-      const state: ReturnType<typeof resolveState> = !recorded ? { state: 'unknown', detail: 'The session record cannot be read.' } : resolveState({
-        ...recorded, ...signal, status: turns.get(row.id) || recorded.status, updatedAt,
+      const history = turns.get(row.id);
+      const sameTurn = recorded?.turnId && history?.turnId === recorded.turnId;
+      let status = history?.status || recorded?.status;
+      let conflict = Boolean(history && recorded?.status && history.status !== recorded.status && !sameTurn);
+      if (sameTurn && recorded && recorded.status !== 'inProgress') {
+        if (history?.status === 'inProgress') status = recorded.status;
+        else if (history?.status !== recorded.status) conflict = true;
+      }
+      if (history && ['completed', 'interrupted', 'failed'].includes(history.status) && recorded && signal.lastUserAt > recorded.statusAt) conflict = true;
+      const state: ReturnType<typeof resolveState> = conflict ? { state: 'unknown', detail: 'Turn records conflict; current state cannot be confirmed.' } : !recorded ? { state: 'unknown', detail: 'The session record cannot be read.' } : resolveState({
+        ...recorded, ...signal, status, updatedAt,
         lastUserAt: Math.max(recorded.lastUserAt || 0, signal.lastUserAt || 0),
         // Async questions can stay open while tools run. Only new user input clears them.
         lastProgressAt: signal.waiting?.kind === 'question' ? 0 : recorded.lastProgressAt || 0
@@ -275,7 +302,7 @@ class CodexDesktopAdapter implements SessionAdapter {
     const activeRollouts = new Set(desktop.map(row => row.rollout_path));
     for (const [file, value] of this.fileCache) if (!activeRollouts.has(file) && now - value.modifiedAt > 2 * 86_400_000) this.fileCache.delete(file);
     return { sessions, health: (logData.found ? 'Reading local session records. State is based on the last recorded event.' :
-      'Reading session records. Desktop logs are missing; approval and question detection is limited.') + historyHealth };
+      'Reading session records. Desktop logs are missing; approval and question detection is limited.') + historyHealth + (invalidRows ? ' Some session rows have invalid timestamps and were skipped.' : '') };
   }
 }
 

@@ -86,6 +86,15 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('#update').disabled"), true);
     assert.match(await settingsWin.webContents.executeJavaScript("document.querySelector('#update').title"), /installed release/);
     assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('h1, h2, #release-notes, #installation-help') === null"), true);
+    // The warning and control must be visible before enabling the runtime.
+    assert.match(await settingsWin.webContents.executeJavaScript("document.querySelector('#usage-warning').textContent"), /write or migrate Codex data/);
+    await settingsWin.webContents.executeJavaScript("document.querySelector('#codex-usage').click()");
+    await wait("window.sessionLights.read().then(value => value.preferences.codexUsageEnabled === false && value.usage.find(source => source.providerId === 'codex').windows.every(window => window.remainingPercent === undefined))");
+    const usagePreferences = new Preferences(preferences.file); await usagePreferences.load();
+    assert.equal(usagePreferences.value.codexUsageEnabled, false);
+    await settingsWin.webContents.executeJavaScript("document.querySelector('#codex-usage').click()");
+    await wait("window.sessionLights.read().then(value => value.preferences.codexUsageEnabled === true && value.usage.find(source => source.providerId === 'codex').windows.some(window => window.remainingPercent === 76))");
+    assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight && document.querySelector('#usage-warning').getBoundingClientRect().bottom < document.querySelector('footer').getBoundingClientRect().top"), true);
     await fs.writeFile(path.join(testDir, 'settings.png'), (await settingsWin.webContents.capturePage()).toPNG());
     await settingsWin.webContents.executeJavaScript("document.querySelector('#close').click()");
     await waitNative(() => !settingsWin.isVisible());
@@ -512,14 +521,14 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       await fs.writeFile(path.join(testDir, 'system-text-percent.json'), String(percent));
       await refresh();
       await wait(`window.sessionLights.read().then(value => value.textScale === ${scale})`);
-      assert.equal(win.getBounds().width, Math.round(328 * scale)); checkScreenEdge();
+      assert.ok(Math.abs(win.getBounds().width - Math.round(328 * scale)) <= 1, 'Expanded width exceeds DPI rounding tolerance.'); checkScreenEdge();
       assert.ok(Math.abs(await js("document.querySelector('.session').getBoundingClientRect().height") - 40 * scale) < 0.5);
       assert.equal(await js("Math.abs(document.querySelector('#panel').getBoundingClientRect().right - innerWidth) <= 1 && Math.abs(document.querySelector('#panel').getBoundingClientRect().width - innerWidth) <= 1 && document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight + 1"), true);
       await capture(`system-text-${percent}.png`);
       const key = await js("document.querySelector('.session-button').dataset.key");
       await js(`window.sessionLights.tooltip({ kind: 'session', key: ${JSON.stringify(key)}, y: 40 })`);
       await waitTooltip("document.body.style.zoom === '" + scale + "'");
-      assert.equal(tooltipWin.getBounds().width, Math.round(280 * scale));
+      assert.ok(Math.abs(tooltipWin.getBounds().width - Math.round(280 * scale)) <= 1, 'Tooltip width exceeds DPI rounding tolerance.');
       await js('window.sessionLights.tooltip(null)');
       assert.equal(await js("document.querySelector('select, #text-size') === null"), true);
       assert.equal(await js("window.sessionLights.read().then(value => 'textSize' in value.preferences)"), false);

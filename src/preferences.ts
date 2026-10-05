@@ -3,10 +3,10 @@ import * as path from 'node:path';
 import type { PanelPreferences } from './shared/contracts.js';
 import { SORT_ORDERS } from './shared/contracts.js';
 import { isRecord, hasErrorCode } from './shared/validation.js';
-const DEFAULTS: PanelPreferences = { expanded: false, showAll: true, pinned: [], displayId: null, y: null, sortOrder: 'activity' };
+const DEFAULTS: PanelPreferences = { expanded: false, showAll: true, codexUsageEnabled: false, pinned: [], displayId: null, y: null, sortOrder: 'activity' };
 export function clean(input: unknown = {}): PanelPreferences {
   const value = isRecord(input) ? input : {};
-  return { expanded: value.expanded === true, showAll: value.showAll !== false,
+  return { expanded: value.expanded === true, showAll: value.showAll !== false, codexUsageEnabled: value.codexUsageEnabled === true,
     pinned: Array.isArray(value.pinned) ? [...new Set(value.pinned.filter((v: unknown): v is string => typeof v === 'string').slice(0, 500))] : [],
     displayId: typeof value.displayId === 'number' && Number.isInteger(value.displayId) ? value.displayId : null,
     y: typeof value.y === 'number' && Number.isFinite(value.y) ? value.y : null,

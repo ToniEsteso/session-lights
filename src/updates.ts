@@ -1,4 +1,5 @@
 import type { AppUpdater } from 'electron-updater';
+import { verifyWindowsInstaller } from './windows-signature.js';
 import type { UpdateCommand, UpdateState } from './shared/updates.js';
 
 // The main process owns the updater. Renderers receive state and fixed commands.
@@ -6,6 +7,7 @@ export class Updates {
   state: UpdateState;
   private timer: ReturnType<typeof setInterval> | undefined;
   private stopped = false;
+  private installer: string | undefined;
   constructor(private readonly engine: AppUpdater | undefined, reason: string, private readonly changed: () => void) {
     this.state = engine ? { kind: 'idle' } : { kind: 'disabled', reason };
     if (!engine) return;
@@ -23,7 +25,7 @@ export class Updates {
     engine.on('download-progress', progress => {
       if (this.state.kind === 'downloading') this.set({ ...this.state, percent: Math.max(0, Math.min(100, progress.percent)) });
     });
-    engine.on('update-downloaded', info => this.set({ kind: 'ready', version: info.version }));
+    // downloadUpdate() must pass our verification before the UI can offer install.
   }
   private set(state: UpdateState) { if (!this.stopped) { this.state = state; this.changed(); } }
   start() {
@@ -44,12 +46,28 @@ export class Updates {
     } else if (command === 'download' && (this.state.kind === 'available' || this.state.kind === 'download-error')) {
       const version = this.state.version;
       this.set({ kind: 'downloading', version, percent: 0 });
-      try { await engine.downloadUpdate(); }
+      try {
+        this.installer = undefined;
+        const files = await engine.downloadUpdate();
+        if (process.platform === 'win32') {
+          const installers = files.filter(file => file.toLowerCase().endsWith('.exe'));
+          if (installers.length !== 1 || !installers[0]) throw Error('Missing update installer.');
+          await verifyWindowsInstaller(installers[0]);
+          this.installer = installers[0];
+        }
+        this.set({ kind: 'ready', version });
+      }
       catch { this.set({ kind: 'download-error', version, message: 'Could not download or verify the update. Try again.' }); }
     } else if (command === 'install' && this.state.kind === 'ready') {
       const version = this.state.version;
       this.set({ kind: 'installing', version });
-      try { engine.quitAndInstall(false, true); }
+      try {
+        if (process.platform === 'win32') {
+          if (!this.installer) throw Error('Missing verified installer.');
+          await verifyWindowsInstaller(this.installer);
+        }
+        if (!this.stopped) engine.quitAndInstall(false, true);
+      }
       catch { this.set({ kind: 'download-error', version, message: 'Could not start the installer. Download the update again.' }); }
     }
   }

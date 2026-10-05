@@ -43,10 +43,13 @@ For Mac releases, also add:
 - `APPLE_APP_SPECIFIC_PASSWORD`: the notarization password.
 - `APPLE_TEAM_ID`: the Apple developer team.
 
-The release workflow requires a signing certificate. It fails if signing credentials are missing.
+The release workflow requires a signing certificate. It fails if signing credentials are missing. Signing secrets are limited to their platform build step.
+Windows update checks require valid signatures on both the installed app and the download, with the same publisher subject. A failed verification blocks installation. A publisher subject change needs a manual install.
 Local Windows installers can be unsigned for testing.
 
 ## Prepare a release
+
+Before distributing installers, resolve the release gates in [AUDIT.md](../AUDIT.md). Obtain the missing lazy-val notice, include it in the distribution, and confirm code and icon rights. The current notice file records this open requirement.
 
 1. Update the version with `npm version patch --no-git-tag-version` or another appropriate version increment.
 2. Run `npm test`, `npm run test:desktop`, and `npm run audit:migration`.
@@ -67,7 +70,7 @@ Keep previous releases available for downloads and recovery.
 ## Verify an update
 
 `npm run test:updates -- <installer>` runs the real Windows updater against an isolated local HTTP server.
-It checks version discovery, manual download, checksum verification, failure, and retry.
+It checks version discovery, manual download, checksum verification, failure, retry, unsigned publisher rejection, and an unavailable signature verifier. It runs from an unsigned development Electron runtime, so it must reject the final download. It does not prove that a signed installed app accepts a valid update.
 The server and updater cache use test folders. The check does not publish a release or install an update.
 Use two installed versions on a test computer to verify the restart and installation step before the first public release.
 Mac updates need a separate signed test on a Mac.

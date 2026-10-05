@@ -14,7 +14,7 @@ async function fixture(root: string, now = Date.now()) {
   const insert = db.prepare('INSERT INTO threads VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)');
   for (const [index, id] of ids.entries()) {
     const rollout = path.join(codex, `${id}.jsonl`);
-    await fs.writeFile(rollout, `${JSON.stringify({ timestamp: new Date(now - 60_000).toISOString(), type: 'event_msg', payload: { type: 'task_started' } })}\n`);
+    await fs.writeFile(rollout, `${JSON.stringify({ timestamp: new Date(now - 60_000).toISOString(), type: 'event_msg', payload: { type: 'task_started', turn_id: 'current' } })}\n`);
     insert.run(id, index ? 'Review tests' : 'Build the service', 'C:/work/project', 'vscode', 'Codex Desktop', rollout, Math.floor(now / 1000), 0);
   }
   insert.run('cli', 'CLI session', 'C:/work', 'cli', 'Codex CLI', '', Math.floor(now / 1000), 0);

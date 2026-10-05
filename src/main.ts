@@ -69,12 +69,12 @@ function notify() {
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('settings:update', settingsPayload());
   updateTooltip();
 }
-function settingsPayload(): SettingsPayload { return { version: app.getVersion(), update: updates.state }; }
+function settingsPayload(): SettingsPayload { return { version: app.getVersion(), update: updates.state, codexUsageEnabled: preferences.value.codexUsageEnabled }; }
 function showSettings(y = 0) {
   hideTooltip();
   const bounds = win.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
-  const width = Math.min(236, area.width - 16), height = Math.min(96, area.height - 16);
+  const width = Math.min(292, area.width - 16), height = Math.min(210, area.height - 16);
   settingsWin.setBounds({ width, height,
     x: Math.round(Math.max(area.x + 8, bounds.x - width - 8)),
     y: Math.round(Math.max(area.y + 8, Math.min(bounds.y + y, area.y + area.height - height - 8))) });
@@ -252,7 +252,7 @@ async function main() {
   preferences = new Preferences(path.join(app.getPath('userData'), 'preferences.json'));
   await preferences.load();
   await refreshTextScale(true);
-  monitor = new SessionMonitor(await createAdapters({ demo, testDir }));
+  monitor = new SessionMonitor(await createAdapters({ demo, testDir, codexUsageEnabled: () => preferences.value.codexUsageEnabled }));
   usage = monitor.usageSnapshot();
   win = new BrowserWindow({ width: compactWidth, height: 100, show: false, frame: false, transparent: true,
     resizable: false, maximizable: false, minimizable: false, fullscreenable: false, skipTaskbar: true,
@@ -279,7 +279,7 @@ async function main() {
     return result;
   });
   ipcMain.on('panel:tooltip', showTooltip);
-  settingsWin = new BrowserWindow({ width: 236, height: 96, show: false, frame: false, transparent: true,
+  settingsWin = new BrowserWindow({ width: 292, height: 210, show: false, frame: false, transparent: true,
     resizable: false, maximizable: false, minimizable: false, skipTaskbar: true, alwaysOnTop: true,
     webPreferences: { preload: path.join(__dirname, 'settings-preload.js'), nodeIntegration: false,
       contextIsolation: true, sandbox: true } });
@@ -297,6 +297,14 @@ async function main() {
     const value = parseSettingsAction(input);
     if (!value) return;
     switch (value.type) {
+      case 'codex-usage': {
+        const result = actionQueue.then(async () => {
+          await preferences.save({ ...preferences.value, codexUsageEnabled: value.enabled });
+          await refreshUsage();
+        });
+        actionQueue = result.catch(() => {});
+        return result;
+      }
       case 'close': settingsWin.hide(); return;
       case 'quit': app.quit(); return;
       case 'update':
