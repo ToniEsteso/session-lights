@@ -35,6 +35,9 @@ export function parseAction(value: unknown): PanelAction | undefined {
 export function parseSettingsAction(value: unknown): SettingsAction | undefined {
   if (!isRecord(value)) return;
   switch (value.type) {
+    case 'codex-usage':
+      if (typeof value.enabled === 'boolean') return { type: 'codex-usage', enabled: value.enabled };
+      return;
     case 'update':
       if (value.command === 'check' || value.command === 'download' || value.command === 'install') return { type: 'update', command: value.command };
       return;

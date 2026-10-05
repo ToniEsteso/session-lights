@@ -45,7 +45,7 @@ async function findCodex() {
   const triple = process.platform === 'win32' ? `${process.arch === 'arm64' ? 'aarch64' : 'x86_64'}-pc-windows-msvc` :
     `${process.arch === 'arm64' ? 'aarch64' : 'x86_64'}-apple-darwin`;
   const executable = process.platform === 'win32' ? 'codex.exe' : 'codex';
-  const directories = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  const directories = (process.env.PATH || '').split(path.delimiter).filter(dir => path.isAbsolute(dir));
   if (process.platform === 'darwin') directories.push('/opt/homebrew/bin', '/usr/local/bin', path.join(os.homedir(), '.local', 'bin'));
   for (const dir of [...new Set(directories)]) {
     candidates.push(path.join(dir, executable));
@@ -59,7 +59,7 @@ async function findCodex() {
       } catch { /* Not an npm installation. */ }
     }
   }
-  for (const file of [...new Set(candidates)]) if (await nativeBinary(file)) return file;
+  for (const file of [...new Set(candidates)]) if (path.isAbsolute(file) && await nativeBinary(file)) return file;
   throw Error('Codex runtime not found. Install Codex CLI or select its runtime.');
 }
 

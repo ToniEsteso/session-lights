@@ -16,3 +16,6 @@ footer { display: flex; align-items: center; justify-content: space-between; mar
 progress { display: block; width: calc(100% - 16px); height: 2px; margin: 0 8px; accent-color: #ffd45e; }
 [hidden] { display: none !important; }
 #error { color: #ff807c; font-size: 11px; margin: 4px 8px 0; }
+
+.usage-toggle { display: flex; align-items: center; gap: 6px; margin: 8px; }
+#usage-warning { color: #a8b1ba; font-size: 11px; margin: 4px 8px 10px; }

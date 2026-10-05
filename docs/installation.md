@@ -9,7 +9,7 @@
 5. Find **Session Lights** in the Start menu if the panel does not appear.
 
 The installer includes Electron and its runtime. You do not need Node.js or npm.
-Live sessions and usage limits require the Codex desktop app and its existing sign-in.
+Live sessions require local Codex desktop records. Usage limits are off by default. Enable them in Settings only if you accept that the Codex runtime can write or migrate shared data and use your sign-in.
 The panel starts after installation. Its tray icon can show or hide the panel.
 The app does not start automatically when you sign in to Windows.
 
@@ -44,7 +44,7 @@ Quitting the app does not install a downloaded Windows update.
 On macOS, the native updater can apply a staged update on a later launch.
 
 Your pins, sort order, and panel position stay in the app's settings folder.
-Updates do not change Codex records or credentials.
+The updater does not access Codex records or credentials. If usage reads are enabled, the Codex child manages its own data and authentication after restart.
 Update checks send requests to the release service. They do not include chat data.
 
 Development runs show **Updates unavailable**. Use an installed release to check for updates.

@@ -3,8 +3,12 @@
   "productName": "Session Lights",
   "executableName": "Session Lights",
   "directories": { "output": "dist", "buildResources": "assets" },
-  "files": ["build/src/**/*", "docs/installation.md", "README.md", "!**/*.map"],
-  "extraResources": [{ "from": "docs/installation.md", "to": "installation.md" }],
+  "files": ["build/src/**/*", "docs/installation.md", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "!**/*.map"],
+  "extraResources": [
+    { "from": "docs/installation.md", "to": "installation.md" },
+    { "from": "LICENSE", "to": "LICENSE" },
+    { "from": "THIRD_PARTY_NOTICES.md", "to": "THIRD_PARTY_NOTICES.md" }
+  ],
   "asar": true,
   "npmRebuild": false,
   "publish": [{ "provider": "github", "owner": "ToniEsteso", "repo": "session-lights", "releaseType": "draft" }],

@@ -26,11 +26,11 @@ jobs:
             arch: universal
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: matrix.platform == 'win' || inputs.include_mac
         with:
           ref: ${{ inputs.tag }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         if: matrix.platform == 'win' || inputs.include_mac
         with:
           node-version: '24'
@@ -47,18 +47,22 @@ jobs:
         if: matrix.platform == 'win' || inputs.include_mac
       - run: npm run audit:migration
         if: matrix.platform == 'win' || inputs.include_mac
-      - name: Build signed installers
-        if: matrix.platform == 'win' || inputs.include_mac
+      - name: Build signed Windows installer
+        if: matrix.platform == 'win'
         env:
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: npx electron-builder --config electron-builder.json --win --x64 --config.forceCodeSigning=true --publish never
+      - name: Build signed Mac installers
+        if: matrix.platform == 'mac' && inputs.include_mac
+        env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npx electron-builder --config electron-builder.json --${{ matrix.platform }} --${{ matrix.arch }} --config.forceCodeSigning=true --publish never
-      - uses: actions/upload-artifact@v4
+        run: npx electron-builder --config electron-builder.json --mac --universal --config.forceCodeSigning=true --publish never
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: matrix.platform == 'win' || inputs.include_mac
         with:
           name: release-${{ matrix.platform }}-${{ matrix.arch }}
@@ -75,7 +79,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: installers
           merge-multiple: true
