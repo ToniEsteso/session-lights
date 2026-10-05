@@ -145,10 +145,11 @@ export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refre
     checks.push('failed preference writes show an error and preserve the current theme', 'empty states use both themes');
   }
   if (process.argv.includes('--theme-only')) {
-    await settings("Promise.all([window.settings.action({ type: 'theme', theme: 'light' }), window.settings.action({ type: 'adapter', id: 'atlas', visible: false })])");
+    await Promise.all([settings("Promise.all([window.settings.action({ type: 'theme', theme: 'light' }), window.settings.action({ type: 'adapter', id: 'atlas', visible: false })])"), panel("window.sessionLights.action({ type: 'hide-session', key: 'codex:22222222-2222-4222-8222-222222222222' })")]);
     await wait(async () => await settings("window.settings.read().then(value => value.theme === 'light' && value.adapters.some(adapter => adapter.id === 'atlas' && !adapter.visible))"));
     await wait(() => themeMatches(false));
-    checks.push('theme and adapter choices both survive concurrent Settings saves');
+    await wait(async () => await panel("document.querySelectorAll('.session').length === 1 && document.querySelector('#hidden-sessions').textContent === '1 session hidden'"));
+    checks.push('theme, adapter, and session choices survive concurrent saves');
   }
   // Leave Dark saved so the parent can verify a cold app restart.
   await choose('dark');
@@ -166,6 +167,7 @@ export async function checkThemeStartup({ win, settingsWin, tooltipWin, testDir 
   }
   assert.equal(await settingsWin.webContents.executeJavaScript('window.settings.read().then(value => value.theme)'), theme);
   assert.equal(await settingsWin.webContents.executeJavaScript("window.settings.read().then(value => value.adapters.some(adapter => adapter.id === 'atlas' && !adapter.visible))"), true, 'Theme restart must preserve hidden adapters.');
+  assert.equal(await win.webContents.executeJavaScript("window.sessionLights.read().then(value => value.sessions.length === 1 && value.hiddenSessions.some(session => session.key === 'codex:22222222-2222-4222-8222-222222222222'))"), true, 'Theme restart must preserve hidden sessions.');
   const next = theme === 'dark' ? 'light' : 'system';
   await settingsWin.webContents.executeJavaScript(`window.settings.action({ type: 'theme', theme: '${next}' })`);
   await fs.writeFile(path.join(testDir, `startup-${theme}.json`), JSON.stringify({ theme, scheme, passed: true }, null, 2));

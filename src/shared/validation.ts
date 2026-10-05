@@ -19,7 +19,7 @@ export function parseAction(value: unknown): PanelAction | undefined {
       if (value.order === 'activity' || value.order === 'project') return { type: 'sort', order: value.order };
       return;
     case 'expand': return { type: 'expand', reducedMotion: value.reducedMotion === true };
-    case 'pin': case 'open':
+    case 'pin': case 'open': case 'hide-session': case 'restore-session':
       if (typeof value.key === 'string') return { type: value.type, key: value.key };
       return;
     case 'move':
@@ -28,7 +28,7 @@ export function parseAction(value: unknown): PanelAction | undefined {
         return { type: 'move', phase: value.phase, screenY: value.screenY };
       }
       return;
-    case 'hide': case 'quit': return { type: value.type };
+    case 'hide': case 'quit': case 'show-hidden': case 'restore-all': return { type: value.type };
     default: return;
   }
 }

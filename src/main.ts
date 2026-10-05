@@ -4,6 +4,7 @@ import { parseAction, parseTooltipTarget, parseSettingsAction, errorMessage } fr
 import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, nativeTheme } from 'electron';
 import * as path from 'node:path';
 import { SessionMonitor, visibleSessions } from './core.js';
+import { sessionSections } from './shared/session-sections.js';
 import { createAdapters } from './adapters/index.js';
 import { Preferences } from './preferences.js';
 import { existsSync } from 'node:fs';
@@ -23,6 +24,7 @@ let tray: Tray | undefined;
 let preferences: Preferences;
 let monitor: SessionMonitor;
 let snapshot: MonitorSnapshot = { sessions: [], sources: [] };
+let showHidden = false;
 let timer: NodeJS.Timeout | undefined;
 let quitting = false;
 let actionQueue = Promise.resolve();
@@ -58,12 +60,16 @@ async function refreshTextScale(force = false) {
 }
 
 function payload(): PanelPayload {
-  // All sessions stay visible, including when older settings enabled the recent filter.
+  const hidden = new Set(preferences.value.hidden);
+  const hiddenSessions = visibleSessions(snapshot.sessions.filter(session => hidden.has(session.key)), { ...preferences.value, showAll: true, hidden: [] });
+  // Ignore the old recent filter. Explicit session and adapter hiding still apply.
   const sessions = visibleSessions(snapshot.sessions, { ...preferences.value, showAll: true });
   const sources = snapshot.sources.filter(source => !preferences.value.hiddenAdapters.includes(source.id));
   const visibleUsage = usage.filter(source => !preferences.value.hiddenAdapters.includes(source.providerId));
   return { sources, sessions,
     update: updates.state,
+    hiddenSessions,
+    showHidden: preferences.value.expanded && showHidden && hiddenSessions.length > 0,
     total: sessions.length, preferences: preferences.value, usage: visibleUsage, demo,
     motion: panelResize, compactInset: compactWidth - 26, textScale: systemTextScale };
 }
@@ -108,7 +114,7 @@ function hideTooltip() { tooltipTarget = undefined; tooltipWin?.hide(); }
 function tooltipData(target: TooltipTarget | undefined): TooltipData | undefined {
   const view = payload();
   if (target?.kind === 'session') {
-    const session = view.sessions.find(session => session.key === target.key);
+    const session = [...view.sessions, ...(view.showHidden ? view.hiddenSessions : [])].find(session => session.key === target.key);
     return session && { kind: 'session', ...session };
   }
   if (target?.kind === 'usage') {
@@ -156,9 +162,9 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const scale = preferences.value.expanded ? systemTextScale : 1;
   const width = preferences.value.expanded ? Math.round(Math.min(328 * scale, area.width)) : compactWidth;
   const view = payload();
-  const sessions = view.sessions;
+  const sessions = view.showHidden ? [...view.sessions, ...view.hiddenSessions] : view.sessions;
   const rows = Math.max(1, Math.min(sessions.length, 14));
-  const groupHeight = preferences.value.expanded && preferences.value.sortOrder === 'project' ? new Set(sessions.map(session => session.projectKey)).size * 24 : 0;
+  const groupHeight = preferences.value.expanded ? sessionSections(view).filter(section => section.title).length * 24 : 0;
   const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
   const overhead = preferences.value.expanded ? 104 : limits ? 62 : 51;
   const minimum = preferences.value.expanded ? (view.sources.length ? 128 : 184) : 41;
@@ -220,6 +226,16 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
       const pinned = prefs.pinned.includes(value.key) ? prefs.pinned.filter(k => k !== value.key) : [...prefs.pinned, value.key];
       await preferences.save({ ...prefs, pinned }); break;
     }
+    case 'hide-session': {
+      if (!snapshot.sessions.some(session => session.key === value.key) || prefs.hidden.includes(value.key)) return;
+      await preferences.save({ ...prefs, hidden: [...prefs.hidden, value.key] }); break;
+    }
+    case 'restore-session':
+      await preferences.save({ ...prefs, hidden: prefs.hidden.filter(key => key !== value.key) }); break;
+    case 'restore-all':
+      await preferences.save({ ...prefs, hidden: [] }); showHidden = false; break;
+    case 'show-hidden':
+      showHidden = !showHidden; break;
     case 'move': {
       settingsWin.hide();
       if (!Number.isFinite(value.screenY)) return;

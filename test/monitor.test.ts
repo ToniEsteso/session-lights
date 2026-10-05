@@ -158,3 +158,23 @@ test('nullable desktop fields keep the chat visible with fallback labels and unk
   assert.equal(session.project, 'No workspace');
   assert.equal(session.state, 'unknown');
 });
+
+// Catch lost hiding preferences and hidden bookmarks returning after a restart or source update.
+test('hidden sessions stay out after a restart and return with their bookmark when restored', async () => {
+  const { dir, monitor, data } = await setup();
+  const first = required((await monitor.read()).sessions.find(session => session.id === data.ids[0]));
+  const file = path.join(dir, 'hidden-preferences.json');
+  const preferences = new Preferences(file);
+  await preferences.load();
+  await preferences.save({ ...preferences.value, hidden: [first.key], pinned: [first.key] });
+  setStatus(data, first.id, 'completed');
+  const reopened = new Preferences(file);
+  await reopened.load();
+  const sessions = (await monitor.read()).sessions;
+  assert.deepEqual(visibleSessions(sessions, reopened.value).map(session => session.id), [data.ids[1]]);
+  await reopened.save({ ...reopened.value, hidden: [] });
+  const restored = visibleSessions(sessions, reopened.value);
+  assert.equal(restored.length, 2);
+  assert.equal(required(restored[0]).id, first.id);
+  assert.equal(required(restored[0]).state, 'idle');
+});
