@@ -3,15 +3,29 @@
   "version": "0.1.0",
   "description": "A small desktop panel for local coding sessions.",
   "private": true,
-  "main": "src/main.cjs",
-  "engines": { "node": ">=22.12.0" },
-  "scripts": {
-    "start": "node scripts/start.cjs",
-    "demo": "node scripts/start.cjs --demo",
-    "test": "node --experimental-sqlite --test test/*.test.cjs",
-    "check": "node scripts/check.cjs",
-    "test:desktop": "node --experimental-sqlite scripts/desktop-test.cjs",
-    "pack": "node scripts/pack.cjs"
+  "main": "build/src/main.js",
+  "engines": {
+    "node": ">=22.12.0"
   },
-  "devDependencies": { "electron": "44.5.1" }
+  "scripts": {
+    "build": "npm run clean && tsc -p tsconfig.json && tsc -p src/ui/tsconfig.json && node build/scripts/build.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p src/ui/tsconfig.json",
+    "start": "npm run build && node build/scripts/start.js",
+    "demo": "npm run start -- --demo",
+    "test": "npm run build && node --experimental-sqlite --test build/test/*.test.js",
+    "check": "npm run typecheck",
+    "test:desktop": "npm run build && node --experimental-sqlite build/scripts/desktop-test.js",
+    "test:package": "node build/scripts/package-test.js",
+    "check:usage": "npm run build && node build/scripts/usage-check.js",
+    "pack": "npm run build && node build/scripts/pack.js",
+    "clean": "node -e \"const p = require('node:path'); const root = process.cwd(); const target = p.resolve(root, 'build'); if (p.dirname(target) !== root) throw Error('Invalid build path'); require('node:fs').rmSync(target, { recursive: true, force: true });\"",
+    "audit:migration": "npm run build && node build/scripts/audit-migration.js"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "electron": "44.5.1",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  },
+  "type": "commonjs"
 }

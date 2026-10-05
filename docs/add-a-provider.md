@@ -1,0 +1,62 @@
+# Add a provider
+
+1. Add a TypeScript module under `src/adapters/`.
+2. Implement `SessionAdapter`. Use a unique provider `id`.
+3. Parse your provider's external data before returning it.
+4. Add the adapter to `createAdapters()` in `src/adapters/index.ts`.
+5. Run `npm run check`, `npm test`, and `npm run test:desktop`.
+
+The following adapter shows the required contract and the optional usage and opening capabilities.
+
+```ts
+import type { OpenExternal, SessionAdapter, SessionReading, UsageDefinition, UsageReading } from '../shared/contracts.js';
+import { epochMilliseconds, unixSeconds } from '../shared/time.js';
+
+export class ExampleAdapter implements SessionAdapter {
+	readonly id = 'example';
+	readonly name = 'Example';
+	readonly usage: UsageDefinition = {
+		scope: 'Workspace usage',
+		windows: [{ id: 'daily', label: 'Daily', title: 'Daily allowance' }]
+	};
+
+	async read(): Promise<SessionReading> {
+		return {
+			health: 'Sample data.',
+			sessions: [{
+				id: 'chat-1', title: 'Example chat', project: 'Example project',
+				projectId: 'example:project-1', state: 'idle', detail: 'Finished.',
+				updatedAt: epochMilliseconds(Date.now())
+			}]
+		};
+	}
+
+	async readUsage(): Promise<UsageReading> {
+		return {
+			windows: [{ id: 'daily', remainingPercent: 72,
+				resetsAt: unixSeconds(Math.floor(Date.now() / 1000) + 3600) }],
+			updatedAt: epochMilliseconds(Date.now())
+		};
+	}
+
+	async open(id: string, openExternal: OpenExternal): Promise<void> {
+		if (!/^chat-\d+$/.test(id)) throw Error('Invalid Example chat ID.');
+		await openExternal(`example://chats/${id}`);
+	}
+}
+```
+
+Omit `readUsage()` when your provider has no limits. Omit `resetsAt` when the provider supplies no reset time.
+Return an empty `windows` array and `updatedAt: null` when usage is unavailable.
+Define known windows in `usage` if their labels must remain visible during failed reads.
+
+Omit `open()` when chat links are unavailable.
+Add `close()` when the adapter owns a child process or another resource that needs cleanup.
+
+Use a shared `projectId` only when providers refer to the same project.
+Prefix a provider-local project ID with the provider ID.
+See the [README project rules](../README.md#extend) for workspace normalization and grouping.
+
+Add a test that reads a provider fixture through `SessionMonitor`.
+Check its project grouping, usage, and failure recovery.
+The extension test in `test/contracts.test.ts` uses a second provider through the public monitor methods.

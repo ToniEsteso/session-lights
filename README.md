@@ -13,13 +13,14 @@ The first version reads local **Codex desktop** sessions on Windows and macOS.
 
 ## Run
 
-Install Node.js 22.12 or later. In this folder, run:
+Install Node.js 22.12 or later and npm. In this folder, run:
 
 ```sh
 npm ci
 npm start
 ```
 
+`npm start` builds the TypeScript code before starting Electron.
 Use `npm run demo` to see all five colors with sample sessions.
 Use `npm run pack` to make a portable app for the current system.
 On Windows, open `Session Lights.exe` in the new `dist` folder. Keep the folder intact.
@@ -88,16 +89,19 @@ The local reader lets the panel work without changing the user's Codex setup.
 
 ## Extend
 
-Add an adapter under `src/adapters/` and register it in `src/adapters/index.cjs`.
+Add an adapter under `src/adapters/` and register it in `src/adapters/index.ts`.
 Use a unique adapter `id`. No changes to the main process or UI are needed to register another provider.
+Implement `SessionAdapter` from `src/shared/contracts.ts`.
+Use `epochMilliseconds()` and `unixSeconds()` from `src/shared/time.ts` for timestamps.
+See [Add a provider](docs/add-a-provider.md) for a complete typed example.
 An adapter has `id`, `name`, and an async `read()` method. The method returns:
 
-```js
+```ts
 {
   health: 'Source status shown in the panel',
   sessions: [{
     id: 'provider-local-id', title: 'Session name', project: 'Project', workspace: 'Full path',
-    state: 'idle', detail: 'Why this state applies', updatedAt: Date.now()
+    state: 'idle', detail: 'Why this state applies', updatedAt: epochMilliseconds(Date.now())
   }]
 }
 ```
@@ -123,7 +127,7 @@ Use the supplied `openExternal(url)` function for an OS link, or handle opening 
 For usage, add an optional `readUsage()` method. The panel then shows the provider's gauges without UI changes.
 An adapter can define `usage` for scope and known limit labels. These limits remain visible as unavailable during startup or a failed read:
 
-```js
+```ts
 this.usage = {
   scope: 'Account-wide usage',
   windows: [{ id: 'daily', label: 'Daily', title: 'Daily allowance' }]
@@ -132,10 +136,10 @@ this.usage = {
 
 `readUsage()` returns a reading in this form:
 
-```js
+```ts
 {
-  windows: [{ id: 'daily', label: 'Daily', remainingPercent: 72, resetsAt: 1791200000 }],
-  updatedAt: Date.now(), message: ''
+  windows: [{ id: 'daily', label: 'Daily', remainingPercent: 72, resetsAt: unixSeconds(1791200000) }],
+  updatedAt: epochMilliseconds(Date.now()), message: ''
 }
 ```
 
@@ -153,13 +157,17 @@ Claude, OpenCode, and other tools are not yet implemented.
 ```sh
 npm run check
 npm test
+npm run audit:migration
 npm run test:desktop
 ```
 
 The desktop check runs the real Electron app against isolated test files.
 It checks the panel, state updates, long lists, pins, usage, dragging, and saved settings. It saves screenshots and a report under `evidence/`.
 It does not change your Codex data or click into a real Codex chat.
-Usage UI checks use an isolated local JSON-RPC service. Run `node scripts/usage-check.cjs` to check the real account connection.
+Usage UI checks use an isolated local JSON-RPC service. Run `npm run check:usage` to check the real account connection.
 
+All app code, scripts, and tests use TypeScript. Generated output goes into `build/`.
+See [TypeScript architecture](docs/architecture.md) for compiler settings, module ownership, and build rules.
 The source is kept in a local Git repo. Builds, dependencies, and test evidence are excluded.
-See [VERIFICATION.md](VERIFICATION.md) for the review results and remaining limits.
+See [Migration verification](docs/migration-verification.md) for the current checks and platform limits.
+See [VERIFICATION.md](VERIFICATION.md) for earlier review results.

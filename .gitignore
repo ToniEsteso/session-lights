@@ -3,3 +3,8 @@ dist/
 evidence/
 .test-data/
 .npm-cache/
+build/
+.pnpm-store/
+.evidence/
+.playwright-cli/
+.tmp/
