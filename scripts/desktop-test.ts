@@ -14,7 +14,7 @@ async function main() {
   db.prepare('UPDATE threads SET updated_at = ? WHERE id = ?').run(Math.floor((Date.now() - 2 * 86_400_000) / 1000), data.ids[1]);
   db.close();
   await fs.mkdir(path.join(dir, 'profile'), { recursive: true });
-  await fs.writeFile(path.join(dir, 'profile', 'preferences.json'), JSON.stringify({ showAll: false, sortOrder: 'obsolete' }));
+  await fs.writeFile(path.join(dir, 'profile', 'preferences.json'), JSON.stringify({ showAll: false, sortOrder: 'obsolete', codexUsageEnabled: true }));
   await fs.writeFile(path.join(dir, 'system-text-percent.json'), '100');
   await fs.writeFile(path.join(dir, 'usage.json'), JSON.stringify({ result: { rateLimitsByLimitId: { codex: {
     primary: { usedPercent: 24, windowDurationMins: 300, resetsAt: Math.floor(Date.now() / 1000) + 7200 },

@@ -24,6 +24,8 @@ function render(value: SettingsPayload) {
     }
     input.checked = adapter.visible;
   }
+  const usage = $('#codex-usage');
+  if (usage instanceof HTMLInputElement) usage.checked = value.codexUsageEnabled;
   const view = updateView(value.update);
   $('#version').textContent = `v${value.version}`;
   $('#update').textContent = view.label;
@@ -49,6 +51,9 @@ for (const input of document.querySelectorAll<HTMLInputElement>('input[name=them
     if (input.checked && (input.value === 'system' || input.value === 'light' || input.value === 'dark')) void act({ type: 'theme', theme: input.value });
   });
 }
+$('#codex-usage').addEventListener('change', event => {
+  if (event.target instanceof HTMLInputElement) void act({ type: 'codex-usage', enabled: event.target.checked });
+});
 $('#update').addEventListener('click', () => {
   if (!snapshot) return;
   const command = updateView(snapshot.update).command;

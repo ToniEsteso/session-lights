@@ -130,6 +130,15 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     assert.match(await settingsWin.webContents.executeJavaScript("document.querySelector('#update').title"), /installed release/);
     assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('h1, h2, #release-notes, #installation-help') === null"), true);
     await settingsWin.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    // The warning and control must be visible before enabling the runtime.
+    assert.match(await settingsWin.webContents.executeJavaScript("document.querySelector('#usage-warning').textContent"), /write or migrate Codex data/);
+    await settingsWin.webContents.executeJavaScript("document.querySelector('#codex-usage').click()");
+    await wait("window.sessionLights.read().then(value => value.preferences.codexUsageEnabled === false && value.usage.find(source => source.providerId === 'codex').windows.every(window => window.remainingPercent === undefined))");
+    const usagePreferences = new Preferences(preferences.file); await usagePreferences.load();
+    assert.equal(usagePreferences.value.codexUsageEnabled, false);
+    await settingsWin.webContents.executeJavaScript("document.querySelector('#codex-usage').click()");
+    await wait("window.sessionLights.read().then(value => value.preferences.codexUsageEnabled === true && value.usage.find(source => source.providerId === 'codex').windows.some(window => window.remainingPercent === 76))");
+    assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight && document.querySelector('#usage-warning').getBoundingClientRect().bottom < document.querySelector('footer').getBoundingClientRect().top"), true);
     await fs.writeFile(path.join(testDir, 'settings.png'), (await settingsWin.webContents.capturePage()).toPNG());
     await settingsWin.webContents.executeJavaScript("document.querySelector('#close').click()");
     await waitNative(() => !settingsWin.isVisible());

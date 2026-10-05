@@ -79,7 +79,7 @@ function notify() {
   updateTooltip();
 }
 function settingsPayload(): SettingsPayload {
-  return { version: app.getVersion(), update: updates.state, theme: preferences.value.theme, textScale: systemTextScale,
+  return { version: app.getVersion(), update: updates.state, theme: preferences.value.theme, codexUsageEnabled: preferences.value.codexUsageEnabled, textScale: systemTextScale,
     adapters: monitor.adapters.map(adapter => ({ id: adapter.id, name: adapter.name,
       visible: !preferences.value.hiddenAdapters.includes(adapter.id) })) };
 }
@@ -87,8 +87,8 @@ function showSettings(y = 0) {
   hideTooltip();
   const bounds = win.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
-  const width = Math.round(Math.min(236 * systemTextScale, area.width - 16));
-  const height = Math.round(Math.min((270 + monitor.adapters.length * 32) * systemTextScale, area.height - 16));
+  const width = Math.round(Math.min(292 * systemTextScale, area.width - 16));
+  const height = Math.round(Math.min((386 + monitor.adapters.length * 32) * systemTextScale, area.height - 16));
   settingsWin.setBounds({ width, height,
     x: Math.round(Math.max(area.x + 8, bounds.x - width - 8)),
     y: Math.round(Math.max(area.y + 8, Math.min(bounds.y + y, area.y + area.height - height - 8))) });
@@ -283,7 +283,7 @@ async function main() {
   // Set Chromium and native menus before any window can paint.
   nativeTheme.themeSource = preferences.value.theme;
   await refreshTextScale(true);
-  monitor = new SessionMonitor(await createAdapters({ demo, testDir }));
+  monitor = new SessionMonitor(await createAdapters({ demo, testDir, codexUsageEnabled: () => preferences.value.codexUsageEnabled }));
   usage = monitor.usageSnapshot();
   win = new BrowserWindow({ width: compactWidth, height: 100, show: false, frame: false, transparent: true,
     resizable: false, maximizable: false, minimizable: false, fullscreenable: false, skipTaskbar: true,
@@ -310,7 +310,7 @@ async function main() {
     return result;
   });
   ipcMain.on('panel:tooltip', showTooltip);
-  settingsWin = new BrowserWindow({ width: 236, height: 96, show: false, frame: false, transparent: true,
+  settingsWin = new BrowserWindow({ width: 292, height: 210, show: false, frame: false, transparent: true,
     resizable: false, maximizable: false, minimizable: false, skipTaskbar: true, alwaysOnTop: true,
     webPreferences: { preload: path.join(__dirname, 'settings-preload.js'), nodeIntegration: false,
       contextIsolation: true, sandbox: true } });
@@ -339,6 +339,9 @@ async function main() {
         await preferences.save({ ...preferences.value, hiddenAdapters });
         hideTooltip(); stopResize(); positionPanel(); notify(); return;
       }
+      case 'codex-usage':
+        await preferences.save({ ...preferences.value, codexUsageEnabled: value.enabled });
+        await refreshUsage(); return;
       case 'close': settingsWin.hide(); return;
       case 'quit': app.quit(); return;
       case 'update':

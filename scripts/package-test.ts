@@ -20,6 +20,10 @@ async function main() {
     }
   }
   await compare('build/src');
+  for (const notice of ['LICENSE', 'THIRD_PARTY_NOTICES.md']) {
+    const source = await fs.readFile(path.join(root, notice));
+    assert.deepEqual(await fs.readFile(path.join(resources, notice)), source);
+  }
   const source: unknown = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
   const packaged: unknown = JSON.parse(extractFile(archive, 'package.json').toString('utf8'));
   assert.ok(isRecord(source) && isRecord(packaged));
@@ -50,6 +54,7 @@ async function main() {
   assert.ok(output.includes(`Version: ${source.version}.`));
   assert.match(output, /Update mode: idle\./);
   assert.match(output, /Usage windows: 0\./);
+  assert.deepEqual(await fs.readdir(env.CODEX_HOME), [], 'Default launch must not initialize Codex data.');
   console.log('Package check passed: compiled files, version, update feed, help, native app, and tray.');
   console.log(output);
 }
