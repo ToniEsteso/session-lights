@@ -61,6 +61,7 @@ export interface SessionAdapter {
   close?(): void;
 }
 export interface PanelPreferences {
+  codexUsageEnabled: boolean;
   expanded: boolean;
   showAll: boolean;
   pinned: string[];
@@ -118,12 +119,14 @@ export interface SessionLightsBridge {
   subscribe(callback: (value: PanelPayload) => void): () => void;
 }
 export interface SettingsPayload {
+  codexUsageEnabled: boolean;
   version: string;
   update: UpdateState;
   adapters: { id: string; name: string; visible: boolean }[];
   textScale: number;
 }
 export type SettingsAction =
+  | { type: 'codex-usage'; enabled: boolean }
   | { type: 'adapter'; id: string; visible: boolean }
   | { type: 'update'; command: UpdateCommand }
   | { type: 'close' | 'quit' };

@@ -39,5 +39,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/ToniEsteso/session-lights.git"
-  }
+  },
+  "license": "MIT"
 }

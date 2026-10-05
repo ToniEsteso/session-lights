@@ -6,6 +6,8 @@ let snapshot: SettingsPayload | undefined;
 const switches = new Map<string, HTMLInputElement>();
 function render(value: SettingsPayload) {
   snapshot = value;
+  const usage = $('#codex-usage');
+  if (usage instanceof HTMLInputElement) usage.checked = value.codexUsageEnabled;
   document.body.style.setProperty('--text-scale', String(value.textScale));
   for (const adapter of value.adapters) {
     let input = switches.get(adapter.id);
@@ -43,6 +45,9 @@ async function act(value: SettingsAction) {
     try { render(await window.settings.read()); } catch { /* Keep the action error visible. */ }
   }
 }
+$('#codex-usage').addEventListener('change', event => {
+  if (event.target instanceof HTMLInputElement) void act({ type: 'codex-usage', enabled: event.target.checked });
+});
 $('#update').addEventListener('click', () => {
   if (!snapshot) return;
   const command = updateView(snapshot.update).command;

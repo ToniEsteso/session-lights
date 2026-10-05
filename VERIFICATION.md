@@ -1,6 +1,6 @@
 # Review and verification
 
-Project: `C:/workspaces/session-lights`.
+Project: `./`.
 Review date: 2026-10-05.
 
 The user requested a full review, useful improvements, and a commit in a local Git repo.
@@ -91,14 +91,14 @@ The lights move with the list. The list height follows the window so lights do n
 A second click can reverse the motion. A session refresh keeps the moving layout stable and shows fresh data at completion.
 The system's reduced-motion setting skips native and content animation. Dragging still works after either transition.
 
-Work started from local commit `2ebc444` in the isolated worktree `C:/workspaces/session-lights-animation`.
-The original checkout was clean. The tested changes were then copied into `C:/workspaces/session-lights`.
+Work started from local commit `2ebc444` in the isolated worktree `../session-lights-animation`.
+The original checkout was clean. The tested changes were then copied into `./`.
 Changed files: `src/main.cjs`, `src/ui/renderer.js`, `src/ui/style.css`, `scripts/desktop-smoke.cjs`, `README.md`, and this report.
 No dependency or provider adapter contract changed. This update is kept in the local Git repo.
 
 Final checks in the worktree: `npm run check` passed for 18 files; `npm test` passed all 10 tests;
 `npm run test:desktop` passed 48 checks. All returned exit 0. `git diff --check` passed.
-Native evidence: `C:/workspaces/session-lights-animation/evidence/desktop-rw7E8e/`.
+Native evidence: `../session-lights-animation/evidence/desktop-rw7E8e/`.
 It includes `expanding.png`, `collapsing.png`, `animation-frames.json`, and the full panel report.
 The check samples intermediate native widths, screen-edge alignment, topmost state, a source update during motion,
 quick reversal, and reduced motion. The media preference is emulated only in the isolated test window.
@@ -113,7 +113,7 @@ the elevated build shell could not run Git checks because its user differs from 
 
 ## Tooltips, search, and adapter usage — 2026-10-05
 
-Work started from `94b3aae` in the isolated worktree `C:/workspaces/session-lights-details`.
+Work started from `94b3aae` in the isolated worktree `../session-lights-details`.
 The task has normal risk. It changes native tooltip windows, expanded-list filtering, and the adapter contract.
 The finish condition is a readable tooltip beside the bar, live reset countdowns, one search row in the expanded panel,
 and provider-owned usage and chat opening. The compact bar must keep all chats visible while filters are active.
@@ -135,7 +135,7 @@ search, combined state filters, no matches, input after refresh, compact visibil
 It also checks different usage names, provider scope, missing reset time, adapter chat opening, failed and malformed usage,
 recovery, and the earlier animation, usage, pin, scroll, and position checks.
 
-Evidence: `C:/workspaces/session-lights-details/evidence/desktop-BD0ZHg/report.json`.
+Evidence: `../session-lights-details/evidence/desktop-BD0ZHg/report.json`.
 Screenshots include `session-tooltip.png`, `usage-tooltip.png`, `search.png`, `no-matches.png`, and `multiple-providers.png`.
 Visual review checked those cards and the search row. The final native run had no renderer errors.
 The first visual run found a CSS rule that stacked the state filter below search. A more specific layout rule fixed it.
@@ -160,7 +160,7 @@ Earlier local-record and authentication limits still apply.
 
 ### Delivery
 
-The tested task files were copied into `C:/workspaces/session-lights` after its clean state at `94b3aae` was checked.
+The tested task files were copied into `./` after its clean state at `94b3aae` was checked.
 `node scripts/pack.cjs` passed. The portable app is `dist/session-lights-win32-x64-1791154499772`.
 `node scripts/package-test.cjs dist/session-lights-win32-x64-1791154499772` passed, exit 0.
 Its packaged source matches the project. It read 2 real local chats and both live usage windows. The native panel and tray started.
@@ -169,7 +169,7 @@ Startup output is in `evidence/app-details-update.log`.
 
 ## Project labels and sorting — 2026-10-05
 
-This update reused `C:/workspaces/session-lights-details`. Its files matched the project before editing.
+This update reused `../session-lights-details`. Its files matched the project before editing.
 The starting state includes the earlier uncommitted tooltip and adapter changes on top of `94b3aae`.
 A file-hash baseline is saved under `evidence/project-sort-baseline.json` to protect that work during delivery.
 
@@ -198,13 +198,13 @@ and equal labels with different IDs. Project IDs can supply a missing label. Gro
 Search removes empty group headings. Compact mode keeps all chats and hides headings and controls.
 The earlier usage, tooltip, animation, dragging, long-list, pin, and failure checks also pass.
 
-Evidence: `C:/workspaces/session-lights-details/evidence/desktop-3pvlBD/report.json`.
+Evidence: `../session-lights-details/evidence/desktop-3pvlBD/report.json`.
 Visual review checked `expanded.png`, `project-groups.png`, `project-tooltip.png`, and `compact-project-order.png`.
 The final run had no renderer errors. The fixtures do not change real Codex records or open a real Codex chat.
 
 ### Review and limits
 
-The self-review compared each changed file with its starting copy in `C:/workspaces/session-lights`.
+The self-review compared each changed file with its starting copy in `./`.
 Standards: existing CommonJS, DOM, preferences, and native-test patterns remain in use. No dependencies or secrets changed.
 Spec: adapters supply names, optional paths, optional shared IDs, and activity times. The shared monitor groups and sorts them.
 Group ordering uses one label per identity so different adapter labels cannot split a project into several sections.
@@ -222,8 +222,8 @@ The updated app was started from that build. Its startup output is in `evidence/
 
 ## Top sorting buttons — 2026-10-05
 
-This small UI update reused `C:/workspaces/session-lights-details`.
-Its starting files matched `C:/workspaces/session-lights`, including the earlier uncommitted changes.
+This small UI update reused `../session-lights-details`.
+Its starting files matched `./`, including the earlier uncommitted changes.
 The file-hash baseline is `evidence/top-sort-baseline.json`.
 The finish condition is no search or state filter, four clear sorting choices above the list,
 saved sorting, and no extra controls in compact mode.
@@ -245,7 +245,7 @@ The native checks cover sorting, saved choices, keyboard use, compact visibility
 pins, long lists, usage, tooltips, dragging, and animation. No renderer errors occurred.
 The first test run omitted Electron's character event for Enter. The focused button did not activate.
 Adding that event to the native input sequence fixed the test. Application code needed no keyboard change.
-Evidence: `C:/workspaces/session-lights-details/evidence/desktop-Sa6YVK/report.json`.
+Evidence: `../session-lights-details/evidence/desktop-Sa6YVK/report.json`.
 Visual review checked `expanded.png`, `project-groups.png`, and `compact-project-order.png`.
 
 The review compared all seven changed files with their starting copies in the project.
@@ -266,7 +266,7 @@ The new build was started. Startup output is in `evidence/app-top-sort.log`.
 
 ## Minimal header, sorting, and workspace labels — 2026-10-05
 
-This update continues in `C:/workspaces/session-lights-details`.
+This update continues in `../session-lights-details`.
 It removes the visible panel title and keeps Activity and Project as the only sort choices.
 Old saved sort choices use Activity. No workspace labels use the same wording across providers.
 Codex uses its saved Git metadata to tell a named repository from a session with no project data.

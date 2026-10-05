@@ -178,3 +178,54 @@ test('hidden sessions stay out after a restart and return with their bookmark wh
   assert.equal(required(restored[0]).id, first.id);
   assert.equal(required(restored[0]).state, 'idle');
 });
+
+test('new completion and new turns cannot be hidden by stale history', async () => {
+  const { data, monitor } = await setup();
+  await rolloutLine(data, data.ids[0], data.now, 'event_msg', { type: 'task_complete', turn_id: 'current' });
+  assert.equal(required((await monitor.read()).sessions.find(s => s.id === data.ids[0])).state, 'idle');
+  await rolloutLine(data, data.ids[1], data.now, 'event_msg', { type: 'task_started', turn_id: 'new-turn' });
+  await logLine(data, data.now + 1, `[AppServerConnection] response_routed conversationId=${data.ids[1]} errorCode=null method=turn/start`);
+  const session = required((await monitor.read()).sessions.find(s => s.id === data.ids[1]));
+  assert.equal(session.state, 'unknown');
+  assert.match(session.detail, /conflict/);
+  const history = new DatabaseSync(path.join(data.root, 'thread_history_1.sqlite'));
+  try { history.prepare('UPDATE thread_turns SET turn_id = ?, status = ? WHERE thread_id = ?').run('new-turn', 'inProgress', data.ids[1]); }
+  finally { history.close(); }
+  assert.equal(required((await monitor.read()).sessions.find(s => s.id === data.ids[1])).state, 'working');
+});
+
+test('conflicting legacy records without turn IDs report unknown', async () => {
+  const { data, monitor } = await setup();
+  await rolloutLine(data, data.ids[0], data.now, 'event_msg', { type: 'task_complete' });
+  assert.equal(required((await monitor.read()).sessions.find(s => s.id === data.ids[0])).state, 'unknown');
+});
+
+test('an invalid timestamp skips one row and preserves healthy providers', async () => {
+  const { data, monitor } = await setup();
+  monitor.adapters.push({ id: 'atlas', name: 'Atlas', async read() { return { health: 'Ready', sessions: [
+    { id: 'healthy', title: 'Healthy', state: 'idle', detail: 'Done', updatedAt: epochMilliseconds(data.now) }
+  ] }; } });
+  const schema = new DatabaseSync(path.join(data.root, 'state_5.sqlite'));
+  try { schema.exec('ALTER TABLE threads ADD COLUMN updated_at_ms INTEGER'); } finally { schema.close(); }
+  for (const field of ['updated_at', 'updated_at_ms']) for (const bad of [Infinity, -1, 1e100]) {
+    const db = new DatabaseSync(path.join(data.root, 'state_5.sqlite'));
+    try {
+      db.prepare('UPDATE threads SET updated_at = ?, updated_at_ms = ? WHERE id = ?').run(Math.floor(data.now / 1000), data.now, data.ids[0]);
+      db.prepare(`UPDATE threads SET ${field} = ? WHERE id = ?`).run(bad, data.ids[0]);
+    }
+    finally { db.close(); }
+    const result = await monitor.read();
+    assert.deepEqual(result.sessions.map(s => s.id).sort(), [data.ids[1], 'healthy'].sort());
+    assert.match(required(result.sources.find(s => s.id === 'codex')).health, /invalid timestamps/);
+  }
+});
+
+
+test('conflicting terminal records cannot hide a reported turn failure', async () => {
+  const { data, monitor } = await setup();
+  await rolloutLine(data, data.ids[0], data.now, 'event_msg', { type: 'task_complete', turn_id: 'current' });
+  setStatus(data, data.ids[0], 'failed');
+  const session = required((await monitor.read()).sessions.find(s => s.id === data.ids[0]));
+  assert.equal(session.state, 'unknown');
+  assert.match(session.detail, /conflict/);
+});

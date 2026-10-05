@@ -8,3 +8,5 @@ build/
 .evidence/
 .playwright-cli/
 .tmp/
+
+.worktrees/

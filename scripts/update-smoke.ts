@@ -76,17 +76,26 @@ async function main() {
     const downloading = updates.run('download');
     await updates.run('download'); await updates.run('check');
     await downloading;
-    assert.deepEqual(updates.state, { kind: 'ready', version: latest });
+    assert.equal(snapshot().kind, 'download-error', 'An unsigned installed app cannot establish a trusted update publisher.');
     assert.equal(downloads, 2, 'Concurrent commands must not duplicate the download.');
     assert.ok(states.some(state => state.kind === 'downloading' && state.percent > 0 && state.percent < 100), 'Real download progress must be reported.');
     const pending = path.join(dir, 'download-cache', 'pending');
     const downloaded = path.join(pending, required((await fs.readdir(pending)).find(name => name.endsWith('.exe'))));
     assert.deepEqual(await fs.readFile(downloaded), bytes, 'Downloaded installer must match the build.');
+    // The independent check must still reject if PowerShell cannot start.
+    const systemRoot = process.env.SystemRoot;
+    try {
+      process.env.SystemRoot = path.join(dir, 'missing-system-root');
+      await updates.run('download');
+      assert.equal(snapshot().kind, 'download-error', 'Unavailable signature verification must never offer install.');
+      await updates.run('install');
+      assert.equal(snapshot().kind, 'download-error');
+    } finally { process.env.SystemRoot = systemRoot; }
     updates.close();
     await fs.writeFile(path.join(dir, 'report.json'), JSON.stringify({ installer, sha512, states, downloads,
-      checks: ['manual downloads', 'manual installation', 'check failure and retry', 'up to date', 'new version', 'checksum rejection', 'download retry', 'concurrent commands', 'real progress', 'downloaded bytes match'],
-      limitation: 'The installer is downloaded but not installed by this check. Signing is not tested by the unsigned fixture.' }, null, 2));
-    console.log('Update checks passed: real NSIS updater, local HTTP feed, checksum failure, retry, progress, and installer bytes.');
+      checks: ['manual downloads', 'manual installation', 'check failure and retry', 'up to date', 'new version', 'checksum rejection', 'download retry', 'concurrent commands', 'real progress', 'downloaded bytes match', 'unsigned publisher rejection', 'signature tool unavailable rejection'],
+      limitation: 'The installer is downloaded but not installed by this check. Unsigned files and an unavailable verifier are rejected. A signed app update and installation remain untested.' }, null, 2));
+    console.log('Update checks passed: real NSIS updater, local HTTP feed, checksum failure, retry, progress, unsigned rejection, and unavailable signature verifier.');
   } finally {
     updates.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
   }

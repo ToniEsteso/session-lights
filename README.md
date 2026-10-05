@@ -61,7 +61,7 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 
 Panel settings are stored in the operating system's app data folder for Session Lights.
 The session reader reads Codex records without changing them. It does not send session data over the network.
-The usage reader starts an installed Codex runtime, which uses its existing ChatGPT sign-in to read account limits.
+Usage reads are off by default. Enable **Read Codex usage limits** in Settings to start an installed Codex runtime. It uses the existing ChatGPT sign-in and can write or migrate data in the Codex home.
 Session Lights does not open credential files or handle tokens itself. Codex manages its own authentication.
 
 ## Usage limits
@@ -70,7 +70,7 @@ The usage reader calls `account/rateLimits/read` through Codex's [documented app
 It refreshes once a minute. These limits cover the signed-in account, including usage from other devices.
 Failed reads show **Unavailable**. A passed reset time clears the old figure until a new reading arrives.
 The session lights keep working if the usage reader is offline or signed out.
-The reader does not start chats, send model requests, consume reset credits, or change Codex settings.
+The reader does not request chats, model responses, or reset credits. Codex runtime startup can create or migrate shared records and manage authentication. Disable usage in Settings to stop that child process. Session reads remain available.
 
 On Windows, it finds the installed desktop runtime or a native/npm Codex CLI on PATH.
 On macOS, it tries the Codex app bundle, PATH, and common Homebrew/CLI paths. These Mac paths remain unverified here.
@@ -90,13 +90,13 @@ Yellow requires a desktop notification log entry. A prompt may not create that e
 New user input clears a question. Tool output clears an approval. A finished turn clears both.
 Only local sessions with local records are supported. Remote/cloud sessions are not included.
 The adapter reads the last 512 KiB of each record or log file. Older pending notifications outside that range can be missed.
-If the turn history database cannot be read, the adapter uses session records and reports the limit in its status tooltip.
+If the turn history database cannot be read, the adapter uses session records and reports the limit in its status tooltip. Conflicting records show Unknown until the current turn can be confirmed. Invalid timestamp rows are skipped without hiding healthy chats.
 macOS window behavior and its default log path need validation on a Mac. Windows native tests are included.
 
 Codex documents runtime states in its [app-server protocol](https://learn.chatgpt.com/docs/app-server).
 Chat links use the [documented desktop link format](https://learn.chatgpt.com/docs/reference/commands).
 Starting a separate app-server does not give this panel the desktop app's live runtime state.
-The local reader lets the panel work without changing the user's Codex setup.
+The local session reader opens Codex records read-only. The optional usage process has the separate side effects described above.
 
 ## Extend
 
@@ -182,3 +182,7 @@ See [TypeScript architecture](docs/architecture.md) for compiler settings, modul
 The source is kept in a local Git repo. Builds, dependencies, and test evidence are excluded.
 See [Migration verification](docs/migration-verification.md) for the current checks and platform limits.
 See [VERIFICATION.md](VERIFICATION.md) for earlier review results.
+
+## License
+
+Session Lights uses the [MIT License](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for distribution requirements.

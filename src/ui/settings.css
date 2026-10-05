@@ -26,3 +26,6 @@ legend { padding: 0 4px; font-weight: 600; }
 .adapter-row input:checked { border-color: #8cce6b; background: #8cce6b; }
 .adapter-row input:checked::after { left: 14px; background: #181b20; }
 .adapter-row input:focus-visible { outline: 2px solid #ffd45e; outline-offset: 3px; }
+
+.usage-toggle { display: flex; align-items: center; gap: 6px; margin: 8px; }
+#usage-warning { color: #a8b1ba; font-size: 11px; margin: 4px 8px 10px; }

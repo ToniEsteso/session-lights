@@ -51,7 +51,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     }
   };
   const toggleAdapter = async (id: string) => {
-    await settingsJs(`[...document.querySelectorAll('input')].find(input => input.dataset.adapter === ${JSON.stringify(id)}).focus()`);
+    await settingsJs(`[...document.querySelectorAll('input[data-adapter]')].find(input => input.dataset.adapter === ${JSON.stringify(id)}).focus()`);
     settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Space' });
     settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Space' });
   };
@@ -69,7 +69,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       win.webContents.sendInputEvent({ type: 'char', keyCode: 'Enter' });
       win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
       await waitNative(() => settingsWin.isVisible());
-      await waitSettings("document.querySelectorAll('input').length === 2 && [...document.querySelectorAll('input')].every(input => !input.checked)");
+      await waitSettings("document.querySelectorAll('input[data-adapter]').length === 2 && [...document.querySelectorAll('input[data-adapter]')].every(input => !input.checked)");
       await toggleAdapter('codex');
       await wait("document.querySelectorAll('.session').length === 2 && document.querySelector('#sessions').textContent.includes('Hidden Codex update')");
       assert.equal(await js(`document.querySelector('[data-key="codex:${id}"] .dot').classList.contains('error')`), true);
@@ -126,6 +126,15 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('#update').disabled"), true);
     assert.match(await settingsWin.webContents.executeJavaScript("document.querySelector('#update').title"), /installed release/);
     assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('h1, h2, #release-notes, #installation-help') === null"), true);
+    // The warning and control must be visible before enabling the runtime.
+    assert.match(await settingsWin.webContents.executeJavaScript("document.querySelector('#usage-warning').textContent"), /write or migrate Codex data/);
+    await settingsWin.webContents.executeJavaScript("document.querySelector('#codex-usage').click()");
+    await wait("window.sessionLights.read().then(value => value.preferences.codexUsageEnabled === false && value.usage.find(source => source.providerId === 'codex').windows.every(window => window.remainingPercent === undefined))");
+    const usagePreferences = new Preferences(preferences.file); await usagePreferences.load();
+    assert.equal(usagePreferences.value.codexUsageEnabled, false);
+    await settingsWin.webContents.executeJavaScript("document.querySelector('#codex-usage').click()");
+    await wait("window.sessionLights.read().then(value => value.preferences.codexUsageEnabled === true && value.usage.find(source => source.providerId === 'codex').windows.some(window => window.remainingPercent === 76))");
+    assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight && document.querySelector('#usage-warning').getBoundingClientRect().bottom < document.querySelector('footer').getBoundingClientRect().top"), true);
     await fs.writeFile(path.join(testDir, 'settings.png'), (await settingsWin.webContents.capturePage()).toPNG());
     await settingsWin.webContents.executeJavaScript("document.querySelector('#close').click()");
     await waitNative(() => !settingsWin.isVisible());
@@ -670,7 +679,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     // Catch hidden sessions or gauges that remain visible, lost pins, stopped reads, and unsaved switches.
     await js("document.querySelector('header [data-settings]').click()");
     await waitNative(() => settingsWin.isVisible());
-    await waitSettings("document.querySelectorAll('input[role=switch]').length === 2 && [...document.querySelectorAll('input')].every(input => input.checked)");
+    await waitSettings("document.querySelectorAll('input[role=switch]').length === 2 && [...document.querySelectorAll('input[data-adapter]')].every(input => input.checked)");
     assert.deepEqual(await settingsJs("[...document.querySelectorAll('.adapter-row')].map(row => row.textContent)"), ['Show Codex', 'Show Atlas']);
     assert.equal(await settingsJs("[...document.querySelectorAll('.adapter-row, footer')].every(row => row.getBoundingClientRect().bottom <= innerHeight)"), true);
     await fs.writeFile(path.join(testDir, 'adapter-controls.png'), (await settingsWin.webContents.capturePage()).toPNG());
