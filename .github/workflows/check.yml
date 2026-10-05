@@ -18,4 +18,8 @@ jobs:
       - run: npm test
       - run: node build/scripts/audit-migration.js
       - run: npm run pack
-        if: runner.os != 'Linux'
+        if: runner.os == 'Windows'
+      - run: npm run test:package -- dist/win-unpacked
+        if: runner.os == 'Windows'
+      - run: npx electron-builder --config electron-builder.json --mac --dir --config.mac.identity=- --config.mac.notarize=false --publish never
+        if: runner.os == 'macOS'

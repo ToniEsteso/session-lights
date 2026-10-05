@@ -11,7 +11,14 @@ The first version reads local **Codex desktop** sessions on Windows and macOS.
 | Red | Failed | The last turn failed. |
 | Gray | Unknown | Data is missing, unsupported, or too old to confirm an active turn. |
 
-## Run
+## Install
+
+Download an installer from [GitHub Releases](https://github.com/ToniEsteso/session-lights/releases).
+See [installation and update help](docs/installation.md) for Windows and macOS instructions.
+The installer includes its runtime. Node.js and npm are required only for development.
+Release downloads become available after the repository is public and the first release is published.
+
+## Run from source
 
 Install Node.js 22.12 or later and npm. In this folder, run:
 
@@ -22,15 +29,15 @@ npm start
 
 `npm start` builds the TypeScript code before starting Electron.
 Use `npm run demo` to see all five colors with sample sessions.
-Use `npm run pack` to make a portable app for the current system.
-On Windows, open `Session Lights.exe` in the new `dist` folder. Keep the folder intact.
-On macOS, open `Session Lights.app`. Build on each system and CPU type that you use.
-The macOS app gets a local ad hoc signature. It has no Apple Developer signature or notarization.
-macOS may require you to allow it in Privacy & Security. The build uses the system's `codesign` tool.
-The Windows build grants sandboxed apps read and execute access to the portable app folder.
-This keeps Electron's renderer sandbox enabled in restricted workspace folders.
+Use `npm run pack` to build an installer for the current system.
+Windows builds produce a per-user NSIS installer. Mac builds produce a DMG and an update ZIP.
+Use `npm run pack -- --dir` for an unpacked development build.
+See [build and release instructions](docs/releases.md) for signing, release setup, and verification.
 
 ## Use the panel
+
+- Click the gear for updates and Quit. The small menu opens to the left of the panel.
+- A yellow badge on the gear marks an available update. Downloads and restarts require a click. Installed releases check at startup and every six hours.
 
 - Text follows system display scaling. On Windows, it also follows **Settings → Accessibility → Text size** automatically, including changes while the app is running. The expanded panel and hover cards grow with the text; the compact bar keeps its width. The app checks the Windows text setting every ten seconds. macOS uses system display scaling; a separate accessibility text size reader is not implemented.
 - Hover over a dot for a small detail card beside the panel. It shows the chat name, project, state, and age of the last recorded activity. It does not change the dot or take keyboard focus.

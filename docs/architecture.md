@@ -16,7 +16,7 @@ A provider can return any usage window ID. The monitor joins definitions and rea
 `SessionState` derives from `STATES`. State labels and colors therefore have one owner.
 `PanelAction` and `TooltipTarget` are discriminated unions.
 The main process checks each action variant. An added action produces a compiler error until the handler covers it.
-Both preload bridges use the same types as the renderers.
+All three preload bridges use the same types as the renderers.
 
 `EpochMilliseconds` identifies activity and reading times. `UnixSeconds` identifies usage reset times.
 The constructors in `src/shared/time.ts` check numeric values before assigning their units.
@@ -30,7 +30,8 @@ These types remain numbers in JSON. The compiler prevents assignment between the
 | `src/core.ts` | Provider aggregation, project identity, session state rules, sorting, and failure isolation |
 | `src/preferences.ts` | Settings parsing and persistence |
 | `src/main.ts` | Native windows, scheduling, sender checks, and action handling |
-| `src/preload.ts` and `src/tooltip-preload.ts` | The permitted renderer bridge methods and subscription cleanup |
+| `src/preload.ts`, `src/tooltip-preload.ts`, and `src/settings-preload.ts` | The permitted renderer bridge methods and subscription cleanup |
+| `src/updates.ts` | Update checks, downloads, installation, and update state |
 | `src/ui/` | DOM updates, shared display text, and user input |
 | `src/shared/` | Serializable contracts, input parsers, state metadata, and time units |
 
@@ -56,7 +57,7 @@ Electron's declarations require the DOM library, but renderer code has a separat
 `src/ui/tsconfig.json` exposes browser types without Node globals and prevents UI emission by the TypeScript compiler.
 
 The build first checks both configurations.
-`scripts/build.ts` then copies HTML and CSS and bundles the two renderer entries with esbuild.
+`scripts/build.ts` then copies HTML and CSS and bundles the three renderer entries with esbuild.
 It also bundles the preload entries. Each sandboxed preload can require only Electron.
 Local shared modules are included in the preload bundle.
 
@@ -67,7 +68,7 @@ An all-ESM runtime would require separate handling for sandboxed preloads and fi
 It would not improve the provider contract, so the migration keeps these runtime formats.
 
 All generated output goes into `build/`. `npm run build` clears that directory first.
-Portable packages copy only `build/src/`, with `src/main.js` as their entry point.
+Packages include `build/src/`, with `build/src/main.js` as their entry point.
 They do not require TypeScript, esbuild, tests, or installed npm packages at runtime.
 Test adapters and native smoke checks load only when the isolated desktop test flag is present.
 
@@ -82,10 +83,10 @@ The local UI configuration also gives editors the browser project when they open
 `npm run audit:migration` verifies source coverage and the generated browser and preload boundaries.
 `npm run test:desktop` runs the native Electron app with isolated files and records its checks and screenshots.
 `npm run test:package -- <folder>` compares packaged files with build output and checks a native launch.
-The package launch check reads the real Codex account and requires both usage windows.
+The package launch check uses isolated files and verifies the installed version, update setup, and native window.
 
 CI checks Node 22.12 and Node 24 on Windows, macOS, and Linux.
-It also builds portable packages on Windows and macOS.
+It also builds a Windows installer and an unpacked macOS app.
 Native desktop checks still require a desktop session. Successful compilation does not verify native window behavior.
 
 See [Add a provider](add-a-provider.md) for a complete extension example.

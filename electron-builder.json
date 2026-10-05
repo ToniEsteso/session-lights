@@ -1,0 +1,23 @@
+{
+  "appId": "local.session-lights",
+  "productName": "Session Lights",
+  "executableName": "Session Lights",
+  "directories": { "output": "dist", "buildResources": "assets" },
+  "files": ["build/src/**/*", "docs/installation.md", "README.md", "!**/*.map"],
+  "extraResources": [{ "from": "docs/installation.md", "to": "installation.md" }],
+  "asar": true,
+  "npmRebuild": false,
+  "publish": [{ "provider": "github", "owner": "ToniEsteso", "repo": "session-lights", "releaseType": "draft" }],
+  "win": { "target": "nsis", "icon": "assets/icon.ico", "artifactName": "Session-Lights-${version}-${arch}-Setup.${ext}" },
+  "nsis": {
+    "oneClick": true, "perMachine": false, "allowElevation": false,
+    "createDesktopShortcut": false, "createStartMenuShortcut": true,
+    "deleteAppDataOnUninstall": false, "runAfterFinish": true
+  },
+  "mac": {
+    "target": ["dmg", "zip"], "icon": "assets/icon.png",
+    "category": "public.app-category.developer-tools",
+    "hardenedRuntime": true, "notarize": true,
+    "artifactName": "Session-Lights-${version}-${arch}.${ext}"
+  }
+}

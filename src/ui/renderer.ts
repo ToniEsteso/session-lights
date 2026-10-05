@@ -1,5 +1,6 @@
 import type { PanelPayload, PanelAction, TooltipTarget } from '../shared/contracts.js';
 import { panelText } from './text.js';
+import { updateView } from '../shared/updates.js';
 import { element as $, svgElement, usageRow } from './dom.js';
 import { errorMessage } from '../shared/validation.js';
 const { labels, available, countdown, age } = panelText;
@@ -119,6 +120,12 @@ function renderNow(value: PanelPayload) {
   const previousDots = new Map(changing ? [...document.querySelectorAll<HTMLButtonElement>('.session-button')].map(button =>
     [button.dataset.key, $('.dot', button).getBoundingClientRect()]) : []);
   snapshot = value;
+  const update = updateView(value.update);
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-settings]')) {
+    button.setAttribute('aria-label', update.badge ? 'Settings. Update available.' : 'Settings');
+    button.title = update.badge ? update.label : 'Settings';
+    $('.update-badge', button).hidden = !update.badge;
+  }
   // Do not rebuild focused buttons during the two-second update.
   // Refresh the usage display when a reset passes, even if no source data changed.
   const signature = JSON.stringify([value,
@@ -200,7 +207,7 @@ function renderNow(value: PanelPayload) {
     const usageHeight = value.usage.reduce((sum, source) => sum + source.windows.length * (expanded ? 36 : 24), 0);
     const groupHeight = expanded && value.preferences.sortOrder === 'project' ? new Set(sessions.map(session => session.projectKey)).size * 24 : 0;
     const scale = expanded ? value.textScale : 1;
-    const listHeight = Math.min(sessions.length * (expanded ? 40 : 24) + groupHeight, Math.max(0, value.motion.height / scale - (expanded ? 104 : 29) - usageHeight));
+    const listHeight = Math.min(sessions.length * (expanded ? 40 : 24) + groupHeight, Math.max(0, value.motion.height / scale - (expanded ? 104 : 62) - usageHeight));
     effects.push($('#sessions').animate([{ height: `${previousList.height}px`, transform: `translateY(${listOffset}px)` },
       { height: `${listHeight}px`, transform: 'translateY(0)' }], { ...timing, fill: 'both' }));
     for (const element of document.querySelectorAll(expanded ? '.wide' : '.usage-gauge')) {
@@ -210,6 +217,9 @@ function renderNow(value: PanelPayload) {
   }
 }
 $('#expand').addEventListener('click', () => act({ type: 'expand' }));
+for (const button of document.querySelectorAll<HTMLButtonElement>('[data-settings]')) {
+  button.addEventListener('click', () => act({ type: 'settings', y: button.getBoundingClientRect().top }));
+}
 $('#empty').addEventListener('click', () => { if (!snapshot?.preferences.expanded) act({ type: 'expand' }); });
 $('#hide').addEventListener('click', () => act({ type: 'hide' }));
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-sort]')) {

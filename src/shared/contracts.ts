@@ -1,4 +1,5 @@
 import type { EpochMilliseconds, UnixSeconds } from './time.js';
+import type { UpdateCommand, UpdateState } from './updates.js';
 // This module has no Node or Electron dependencies. Adapters and renderers share it.
 export const STATES = Object.freeze({
   idle: { label: 'Idle', color: '#8cce6b', symbol: '✓' },
@@ -73,6 +74,7 @@ export interface MonitorSnapshot {
 }
 export interface PanelMotion { id: number; duration: number; delay: number; height: number }
 export interface PanelPayload extends MonitorSnapshot {
+  update: UpdateState;
   total: number;
   preferences: PanelPreferences;
   usage: ProviderUsage[];
@@ -82,6 +84,7 @@ export interface PanelPayload extends MonitorSnapshot {
   textScale: number;
 }
 export type PanelAction =
+  | { type: 'settings'; y: number }
   | { type: 'sort'; order: SortOrder }
   | { type: 'expand'; reducedMotion?: boolean }
   | { type: 'pin'; key: string }
@@ -105,6 +108,15 @@ export interface SessionLightsBridge {
   action(value: PanelAction): Promise<void>;
   tooltip(value: TooltipTarget | null): void;
   subscribe(callback: (value: PanelPayload) => void): () => void;
+}
+export interface SettingsPayload { version: string; update: UpdateState }
+export type SettingsAction =
+  | { type: 'update'; command: UpdateCommand }
+  | { type: 'close' | 'quit' };
+export interface SettingsBridge {
+  read(): Promise<SettingsPayload>;
+  action(value: SettingsAction): Promise<void>;
+  subscribe(callback: (value: SettingsPayload) => void): () => void;
 }
 export interface TooltipPayload { data: TooltipData; textScale: number }
 export interface TooltipBridge { subscribe(callback: (value: TooltipPayload) => void): () => void }

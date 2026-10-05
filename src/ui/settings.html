@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'">
+  <title>Session Lights settings</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <main aria-label="Settings">
+    <div class="update-row"><button id="update" disabled>Check for updates</button><button id="close" aria-label="Close settings">×</button></div>
+    <progress id="progress" max="100" aria-label="Update download" hidden></progress>
+    <footer><button id="quit">Quit</button><span id="version"></span></footer>
+    <p id="error" role="alert" hidden></p>
+  </main>
+  <script src="settings.js"></script>
+</body>
+</html>

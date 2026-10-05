@@ -4,17 +4,18 @@ import { DatabaseSync } from 'node:sqlite';
 import { Preferences } from '../src/preferences.js';
 import type { SortOrder } from '../src/shared/contracts.js';
 import { errorMessage } from '../src/shared/validation.js';
-interface DesktopCheckOptions { app: App; win: BrowserWindow; tooltipWin: BrowserWindow; refresh: () => Promise<void>; refreshUsage: () => Promise<void>; showPanel: () => void; testDir: string; preferences: Preferences }
+interface DesktopCheckOptions { app: App; win: BrowserWindow; tooltipWin: BrowserWindow; settingsWin: BrowserWindow; refresh: () => Promise<void>; refreshUsage: () => Promise<void>; showPanel: () => void; testDir: string; preferences: Preferences }
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as assert from 'node:assert/strict';
 import { screen } from 'electron';
 import { logLine, setStatus } from '../test/fixtures.js';
 
-async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, testDir, preferences }: DesktopCheckOptions) {
+async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, showPanel, testDir, preferences }: DesktopCheckOptions) {
   const errors: string[] = [];
   win.webContents.on('console-message', event => { if (event.level === 'error') errors.push(event.message); });
   tooltipWin.webContents.on('console-message', event => { if (event.level === 'error') errors.push(event.message); });
+  settingsWin.webContents.on('console-message', event => { if (event.level === 'error') errors.push(event.message); });
   const waitTooltip = async (condition: string) => {
     const deadline = Date.now() + 5000;
     while (!tooltipWin.isVisible() || !await tooltipWin.webContents.executeJavaScript(condition)) {
@@ -55,7 +56,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     assert.ok(nativeWidth >= 26 && nativeWidth <= 40, 'Unexpected native compact width.');
     assert.ok(Math.abs(win.getBounds().width - nativeWidth) <= 1, 'Native width exceeds DPI rounding tolerance.');
     assert.equal(await js("document.querySelector('#panel').getBoundingClientRect().width"), 26);
-    assert.ok(win.getBounds().height <= 128);
+    assert.ok(win.getBounds().height <= 160);
     assert.equal(await js("Boolean(document.querySelector('.dot.working'))"), true);
     const centers = await js(`['#panel', '.usage-row:nth-child(1) .usage-gauge', '.usage-row:nth-child(2) .usage-gauge', ...Array.from(document.querySelectorAll('.dot'), (_, i) => '.session:nth-child(' + (i + 1) + ') .dot')].map(selector => {
       const box = document.querySelector(selector).getBoundingClientRect(); return box.x + box.width / 2;
@@ -65,12 +66,12 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     const spacing = await js(`(() => {
       const panel = document.querySelector('#panel').getBoundingClientRect();
       const dots = [...document.querySelectorAll('.dot')].map(dot => dot.getBoundingClientRect());
-      const lastGauge = document.querySelector('.usage-row:last-child svg').getBoundingClientRect();
+      const lastGauge = document.querySelector('footer .gear svg').getBoundingClientRect();
       const style = getComputedStyle(document.querySelector('#panel'));
       return { top: dots[0].top - panel.top, bottom: panel.bottom - lastGauge.bottom,
         right: panel.right, viewport: innerWidth, radiusTop: style.borderTopRightRadius, radiusBottom: style.borderBottomRightRadius };
     })()`);
-    assert.ok(Math.abs(spacing.top - spacing.bottom) < 0.5, `End spacing differs: ${JSON.stringify(spacing)}`);
+    assert.ok(spacing.top >= 8 && spacing.bottom >= 8 && spacing.bottom < 18, `End spacing differs: ${JSON.stringify(spacing)}`);
     assert.ok(Math.abs(spacing.right - spacing.viewport) < 0.5, 'The visible bar has a gap inside the native window.');
     assert.equal(spacing.radiusTop, '0px'); assert.equal(spacing.radiusBottom, '0px');
     const checkScreenEdge = () => {
@@ -79,23 +80,37 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
       assert.ok(Math.abs(bounds.x + bounds.width - display.x - display.width) <= 1, 'The native panel has a gap at the screen edge.');
     };
     checkScreenEdge();
+    await js("document.querySelector('footer [data-settings]').click()");
+    await waitNative(() => settingsWin.isVisible());
+    assert.ok(settingsWin.getBounds().x + settingsWin.getBounds().width < win.getBounds().x, 'Settings must open to the left.');
+    assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('#update').disabled"), true);
+    assert.match(await settingsWin.webContents.executeJavaScript("document.querySelector('#update').title"), /installed release/);
+    assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('h1, h2, #release-notes, #installation-help') === null"), true);
+    await fs.writeFile(path.join(testDir, 'settings.png'), (await settingsWin.webContents.capturePage()).toPNG());
+    await settingsWin.webContents.executeJavaScript("document.querySelector('#close').click()");
+    await waitNative(() => !settingsWin.isVisible());
     assert.equal(await js("[...document.querySelectorAll('.dot')].every(dot => dot.textContent === '' && dot.getBoundingClientRect().width <= 10.5)"), true);
-    assert.equal(await js("document.querySelector('.grip') === null && getComputedStyle(document.querySelector('footer')).display === 'none'"), true);
-    assert.equal(await js(`(() => {
+    assert.equal(await js("document.querySelector('.grip') === null && getComputedStyle(document.querySelector('footer')).display === 'flex' && getComputedStyle(document.querySelector('#expand')).display === 'none'"), true);
+    const usageLayout = await js(`(() => {
       const section = document.querySelector('#usage');
       const lastSession = document.querySelector('.session:last-child').getBoundingClientRect();
-      return section.getBoundingClientRect().top > lastSession.bottom &&
-        parseFloat(getComputedStyle(section).borderTopWidth) > 0 &&
-        [...document.querySelectorAll('.usage-gauge')].every(gauge => gauge.getBoundingClientRect().height > 0) &&
-        [...document.querySelectorAll('.usage-value')].every(value => getComputedStyle(value).display === 'none');
-    })()`), true);
+      return { top: section.getBoundingClientRect().top, bottom: lastSession.bottom,
+        border: parseFloat(getComputedStyle(section).borderTopWidth),
+        gauges: [...document.querySelectorAll('.usage-gauge')].map(gauge => gauge.getBoundingClientRect().height),
+        values: [...document.querySelectorAll('.usage-value')].map(value => getComputedStyle(value).display) };
+    })()`);
+    assert.ok(usageLayout.top > usageLayout.bottom && usageLayout.border > 0 && usageLayout.gauges.every((height: number) => height > 0) && usageLayout.values.every((display: string) => display === 'none'), JSON.stringify(usageLayout));
     assert.equal(await js("[...document.querySelectorAll('.gauge-needle')].every(needle => getComputedStyle(needle).stroke === 'rgb(140, 206, 107)')"), true);
     assert.match(await js("document.querySelector('[data-limit=fiveHour] .usage-gauge').getAttribute('aria-label')"), /5-hour limit: 76% remaining/);
     assert.match(await js("document.querySelector('[data-limit=weekly] .usage-gauge').getAttribute('aria-label')"), /Weekly limit: 84% remaining/);
     await capture('compact.png');
-    const light = await js(`(() => { const box = document.querySelector('.session-button').getBoundingClientRect(); return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }; })()`);
+    // Restore panel focus before testing hover; closing settings can focus a row.
+    win.focus();
+    await waitNative(() => win.isFocused());
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: 0, y: 0 });
+    const light = await js(`(() => { const box = document.querySelector('[data-key="codex:22222222-2222-4222-8222-222222222222"].session-button').getBoundingClientRect(); return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }; })()`);
     win.webContents.sendInputEvent({ type: 'mouseMove', ...light, globalX: win.getBounds().x + light.x, globalY: win.getBounds().y + light.y });
-    await wait("document.querySelector('.session-button').matches(':hover')");
+    await wait("document.querySelector('[data-key=\"codex:22222222-2222-4222-8222-222222222222\"].session-button').matches(':hover')");
     await waitTooltip("document.querySelector('#title').textContent === 'Review tests'");
     assert.equal(tooltipWin.isFocused(), false);
     assert.ok(tooltipWin.getBounds().x + tooltipWin.getBounds().width < win.getBounds().x);
@@ -516,7 +531,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
       await wait("document.querySelector('#panel').classList.contains('expanded')");
     }
     assert.deepEqual(errors, [], 'Renderer errors after system text changes.');
-    report.checks.push('system text changes update the panel automatically', 'large system text fits long lists and controls up to 225 percent', 'hover cards follow system text size', 'no text selector or saved text override', 'compact panel stays narrow at every text size');
+    report.checks.push('system text changes update the panel automatically', 'large system text fits long lists and controls up to 225 percent', 'hover cards follow system text size', 'no text selector or saved text override', 'compact panel stays narrow at every text size', 'compact gear opens settings to the left', 'development updates are disabled', 'settings close button hides the menu');
     await fs.writeFile(path.join(testDir, 'report.json'), JSON.stringify(report, null, 2));
     console.log(`Desktop checks passed: ${report.checks.length}.`);
     app.exit(0);

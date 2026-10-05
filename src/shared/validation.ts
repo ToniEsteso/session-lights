@@ -1,4 +1,4 @@
-import type { PanelAction, TooltipTarget } from './contracts.js';
+import type { PanelAction, TooltipTarget, SettingsAction } from './contracts.js';
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -12,6 +12,9 @@ export function hasErrorCode(error: unknown, code: string): boolean {
 export function parseAction(value: unknown): PanelAction | undefined {
   if (!isRecord(value)) return;
   switch (value.type) {
+    case 'settings':
+      if (typeof value.y === 'number' && Number.isFinite(value.y)) return { type: 'settings', y: value.y };
+      return;
     case 'sort':
       if (value.order === 'activity' || value.order === 'project') return { type: 'sort', order: value.order };
       return;
@@ -26,6 +29,16 @@ export function parseAction(value: unknown): PanelAction | undefined {
       }
       return;
     case 'hide': case 'quit': return { type: value.type };
+    default: return;
+  }
+}
+export function parseSettingsAction(value: unknown): SettingsAction | undefined {
+  if (!isRecord(value)) return;
+  switch (value.type) {
+    case 'update':
+      if (value.command === 'check' || value.command === 'download' || value.command === 'install') return { type: 'update', command: value.command };
+      return;
+    case 'close': case 'quit': return { type: value.type };
     default: return;
   }
 }

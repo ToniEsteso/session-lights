@@ -1,0 +1,95 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version tag to release, for example v0.2.0
+        required: true
+        type: string
+      include_mac:
+        description: Build signed and notarized Mac installers
+        default: false
+        type: boolean
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+            arch: x64
+          - os: macos-latest
+            platform: mac
+            arch: universal
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        if: matrix.platform == 'win' || inputs.include_mac
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v4
+        if: matrix.platform == 'win' || inputs.include_mac
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Validate tag and version
+        if: matrix.platform == 'win' || inputs.include_mac
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node -e "const v = require('./package.json').version; if (process.env.RELEASE_TAG !== 'v' + v || !/^\d+\.\d+\.\d+$/.test(v)) throw Error('Use a stable version tag that matches package.json');"
+      - run: npm ci
+        if: matrix.platform == 'win' || inputs.include_mac
+      - run: npm test
+        if: matrix.platform == 'win' || inputs.include_mac
+      - run: npm run audit:migration
+        if: matrix.platform == 'win' || inputs.include_mac
+      - name: Build signed installers
+        if: matrix.platform == 'win' || inputs.include_mac
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx electron-builder --config electron-builder.json --${{ matrix.platform }} --${{ matrix.arch }} --config.forceCodeSigning=true --publish never
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'win' || inputs.include_mac
+        with:
+          name: release-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+            dist/latest*.yml
+          if-no-files-found: error
+  draft:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+      - name: Create or update draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e "if (!/^v\d+\.\d+\.\d+$/.test(process.env.RELEASE_TAG)) throw Error('Invalid release tag');"
+          if gh release view "$RELEASE_TAG" --repo ToniEsteso/session-lights --json isDraft > release.json; then
+            node -e "if (!require('./release.json').isDraft) throw Error('Refusing to replace a published release');"
+          else
+            gh release create "$RELEASE_TAG" --repo ToniEsteso/session-lights --draft --title "Session Lights $RELEASE_TAG" --notes ""
+          fi
+          gh release upload "$RELEASE_TAG" installers/* --repo ToniEsteso/session-lights --clobber

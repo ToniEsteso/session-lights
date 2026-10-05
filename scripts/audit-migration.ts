@@ -21,11 +21,11 @@ async function main(): Promise<void> {
     assert.doesNotMatch(text, /:\s*any\b|\bas\s+any\b|<\s*any\s*>|^\s*\/\/\s*@ts-(?:ignore|nocheck)/m, `Unsafe type bypass: ${file}`);
     if (!file.endsWith('.type-test.ts')) assert.doesNotMatch(text, /^\s*\/\/\s*@ts-expect-error/m, `Suppressed implementation check: ${file}`);
   }
-  for (const name of ['renderer', 'tooltip']) {
+  for (const name of ['renderer', 'tooltip', 'settings']) {
     const text = await readFile(path.join(root, 'build', 'src', 'ui', `${name}.js`), 'utf8');
     assert.doesNotMatch(text, /\brequire\s*\(|\bmodule\.exports\b/, `Node code reached the ${name} bundle.`);
   }
-  for (const name of ['preload', 'tooltip-preload']) {
+  for (const name of ['preload', 'tooltip-preload', 'settings-preload']) {
     const text = await readFile(path.join(root, 'build', 'src', `${name}.js`), 'utf8');
     const dependencies = [...text.matchAll(/\brequire\(["']([^"']+)["']\)/g)].map(match => match[1]);
     assert.deepEqual(dependencies, ['electron'], `${name} cannot load local modules in the renderer sandbox.`);

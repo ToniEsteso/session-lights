@@ -1,15 +1,21 @@
 import type { IpcMainEvent, IpcMainInvokeEvent, Rectangle } from 'electron';
-import type { MonitorSnapshot, ProviderUsage, PanelMotion, PanelPayload, TooltipTarget, TooltipData } from './shared/contracts.js';
-import { parseAction, parseTooltipTarget, errorMessage } from './shared/validation.js';
+import type { MonitorSnapshot, ProviderUsage, PanelMotion, PanelPayload, TooltipTarget, TooltipData, SettingsPayload } from './shared/contracts.js';
+import { parseAction, parseTooltipTarget, parseSettingsAction, errorMessage } from './shared/validation.js';
 import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell } from 'electron';
 import * as path from 'node:path';
 import { SessionMonitor, visibleSessions } from './core.js';
 import { createAdapters } from './adapters/index.js';
 import { Preferences } from './preferences.js';
+import { existsSync } from 'node:fs';
+import { Updates } from './updates.js';
+import { updateView } from './shared/updates.js';
 import { readSystemTextScale, readTestTextScale } from './system-text.js';
 
 const testDir = process.argv.find(arg => arg.startsWith('--desktop-test='))?.split('=').slice(1).join('=');
 if (testDir) app.setPath('userData', path.join(testDir, 'profile'));
+else if (process.argv.includes('--launch-check') || process.argv.includes('--demo')) {
+  app.setPath('userData', path.join(app.getPath('temp'), `session-lights-preview-${process.pid}`));
+}
 app.setName('Session Lights');
 const demo = process.argv.includes('--demo');
 let win: BrowserWindow;
@@ -28,6 +34,8 @@ let usageTimer: NodeJS.Timeout | undefined;
 let usage: ProviderUsage[] = [];
 let tooltipWin: BrowserWindow;
 let tooltipTarget: TooltipTarget | undefined;
+let settingsWin: BrowserWindow;
+let updates: Updates;
 let systemTextScale = 1;
 let lastTextScaleRead = 0;
 // The floating level clears Windows topmost state in the tested Electron runtime.
@@ -52,12 +60,41 @@ async function refreshTextScale(force = false) {
 function payload(): PanelPayload {
   // All sessions stay visible, including when older settings enabled the recent filter.
   return { ...snapshot, sessions: visibleSessions(snapshot.sessions, { ...preferences.value, showAll: true }),
+    update: updates.state,
     total: snapshot.sessions.length, preferences: preferences.value, usage, demo,
     motion: panelResize, compactInset: compactWidth - 26, textScale: systemTextScale };
 }
 function notify() {
   if (win && !win.isDestroyed()) win.webContents.send('sessions:update', payload());
+  if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('settings:update', settingsPayload());
   updateTooltip();
+}
+function settingsPayload(): SettingsPayload { return { version: app.getVersion(), update: updates.state }; }
+function showSettings(y = 0) {
+  hideTooltip();
+  const bounds = win.getBounds();
+  const area = screen.getDisplayMatching(bounds).workArea;
+  const width = Math.min(236, area.width - 16), height = Math.min(96, area.height - 16);
+  settingsWin.setBounds({ width, height,
+    x: Math.round(Math.max(area.x + 8, bounds.x - width - 8)),
+    y: Math.round(Math.max(area.y + 8, Math.min(bounds.y + y, area.y + area.height - height - 8))) });
+  settingsWin.webContents.send('settings:update', settingsPayload());
+  settingsWin.show(); settingsWin.setAlwaysOnTop(true, panelLevel);
+}
+function updateTrayMenu() {
+  if (!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Show panel', click: showPanel },
+    { label: 'Settings', click: () => { showPanel(); showSettings(); } },
+    { label: updateView(updates.state).label, click: () => { showPanel(); showSettings(); } },
+    { label: 'Move to this screen', click: () => {
+      actionQueue = actionQueue.then(async () => {
+        settingsWin.hide();
+        await preferences.save({ ...preferences.value, displayId: screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id, y: null }); showPanel();
+      }).catch(console.error);
+    } },
+    { type: 'separator' }, { label: 'Quit', click: () => app.quit() }
+  ]));
 }
 function hideTooltip() { tooltipTarget = undefined; tooltipWin?.hide(); }
 function tooltipData(target: TooltipTarget | undefined): TooltipData | undefined {
@@ -111,7 +148,7 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const rows = Math.max(1, Math.min(sessions.length, 14));
   const groupHeight = preferences.value.expanded && preferences.value.sortOrder === 'project' ? new Set(sessions.map(session => session.projectKey)).size * 24 : 0;
   const limits = usage.reduce((sum, source) => sum + source.windows.length, 0);
-  const overhead = preferences.value.expanded ? 104 : limits ? 29 : 17;
+  const overhead = preferences.value.expanded ? 104 : limits ? 62 : 51;
   const height = Math.round(Math.min(area.height - 24, scale * Math.max(preferences.value.expanded ? 128 : 41,
     rows * (preferences.value.expanded ? 40 : 24) + groupHeight + overhead + limits * (preferences.value.expanded ? 36 : 24))));
   const y = Math.round(Math.max(area.y + 12, Math.min(panelDrag?.y ?? preferences.value.y ?? area.y + (area.height - height) / 2, area.y + area.height - height - 12)));
@@ -158,9 +195,11 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
   const prefs = preferences.value;
   hideTooltip();
   switch (value?.type) {
+    case 'settings': showSettings(value.y); return;
     case 'sort':
       await preferences.save({ ...prefs, sortOrder: value.order }); break;
     case 'expand':
+      settingsWin.hide();
       await preferences.save({ ...prefs, expanded: !prefs.expanded });
       positionPanel({ animate: true, reducedMotion: value.reducedMotion === true }); notify(); return;
     case 'pin': {
@@ -169,6 +208,7 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
       await preferences.save({ ...prefs, pinned }); break;
     }
     case 'move': {
+      settingsWin.hide();
       if (!Number.isFinite(value.screenY)) return;
       if (value.phase === 'start') {
         if (panelResize) { stopResize(); positionPanel(); notify(); }
@@ -203,6 +243,12 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
 }
 
 async function main() {
+  const enabled = app.isPackaged && !demo && !testDir && existsSync(path.join(process.resourcesPath, 'app-update.yml'));
+  const engine = enabled ? (await import('electron-updater')).default.autoUpdater : undefined;
+  updates = new Updates(engine, 'Use an installed release to check for updates.', () => {
+    if (updates.state.kind === 'download-error') quitting = false;
+    notify(); updateTrayMenu();
+  });
   preferences = new Preferences(path.join(app.getPath('userData'), 'preferences.json'));
   await preferences.load();
   await refreshTextScale(true);
@@ -221,7 +267,7 @@ async function main() {
   }
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => event.preventDefault());
-  win.on('hide', hideTooltip); win.on('blur', hideTooltip);
+  win.on('hide', () => { hideTooltip(); settingsWin?.hide(); }); win.on('blur', hideTooltip);
   win.on('close', event => { if (!quitting) { event.preventDefault(); win.hide(); } });
   ipcMain.handle('sessions:read', event => {
     if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw Error('Unknown sender.');
@@ -233,6 +279,33 @@ async function main() {
     return result;
   });
   ipcMain.on('panel:tooltip', showTooltip);
+  settingsWin = new BrowserWindow({ width: 236, height: 96, show: false, frame: false, transparent: true,
+    resizable: false, maximizable: false, minimizable: false, skipTaskbar: true, alwaysOnTop: true,
+    webPreferences: { preload: path.join(__dirname, 'settings-preload.js'), nodeIntegration: false,
+      contextIsolation: true, sandbox: true } });
+  settingsWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  settingsWin.webContents.on('will-navigate', event => event.preventDefault());
+  settingsWin.on('blur', () => settingsWin.hide());
+  settingsWin.on('close', event => { if (!quitting) { event.preventDefault(); settingsWin.hide(); } });
+  if (process.platform === 'darwin') settingsWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  const checkSettingsSender = (event: IpcMainInvokeEvent) => {
+    if (event.sender !== settingsWin.webContents || event.senderFrame !== settingsWin.webContents.mainFrame) throw Error('Unknown sender.');
+  };
+  ipcMain.handle('settings:read', event => { checkSettingsSender(event); return settingsPayload(); });
+  ipcMain.handle('settings:action', async (event, input: unknown) => {
+    checkSettingsSender(event);
+    const value = parseSettingsAction(input);
+    if (!value) return;
+    switch (value.type) {
+      case 'close': settingsWin.hide(); return;
+      case 'quit': app.quit(); return;
+      case 'update':
+        if (value.command === 'install' && updates.state.kind === 'ready') quitting = true;
+        void updates.run(value.command); return;
+      default: { const exhaustive: never = value; return exhaustive; }
+    }
+  });
+  await settingsWin.loadFile(path.join(__dirname, 'ui', 'settings.html'));
   await refresh();
   tooltipWin = new BrowserWindow({ width: 280, height: 188, show: false, frame: false, transparent: true,
     focusable: false, resizable: false, skipTaskbar: true, alwaysOnTop: true, hasShadow: false,
@@ -247,7 +320,7 @@ async function main() {
   if (testDir) {
     await refreshUsage();
     const { run } = await import('../scripts/desktop-smoke.js');
-    return run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, testDir, preferences });
+    return run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, showPanel, testDir, preferences });
   }
 
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect x="6" y="1" width="12" height="22" rx="6" fill="#25292d"/><circle cx="12" cy="6" r="3" fill="#8cce6b"/><circle cx="12" cy="12" r="3" fill="#ffd45e"/><circle cx="12" cy="18" r="3" fill="#f5f5ef"/></svg>';
@@ -260,22 +333,16 @@ async function main() {
   if (typeof image !== 'string') throw Error('Cannot render the tray icon.');
   tray = new Tray(nativeImage.createFromDataURL(image));
   tray.setToolTip('Session Lights');
-  const menu = Menu.buildFromTemplate([
-    { label: 'Show panel', click: showPanel },
-    { label: 'Move to this screen', click: () => {
-      actionQueue = actionQueue.then(async () => {
-        await preferences.save({ ...preferences.value, displayId: screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id, y: null }); showPanel();
-      }).catch(console.error);
-    } },
-    { type: 'separator' }, { label: 'Quit', click: () => app.quit() }
-  ]);
-  tray.setContextMenu(menu); tray.on('click', () => win.isVisible() ? win.hide() : showPanel());
+  updateTrayMenu(); tray.on('click', () => win.isVisible() ? win.hide() : showPanel());
   showPanel();
   console.log(`Session Lights is running. Local sessions: ${snapshot.sessions.length}. Panel above other windows: ${win.isAlwaysOnTop()}.`);
   if (process.argv.includes('--launch-check')) {
+    console.log(`Version: ${app.getVersion()}.`);
+    console.log(`Update mode: ${updates.state.kind}.`);
     await refreshUsage(); console.log(`Usage windows: ${usage.reduce((sum, source) => sum + source.windows.filter(limit => Number.isFinite(limit.remainingPercent)).length, 0)}.`);
     app.quit(); return;
   }
+  updates.start();
   const pollUsage = async () => {
     await refreshUsage();
     if (!quitting) usageTimer = setTimeout(pollUsage, 60000);
@@ -294,6 +361,6 @@ async function main() {
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (win) showPanel(); });
-  app.on('before-quit', () => { quitting = true; stopResize(); hideTooltip(); clearTimeout(timer); clearTimeout(usageTimer); monitor?.close(); tray?.destroy(); });
+  app.on('before-quit', () => { quitting = true; updates?.close(); stopResize(); hideTooltip(); clearTimeout(timer); clearTimeout(usageTimer); monitor?.close(); tray?.destroy(); });
   app.whenReady().then(main).catch(error => { console.error(error); app.exit(1); });
 }
