@@ -15,6 +15,8 @@ export type SortOrder = typeof SORT_ORDERS[number];
 export interface AdapterSession {
   id: string;
   title: string;
+  /** Optional interface label within the provider, such as CLI or Desktop. */
+  source?: string;
   state: SessionState;
   detail: string;
   /** Last recorded session activity in epoch milliseconds, not the adapter read time.

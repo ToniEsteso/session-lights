@@ -4,7 +4,7 @@ test('Claude Code appears without an installation; new records appear and its sw
   await lights.expand();
   let page = lights.page;
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await expect(page.getByRole('switch', { name: 'Claude Code', exact: true })).toBeChecked();
+  await expect(page.getByRole('switch', { name: 'Claude', exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
   await expect(page.getByRole('listitem')).toHaveCount(3);
   await lights.claudeRecord({ type: 'user', message: { role: 'user', content: 'Build Claude API' } });
@@ -16,7 +16,7 @@ test('Claude Code appears without an installation; new records appear and its sw
   await page.getByRole('button', { name: 'Build Claude API: Idle', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Claude Code not found. Install Claude Code and add it to PATH.');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByRole('switch', { name: 'Claude Code', exact: true }).uncheck();
+  await page.getByRole('switch', { name: 'Claude', exact: true }).uncheck();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
   await expect(page.getByRole('listitem')).toHaveCount(3);
   await lights.restart();
@@ -24,8 +24,8 @@ test('Claude Code appears without an installation; new records appear and its sw
   page = lights.page;
   await expect(page.getByRole('listitem')).toHaveCount(3);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await expect(page.getByRole('switch', { name: 'Claude Code', exact: true })).not.toBeChecked();
-  await page.getByRole('switch', { name: 'Claude Code', exact: true }).check();
+  await expect(page.getByRole('switch', { name: 'Claude', exact: true })).not.toBeChecked();
+  await page.getByRole('switch', { name: 'Claude', exact: true }).check();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Build Claude API: Idle', exact: true })).toBeVisible();
 });

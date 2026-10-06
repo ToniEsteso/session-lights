@@ -164,7 +164,7 @@ async function launchTerminal(binary: string, id: string, workspace: string, roo
 
 export class ClaudeCodeAdapter implements SessionAdapter {
   readonly id = 'claude-code';
-  readonly name = 'Claude Code';
+  readonly name = 'Claude';
   private readonly root: string;
   constructor({ root = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude') }: { root?: string } = {}) {
     this.root = path.resolve(root);

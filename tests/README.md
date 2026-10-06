@@ -9,6 +9,14 @@ main use case or a reported defect. Follow the feature rules in `AGENTS.md`.
 
 ## Scenarios
 
+The provider scenarios require exactly two switches: Codex and Claude. Hiding
+Codex must hide desktop sessions, CLI sessions, and usage together, while Claude
+stays visible. Each Codex row must still show its source.
+Old preference files check CLI pins and hidden-session migration, partial and
+fully hidden adapter choices, restore, and persistence after restart. A real
+filesystem failure during a preference save must retain the previous saved
+choice. Removing the failure must allow a new choice to persist.
+
 Claude Code checks start with no installation and no transcript folder. New local
 records must appear without a restart. The adapter switch must survive a restart.
 Clicking a saved session must show a clear missing-installation error.
@@ -55,7 +63,7 @@ with one worker because native windows share focus.
 
 Each invocation prints its unique `.evidence/e2e/<run>/` directory. A later run
 does not overwrite that run's report. Results include a trace for each launch,
-renderer screenshots, and Electron runtime logs. Claude and chat-opening
+renderer screenshots, and Electron runtime logs. Claude, provider, and chat-opening
 scenarios also record video. Open the printed report directory with
 `pnpm exec playwright show-report .evidence/e2e/<run>/report`.
 

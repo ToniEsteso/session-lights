@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { CodexCliAdapter } from '../src/adapters/codex-cli.js';
+import { CodexAdapter } from '../src/adapters/codex.js';
 
 // Compare fresh processes against the same isolated fixture. Never modify a supplied root.
 async function main() {
@@ -26,7 +26,7 @@ async function main() {
       }
     } finally { db.close(); }
   }
-  const adapter = new CodexCliAdapter({ root });
+  const adapter = new CodexAdapter({ root, logs: path.join(root, 'logs') });
   const before = process.memoryUsage().rss;
   const readings = [];
   for (let i = 0; i < 3; i++) {

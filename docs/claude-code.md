@@ -1,6 +1,8 @@
 # Claude Code
 
-Claude Code appears in Settings → Adapters, even if it is not installed.
+Claude appears in Settings → Adapters, even if Claude Code is not installed.
+One Claude adapter reads supported local transcripts. Desktop transcript discovery
+and compatibility remain unverified; there is no separate Desktop switch.
 With no local transcripts, it adds no session lights. Other providers keep working.
 The adapter does not install Claude Code, change its settings, add hooks, read
 credentials, or make network requests.

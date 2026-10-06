@@ -1,7 +1,8 @@
 # Session Lights
 
 A small panel attached to the right edge of your screen. It stays above normal app windows.
-The panel reads local **Codex desktop, Codex CLI, and Claude Code** sessions on Windows and macOS. Each source has its own adapter switch.
+The panel reads local **Codex desktop, Codex CLI, and Claude Code** sessions on Windows and macOS.
+Settings has one **Codex** switch and one **Claude** switch. Codex includes desktop and CLI sessions.
 
 | Color | State | Meaning |
 | --- | --- | --- |
@@ -48,6 +49,7 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 - Click a name in the expanded panel to open a desktop chat or resume a CLI session.
 - Pin a session with the bookmark icon. A filled yellow bookmark marks a pinned session. Bookmarked sessions stay in a separate section at the top in both sort modes. Pins survive app restarts.
 - All adapters appear by default. In Settings, use the Adapters switches to hide or show an adapter and its sessions and usage. Changes apply at once and stay saved after a restart. Hidden adapters continue monitoring; their session data and pins stay intact. If all adapters are hidden, use Open Settings in the panel to show one again.
+- The Codex switch controls both desktop and CLI sessions and their account usage. Rows and detail cards still identify Codex Desktop or Codex CLI. Older CLI pins and hidden sessions move to the shared Codex identity. The combined switch starts hidden only if both old Codex switches were hidden.
 - All saved, unarchived desktop and CLI sessions from visible adapters appear unless you hide them.
 - Each row shows its project, provider, and state below the chat title. Codex uses its saved project name when a session maps to one. Otherwise, the row uses its workspace folder or `No workspace`. Projects without saved sessions do not appear. Long project names are shortened to fit. Hover over a project group heading for the full path or project ID.
 - The right side of each expanded row shows the age of its last recorded activity, such as `just now`, `5m ago`, or `2h ago`. The age updates while the panel is open. A dash means the activity time is unavailable.
@@ -82,16 +84,16 @@ No Codex package is bundled with this app. A working Codex runtime and ChatGPT s
 
 ## Data source and limits
 
-Both adapters read `state_*.sqlite`, `thread_history_*.sqlite`, and session JSONL records under `CODEX_HOME`, or `~/.codex`.
-The desktop adapter reads notification logs from `%LOCALAPPDATA%/Codex/Logs` on Windows and `~/Library/Logs/com.openai.codex` on macOS.
-It checks for changes every two seconds. The desktop adapter excludes CLI chats, IDE chats, and internal subagents. The CLI adapter reads only records with the `cli` source. Both exclude archived sessions.
+The Codex adapter reads `state_*.sqlite`, `thread_history_*.sqlite`, and session JSONL records under `CODEX_HOME`, or `~/.codex`.
+For desktop sessions, it also reads notification logs from `%LOCALAPPDATA%/Codex/Logs` on Windows and `~/Library/Logs/com.openai.codex` on macOS.
+It checks for changes every two seconds. It includes desktop chats and records with the `cli` source. It excludes IDE chats, internal subagents, and archived sessions.
 
 These local file formats are not a supported monitoring API. They can change after a Codex update.
 This app shows the **last recorded state**, not a direct connection to Codex's running process.
 A turn with no activity for 15 minutes becomes gray. It can still be working.
 For desktop sessions, yellow requires a desktop notification log entry. A prompt may not create that entry while Codex has focus or when notifications are disabled.
 For desktop sessions, new user input clears a question. Tool output clears an approval. A finished turn clears both.
-The CLI adapter detects recorded `request_user_input` and `request_permissions` calls. Their matching tool output clears the waiting light. Background tool output does not clear it. A new turn or a finished turn clears pending requests.
+For CLI sessions, the adapter detects recorded `request_user_input` and `request_permissions` calls. Their matching tool output clears the waiting light. Background tool output does not clear it. A new turn or a finished turn clears pending requests.
 The CLI does not record every shell or file approval prompt in its session history. Those prompts cannot produce a reliable yellow light.
 Only local sessions with local records are supported. Remote/cloud sessions are not included.
 The adapter reads the last 512 KiB of each record or log file. Older pending notifications or input requests outside that range can be missed.
@@ -101,7 +103,7 @@ macOS window behavior and its default log path need validation on a Mac.
 Codex documents runtime states in its [app-server protocol](https://learn.chatgpt.com/docs/app-server).
 Chat links use the [documented desktop link format](https://learn.chatgpt.com/docs/reference/commands).
 Click a CLI session in the expanded panel to start `codex resume <session-id>` in a new terminal at its saved workspace. On Windows, the launcher prefers a packaged native or npm CLI on PATH. The desktop app's standalone runtime does not have the CLI package needed for its daemon. On macOS, the launcher uses Terminal. A missing CLI or workspace produces an error in the panel.
-Account limits remain under the Codex adapter and cover both desktop and CLI use. The CLI adapter does not start a second usage reader. Hiding the Codex adapter also hides its account gauges.
+Account limits use one Codex usage reader and cover both desktop and CLI use. Hiding the Codex adapter also hides its account gauges.
 
 Starting a separate app-server does not give this panel the desktop app's live runtime state.
 The local session reader opens Codex records read-only. The optional usage process has the separate side effects described above.

@@ -56,12 +56,33 @@ The renderer keeps thread scroll position while Settings is visible. The tooltip
 
 ## Codex sources
 
-The desktop and CLI adapters share `CodexRecords` for read-only SQLite and session JSONL parsing.
-Desktop keeps the `codex` ID. CLI uses `codex-cli`. This preserves existing desktop pins and hidden-session keys.
+One `CodexAdapter` uses `CodexRecords` for read-only SQLite and session JSONL parsing.
+Desktop and CLI sessions share the `codex` provider ID. The optional session `source`
+label identifies Desktop or CLI in rows and tooltips. It does not change session identity.
 Desktop waiting signals come from notification logs. CLI waiting signals come from recorded input and permission tool calls, matched to their outputs by call ID. Unrecorded shell approvals remain a detection limit.
-Both adapters use the same Codex project namespace. Their session filters do not overlap.
-The desktop adapter owns account usage. `codex-runtime.ts` supplies runtime discovery for both usage reads and CLI resume. CLI resume prefers the packaged CLI over the standalone desktop binary.
+Both sources use the same Codex project namespace. Their session filters do not overlap.
+The Codex adapter owns account usage once. `codex-runtime.ts` supplies runtime discovery for both usage reads and CLI resume. CLI resume prefers the packaged CLI over the standalone desktop binary.
 CLI opening checks the saved session and workspace, then starts an interactive terminal with the selected session ID.
+Desktop opening uses its chat link. The adapter selects the opening path from the
+source returned by the record reader. `codex-terminal.ts` owns CLI terminal launch.
+
+Claude keeps the `claude-code` provider ID and uses the display name Claude. Local
+transcript parsing and CLI resume remain in `claude-code.ts`. Desktop transcript
+compatibility has not been verified.
+
+### Saved settings migration
+
+Unversioned preference files came from the separate Codex switches. On load,
+`codex-cli:<id>` pin and hidden-session keys become `codex:<id>`. Duplicate keys
+are removed. Desktop keys and Claude keys stay valid.
+The combined Codex switch is hidden only when both old switches were hidden.
+If either source was visible, all Codex sessions become visible except sessions
+that the user hid separately.
+
+Migration runs in memory. The next normal atomic save writes
+`adapterLayout: "providers"`, so the legacy visibility rule cannot undo a new
+Codex switch choice on restart. A failed write keeps the old file and active
+preferences. Unknown layout markers use validated fields without legacy migration.
 
 ## Compilation and packaging
 

@@ -26,6 +26,7 @@ const test = base.extend({
         path.join(root, '.config', 'Codex', 'logs');
     const opened = path.join(root, 'opened.jsonl');
     const failOpen = path.join(root, 'fail-open');
+    const preferencesFile = path.join(appRoot, '.tmp', 'dev-profile', 'preferences.json');
     let app;
     let panel;
     let launch = 0;
@@ -107,7 +108,8 @@ const test = base.extend({
         launch += 1;
         app = await _electron.launch({ args: [bootstrap, ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], env,
           colorScheme: null,
-          ...(testInfo.file.endsWith('claude-code.spec.cjs') || testInfo.title.startsWith('opening a desktop chat') ? {
+          ...(testInfo.file.endsWith('claude-code.spec.cjs') || testInfo.file.endsWith('providers.spec.cjs') ||
+            testInfo.title.startsWith('opening a desktop chat') ? {
             recordVideo: { dir: testInfo.outputPath('video'), size: { width: 600, height: 800 } },
           } : {}),
         });
@@ -138,6 +140,17 @@ const test = base.extend({
           await expect(panel.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
         },
         async restart() { await stop(); await start(); },
+        async restartWithPreferences(value) {
+          await stop();
+          await fs.mkdir(path.dirname(preferencesFile), { recursive: true });
+          await fs.writeFile(preferencesFile, JSON.stringify(value));
+          await start();
+        },
+        async setPreferenceWriteFailure(value) {
+          // A real filesystem failure at the atomic write path, within this fixture.
+          if (value) await fs.mkdir(`${preferencesFile}.tmp`);
+          else await fs.rmdir(`${preferencesFile}.tmp`);
+        },
         async record(id, type, payload) {
           await fs.appendFile(path.join(codexRoot, `${id}.jsonl`), `${JSON.stringify({
             timestamp: new Date().toISOString(), type, payload,

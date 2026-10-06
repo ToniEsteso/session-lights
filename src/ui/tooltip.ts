@@ -7,7 +7,7 @@ function render(value: TooltipData) {
   const text = panelText;
   $('#meter').hidden = value.kind !== 'usage';
   if (value.kind === 'session') {
-    $('#meta').textContent = [value.provider, value.project].filter(Boolean).join(' · ');
+    $('#meta').textContent = [text.provider(value), value.project].filter(Boolean).join(' · ');
     $('#title').textContent = value.title;
     $('#status').textContent = text.labels[value.state];
     $('#detail').textContent = value.detail;

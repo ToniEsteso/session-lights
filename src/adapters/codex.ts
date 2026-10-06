@@ -3,12 +3,13 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { CodexUsage } from './codex-usage.js';
 import { CodexRecords } from './codex-records.js';
+import { resumeCodexCli } from './codex-terminal.js';
 import { hasErrorCode } from '../shared/validation.js';
 import type { SessionAdapter, SessionReading, UsageDefinition, OpenExternal } from '../shared/contracts.js';
 import type { TurnSignal } from '../core.js';
 import type { CodexUsageOptions } from './codex-usage.js';
 
-export interface CodexDesktopOptions { home?: string; root?: string; logs?: string; now?: () => number; usageOptions?: CodexUsageOptions }
+export interface CodexOptions { home?: string; root?: string; logs?: string; now?: () => number; usageOptions?: CodexUsageOptions }
 function desktopLogs(platform: NodeJS.Platform, home: string) {
   if (platform === 'win32') return path.join(process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'Codex', 'Logs');
   if (platform === 'darwin') return path.join(home, 'Library', 'Logs', 'com.openai.codex');
@@ -34,7 +35,7 @@ function parseLog(text: string, signals: Map<string, TurnSignal>) {
   }
 }
 
-class CodexDesktopAdapter implements SessionAdapter {
+class CodexAdapter implements SessionAdapter {
   readonly id = 'codex';
   readonly name = 'Codex';
   readonly usage: UsageDefinition;
@@ -44,7 +45,7 @@ class CodexDesktopAdapter implements SessionAdapter {
   private usageReader: CodexUsage | undefined;
   private readonly usageOptions: CodexUsageOptions | undefined;
   constructor({ home = os.homedir(), root = process.env.CODEX_HOME || path.join(home, '.codex'),
-    logs = desktopLogs(process.platform, home), now = Date.now, usageOptions }: CodexDesktopOptions = {}) {
+    logs = desktopLogs(process.platform, home), now = Date.now, usageOptions }: CodexOptions = {}) {
     this.records = new CodexRecords({ root, now }); this.logs = logs; this.now = now;
     this.usage = { scope: 'Account-wide usage', windows: [
       { id: 'fiveHour', label: '5h', title: '5-hour limit' }, { id: 'weekly', label: 'Weekly', title: 'Weekly limit' }
@@ -59,6 +60,12 @@ class CodexDesktopAdapter implements SessionAdapter {
   close() { this.usageReader?.close(); this.usageReader = undefined; }
   async open(id: string, openExternal: OpenExternal) {
     if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) throw Error('Invalid Codex chat link.');
+    const session = (await this.read()).sessions.find(session => session.id === id);
+    if (!session) throw Error('The Codex session is no longer available.');
+    if (session.source === 'CLI') {
+      await resumeCodexCli(id, session.workspace, this.records.root);
+      return;
+    }
     try { await openExternal(`codex://threads/${id}`); }
     catch { throw Error('Cannot open Codex. Check that the desktop app is installed.'); }
   }
@@ -84,7 +91,7 @@ class CodexDesktopAdapter implements SessionAdapter {
     let logData;
     try { logData = await this.readSignals(this.now()); }
     catch { logData = { signals: new Map<string, TurnSignal>(), found: false }; }
-    return this.records.read('desktop', logData);
+    return this.records.read(logData);
   }
 }
-export { CodexDesktopAdapter, desktopLogs };
+export { CodexAdapter };
