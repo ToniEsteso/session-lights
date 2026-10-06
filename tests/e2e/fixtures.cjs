@@ -8,6 +8,9 @@ const ids = {
   desktop: '11111111-1111-4111-8111-111111111111',
   review: '22222222-2222-4222-8222-222222222222',
   cli: '33333333-3333-4333-8333-333333333333',
+  claude: '44444444-4444-4444-8444-444444444444',
+  claudeOld: '55555555-5555-4555-8555-555555555555',
+  claudeAgent: '66666666-6666-4666-8666-666666666666',
 };
 
 const test = base.extend({
@@ -16,6 +19,8 @@ const test = base.extend({
     const root = await fs.mkdtemp(path.join(project, '.tmp', 'e2e-'));
     const appRoot = path.join(root, 'app');
     const codexRoot = path.join(root, 'codex-home');
+    const claudeRoot = path.join(root, 'claude-home');
+    const claudeProject = path.join(claudeRoot, 'projects', 'test-project');
     const logsRoot = process.platform === 'win32' ? path.join(root, 'local', 'Codex', 'Logs') :
       process.platform === 'darwin' ? path.join(root, 'Library', 'Logs', 'com.openai.codex') :
         path.join(root, '.config', 'Codex', 'logs');
@@ -52,6 +57,7 @@ const test = base.extend({
           id, title, path.join(root, workspace), source, file, Math.floor(at / 1000), at, 'Codex Desktop');
       }
       db.close();
+      await fs.mkdir(path.join(root, 'service'), { recursive: true });
 
       // Substitute only the OS URL handoff. Renderer, preload, IPC, monitor,
       // provider, SQLite reads, and preference writes all remain real.
@@ -67,15 +73,21 @@ const test = base.extend({
         require('./build/src/main.js');
       `);
       const env = { ...process.env, CODEX_HOME: codexRoot,
+        CLAUDE_CONFIG_DIR: claudeRoot,
         HOME: root, USERPROFILE: root, APPDATA: path.join(root, 'roaming'),
         LOCALAPPDATA: path.join(root, 'local'),
         // Exercise the real unavailable-runtime path. Never use an account.
         SESSION_LIGHTS_CODEX_BINARY: path.join(root, 'absent-runtime'),
+        SESSION_LIGHTS_CLAUDE_BINARY: path.join(root, 'absent-claude.exe'),
       };
       delete env.ELECTRON_RUN_AS_NODE;
       const start = async () => {
         app = await _electron.launch({ args: [bootstrap, ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], env,
-          colorScheme: null });
+          colorScheme: null,
+          ...(testInfo.file.endsWith('claude-code.spec.cjs') ? {
+            recordVideo: { dir: testInfo.outputPath('video'), size: { width: 600, height: 800 } },
+          } : {}),
+        });
         await expect.poll(() => app.windows().some(page => page.url().endsWith('/index.html')),
           { message: 'The app must open its thread panel' }).toBe(true);
         panel = app.windows().find(page => page.url().endsWith('/index.html'));
@@ -116,6 +128,16 @@ const test = base.extend({
             `${at.toISOString()} info [electron-message-handler] [desktop-notifications] show notification conversationId=${ids.desktop} kind=question\n`);
         },
         async removeRecord(id) { await fs.unlink(path.join(codexRoot, `${id}.jsonl`)); },
+        async claudeRecord(entry, id = ids.claude) {
+          await fs.mkdir(claudeProject, { recursive: true });
+          await fs.appendFile(path.join(claudeProject, `${id}.jsonl`), `${JSON.stringify({
+            sessionId: id, cwd: path.join(root, 'service'), timestamp: new Date().toISOString(), ...entry,
+          })}\n`);
+        },
+        async claudeRaw(text) {
+          await fs.appendFile(path.join(claudeProject, `${ids.claude}.jsonl`), text);
+        },
+        async removeClaudeRecord() { await fs.unlink(path.join(claudeProject, `${ids.claude}.jsonl`)); },
         async setOpenFailure(value) {
           if (value) await fs.writeFile(failOpen, 'fail');
           else await fs.unlink(failOpen);

@@ -80,6 +80,7 @@ test('theme and adapter switches persist; the empty panel can restore a source',
   await expect(page.getByRole('region', { name: 'Usage limits', exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('switch', { name: 'Codex CLI', exact: true }).uncheck();
+  await page.getByRole('switch', { name: 'Claude Code', exact: true }).uncheck();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
   await expect(page.getByText('All adapters are hidden.', { exact: true })).toBeVisible();
   await lights.restart();

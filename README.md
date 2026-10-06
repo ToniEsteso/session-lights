@@ -1,12 +1,12 @@
 # Session Lights
 
 A small panel attached to the right edge of your screen. It stays above normal app windows.
-The panel reads local **Codex desktop and CLI** sessions on Windows and macOS. Each source has its own adapter switch.
+The panel reads local **Codex desktop, Codex CLI, and Claude Code** sessions on Windows and macOS. Each source has its own adapter switch.
 
 | Color | State | Meaning |
 | --- | --- | --- |
 | Green | Idle | The last turn finished or stopped. |
-| Yellow | Needs you | Codex recorded an approval notification or an unanswered input request. |
+| Yellow | Needs you | A provider recorded an approval notification or an unanswered input request. |
 | White or blue-gray | Working | The last recorded turn is in progress. |
 | Red | Failed | The last turn failed. |
 | Gray | Unknown | Data is missing, unsupported, or too old to confirm an active turn. |
@@ -62,7 +62,7 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 - Use the tray menu to open Settings or move the panel to the screen under the pointer.
 
 Panel settings are stored in the operating system's app data folder for Session Lights.
-The session reader reads Codex records without changing them. It does not send session data over the network.
+The session reader reads Codex and Claude Code records without changing them. It does not send session data over the network.
 The app reads usage limits automatically through an installed Codex runtime. It uses the existing ChatGPT sign-in and can write or migrate data in the Codex home.
 Session Lights does not open credential files or handle tokens itself. Codex manages its own authentication.
 
@@ -169,7 +169,8 @@ The monitor refreshes usage once a minute. Usage failures do not hide other prov
 Add an optional `close()` method to release child processes or other resources when the app quits.
 Codex runtime discovery, authentication requests, limit selection, labels, scope, and chat links all stay in its adapter files.
 
-Claude, OpenCode, and other tools are not yet implemented.
+Claude Code reads local transcripts without starting a Claude process. See [Claude Code support and limits](docs/claude-code.md).
+OpenCode and other tools are not yet implemented.
 
 ## Checks
 

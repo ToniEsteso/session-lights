@@ -9,6 +9,17 @@ main use case or a reported defect. Follow the feature rules in `AGENTS.md`.
 
 ## Scenarios
 
+Claude Code checks start with no installation and no transcript folder. New local
+records must appear without a restart. The adapter switch must survive a restart.
+Clicking a saved session must show a clear missing-installation error.
+A second scenario feeds a question, unrelated output, an answer, a request error,
+retry, completion, interruption, damaged JSON, file removal, and recovery. The
+visible state must follow each event. Old activity must stay Unknown after a title
+update, and sidechain sessions must stay out of the panel. These checks protect
+provider behavior through the running app; internal code can change freely.
+The Claude fixtures are synthetic. They cannot verify real CLI startup or the
+record format of an installed Claude Code version.
+
 | Starting state | User action or external input | Required result / wrong result detected |
 | --- | --- | --- |
 | Local desktop and CLI chats exist in SQLite with session records. The usage runtime is absent. | Write a desktop question notification, user reply, failed turn, and completed turn. Write a CLI question and its answer. Remove and restore a session record. | The panel changes between Working, Needs you, Failed, Idle, and Unknown. A missing record does not hide healthy chats. A restored record recovers. Unavailable account limits do not stop sessions. |
