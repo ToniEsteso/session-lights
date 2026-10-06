@@ -38,6 +38,9 @@ folder. It copies the current build into that folder so Electron uses a separate
 app profile. Restarts reuse the same profile. Tests use the real renderer,
 preload, IPC, monitor, adapters, and preference files. They use bounded waits for
 visible results. The fixture deletes only its own temporary folder.
+Every launch resets hover outside the panel. Reduced motion removes native
+resize timing from these feature checks. These checks do not prove animation
+quality. Theme checks keep Electron's native theme instead of forcing Light.
 
 `CODEX_HOME`, home paths, app data, and logs point to the fixture. The runtime
 override points to an absent executable. No personal records or sign-in are
@@ -50,6 +53,13 @@ tray controls, and display scaling are outside this suite. No claim is made
 that these paths pass. Electron requires a desktop display (or Xvfb). Tests run
 with one worker because native windows share focus.
 
-Playwright reports, traces, and failure screenshots are saved under
-`.evidence/e2e/`. Open the report with
-`pnpm exec playwright show-report .evidence/e2e/report`.
+Each invocation prints its unique `.evidence/e2e/<run>/` directory. A later run
+does not overwrite that run's report. Results include a trace for each launch,
+renderer screenshots, and Electron runtime logs. Claude and chat-opening
+scenarios also record video. Open the printed report directory with
+`pnpm exec playwright show-report .evidence/e2e/<run>/report`.
+
+Failure screenshots and traces are retained before fixture removal. Cleanup
+errors are attached to the result and do not replace the original feature
+failure. A cleanup error after a successful check still fails the check.
+Restarts reuse only that scenario's profile; the next scenario gets a new one.

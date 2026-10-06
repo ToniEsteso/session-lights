@@ -390,11 +390,16 @@ async function main() {
 }
 
 if (!app.requestSingleInstanceLock()) {
-  app.quit();
+  if (demo) {
+    console.error('Session Lights is already running from this checkout. Quit it before starting a demo.');
+    app.exit(1);
+  } else app.quit();
 } else {
   // Source launches restore their normal or isolated data profile.
   if (demo) {
-    const profile = path.join(app.getPath('temp'), `session-lights-preview-${process.pid}`);
+    const temporaryRoot = app.isPackaged ? app.getPath('temp') : path.join(app.getAppPath(), '.tmp');
+    mkdirSync(temporaryRoot, { recursive: true });
+    const profile = path.join(temporaryRoot, `${app.isPackaged ? 'session-lights-preview' : 'demo-profile'}-${process.pid}`);
     mkdirSync(profile, { recursive: true });
     app.setPath('userData', profile);
     app.setPath('sessionData', profile);

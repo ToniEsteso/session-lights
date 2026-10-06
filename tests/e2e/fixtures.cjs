@@ -28,7 +28,29 @@ const test = base.extend({
     const failOpen = path.join(root, 'fail-open');
     let app;
     let panel;
+    let launch = 0;
+    let tracing = false;
+    let failed = false;
     const errors = [];
+    const runtimeLog = [];
+    const stop = async () => {
+      if (!app) return;
+      const closing = app;
+      const failures = [];
+      if (tracing) {
+        try { await closing.context().tracing.stop({ path: testInfo.outputPath(`trace-${launch}.zip`) }); }
+        catch (error) { failures.push(`Save trace: ${error.message}`); }
+        tracing = false;
+      }
+      // A trace error must not leave the app open. Kill only our own child if close fails.
+      try { await closing.close(); }
+      catch (error) {
+        failures.push(`Close app: ${error.message}`);
+        if (closing.process().exitCode === null) closing.process().kill();
+      }
+      app = undefined;
+      if (failures.length) throw Error(failures.join('\n'));
+    };
     try {
       await fs.cp(path.join(project, 'build'), path.join(appRoot, 'build'), { recursive: true });
       await fs.writeFile(path.join(appRoot, 'package.json'), JSON.stringify({
@@ -82,12 +104,18 @@ const test = base.extend({
       };
       delete env.ELECTRON_RUN_AS_NODE;
       const start = async () => {
+        launch += 1;
         app = await _electron.launch({ args: [bootstrap, ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], env,
           colorScheme: null,
-          ...(testInfo.file.endsWith('claude-code.spec.cjs') ? {
+          ...(testInfo.file.endsWith('claude-code.spec.cjs') || testInfo.title.startsWith('opening a desktop chat') ? {
             recordVideo: { dir: testInfo.outputPath('video'), size: { width: 600, height: 800 } },
           } : {}),
         });
+        for (const stream of ['stdout', 'stderr']) {
+          app.process()[stream]?.on('data', chunk => runtimeLog.push(`[launch ${launch} ${stream}] ${chunk}`));
+        }
+        await app.context().tracing.start({ screenshots: true, snapshots: true });
+        tracing = true;
         await expect.poll(() => app.windows().some(page => page.url().endsWith('/index.html')),
           { message: 'The app must open its thread panel' }).toBe(true);
         panel = app.windows().find(page => page.url().endsWith('/index.html'));
@@ -96,16 +124,11 @@ const test = base.extend({
         panel.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
         // Keep Electron's native theme. Playwright otherwise defaults to Light.
         await panel.emulateMedia({ colorScheme: null, reducedMotion: 'reduce' });
+        // Reset hover after every launch, including a persisted-profile restart.
+        await panel.mouse.move(-20, -20);
         // An empty panel has no visible list. Wait for its main surface instead.
         await expect(panel.getByRole('main', { name: 'Session Lights', exact: true })).toBeVisible();
-        await app.context().tracing.start({ screenshots: true, snapshots: true });
         return panel;
-      };
-      const stop = async () => {
-        if (!app) return;
-        await app.context().tracing.stop({ path: testInfo.outputPath(`trace-${Date.now()}.zip`) });
-        await app.close();
-        app = undefined;
       };
       await start();
       await use({
@@ -147,19 +170,37 @@ const test = base.extend({
           catch (error) { if (error.code === 'ENOENT') return []; throw error; }
         },
       });
-      expect(errors, 'The panel must not raise uncaught renderer errors').toEqual([]);
-      await panel.screenshot({ path: testInfo.outputPath('result.png') });
+      if (testInfo.status === testInfo.expectedStatus) {
+        expect(errors, 'The panel must not raise uncaught renderer errors').toEqual([]);
+        await panel.screenshot({ path: testInfo.outputPath('result.png') });
+      }
+    } catch (error) {
+      failed = true;
+      throw error;
     } finally {
-      if (panel && !panel.isClosed() && testInfo.status !== testInfo.expectedStatus) {
-        await panel.screenshot({ path: testInfo.outputPath('failure.png') }).catch(() => {});
+      const cleanupErrors = [];
+      const preserve = async (label, operation) => {
+        try { await operation(); }
+        catch (error) { cleanupErrors.push(`${label}: ${error.message}`); }
+      };
+      failed ||= testInfo.status !== testInfo.expectedStatus;
+      if (panel && !panel.isClosed() && failed) {
+        await preserve('Failure screenshot', () => panel.screenshot({ path: testInfo.outputPath('failure.png') }));
       }
-      if (app) {
-        await app.context().tracing.stop({ path: testInfo.outputPath('trace.zip') }).catch(() => {});
-        await app.close();
-      }
+      await preserve('Stop fixture app', stop);
+      await preserve('Runtime log', () => fs.writeFile(testInfo.outputPath('runtime.log'), runtimeLog.join('')));
       // Delete only this fixture, which mkdtemp created under the checkout.
-      if (path.dirname(root) !== path.join(project, '.tmp')) throw Error('Invalid fixture path');
-      await fs.rm(root, { recursive: true, force: true });
+      await preserve('Remove fixture', async () => {
+        if (path.dirname(root) !== path.join(project, '.tmp')) throw Error('Invalid fixture path');
+        await fs.rm(root, { recursive: true, force: true });
+      });
+      if (cleanupErrors.length) {
+        await preserve('Attach cleanup errors', () => testInfo.attach('cleanup-errors', {
+          body: cleanupErrors.join('\n'), contentType: 'text/plain',
+        }));
+        // Preserve the original feature failure. Cleanup alone still fails a passing test.
+        if (!failed) throw Error(cleanupErrors.join('\n'));
+      }
     }
   },
 });
