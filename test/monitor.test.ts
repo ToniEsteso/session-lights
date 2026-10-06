@@ -135,7 +135,7 @@ test('pinned old sessions stay visible after preferences are saved and the app r
   const key = required(sessions.find(s => s.id === data.ids[1])).key;
   const file = path.join(dir, 'preferences.json');
   const prefs = new Preferences(file); await prefs.load();
-  await prefs.save({ ...prefs.value, pinned: [key], expanded: true, showAll: false });
+  await prefs.save({ ...prefs.value, pinned: [key], showAll: false });
   const reopened = new Preferences(file); await reopened.load();
   const visible = visibleSessions(sessions, reopened.value, data.now + 2 * 86_400_000);
   assert.equal(visible.length, 1); assert.equal(required(visible[0]).id, data.ids[1]);

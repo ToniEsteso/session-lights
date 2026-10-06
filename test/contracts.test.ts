@@ -16,6 +16,9 @@ test('IPC rejects invalid commands, coordinates, and tooltip targets', () => {
   assert.deepEqual(parseAction({ type: 'sort', order: 'project', extra: true }), { type: 'sort', order: 'project' });
   assert.deepEqual(parseAction({ type: 'move', phase: 'end', screenY: -20 }), { type: 'move', phase: 'end', screenY: -20 });
   assert.deepEqual(parseAction({ type: 'expand', reducedMotion: 'true' }), { type: 'expand', reducedMotion: false });
+  assert.deepEqual(parseAction({ type: 'set-expanded', expanded: true, reducedMotion: 'true' }),
+    { type: 'set-expanded', expanded: true, reducedMotion: false });
+  assert.equal(parseAction({ type: 'set-expanded', expanded: 'true' }), undefined);
   assert.equal(parseTooltipTarget({ kind: 'usage', providerId: 'atlas', y: 1 }), undefined);
   assert.equal(parseTooltipTarget({ kind: 'session', key: 'atlas:chat', y: NaN }), undefined);
   assert.deepEqual(parseTooltipTarget({ kind: 'usage', providerId: 'atlas', id: 'daily', y: 42 }),

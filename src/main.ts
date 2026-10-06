@@ -25,6 +25,7 @@ let preferences: Preferences;
 let monitor: SessionMonitor;
 let snapshot: MonitorSnapshot = { sessions: [], sources: [] };
 let showHidden = false;
+let expanded = false;
 let panelView: PanelPayload['view'] = 'threads';
 let timer: NodeJS.Timeout | undefined;
 let quitting = false;
@@ -66,10 +67,10 @@ function payload(): PanelPayload {
   const sessions = visibleSessions(snapshot.sessions, { ...preferences.value, showAll: true });
   const sources = snapshot.sources.filter(source => !preferences.value.hiddenAdapters.includes(source.id));
   const visibleUsage = usage.filter(source => !preferences.value.hiddenAdapters.includes(source.providerId));
-  return { sources, sessions, view: panelView,
+  return { sources, sessions, expanded, view: panelView,
     update: updates.state,
     hiddenSessions,
-    showHidden: preferences.value.expanded && showHidden && hiddenSessions.length > 0,
+    showHidden: expanded && showHidden && hiddenSessions.length > 0,
     total: sessions.length, preferences: preferences.value, usage: visibleUsage, demo,
     motion: panelResize, compactInset: compactWidth - 26, textScale: systemTextScale };
 }
@@ -87,7 +88,7 @@ function settingsPayload(): SettingsPayload {
 }
 async function showSettings(reducedMotion = false) {
   hideTooltip();
-  if (!preferences.value.expanded) await preferences.save({ ...preferences.value, expanded: true });
+  expanded = true;
   panelView = 'settings';
   positionPanel({ animate: true, reducedMotion }); notify();
   win.show(); win.setAlwaysOnTop(true, panelLevel);
@@ -158,24 +159,24 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   if (!win || win.isDestroyed() || (panelResize && !animate)) return;
   const display = panelDisplay();
   const area = display.workArea;
-  const scale = preferences.value.expanded ? systemTextScale : 1;
-  const width = preferences.value.expanded ? Math.round(Math.min(328 * scale, area.width)) : compactWidth;
+  const scale = expanded ? systemTextScale : 1;
+  const width = expanded ? Math.round(Math.min(328 * scale, area.width)) : compactWidth;
   const view = payload();
   const sessions = view.showHidden ? [...view.sessions, ...view.hiddenSessions] : view.sessions;
   const rows = Math.max(1, Math.min(sessions.length, 14));
-  const groupHeight = preferences.value.expanded ? sessionSections(view).filter(section => section.title).length * 24 : 0;
+  const groupHeight = expanded ? sessionSections(view).filter(section => section.title).length * 24 : 0;
   const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
-  const overhead = preferences.value.expanded ? 104 : limits ? 62 : 51;
-  const minimum = preferences.value.expanded ? (view.sources.length ? 128 : 184) : 41;
+  const overhead = expanded ? 104 : limits ? 62 : 51;
+  const minimum = expanded ? (view.sources.length ? 128 : 184) : 41;
   const contentHeight = panelView === 'settings' ? 260 + monitor.adapters.length * 32 : Math.max(minimum,
-    rows * (preferences.value.expanded ? 40 : 24) + groupHeight + overhead + limits * (preferences.value.expanded ? 36 : 24));
+    rows * (expanded ? 40 : 24) + groupHeight + overhead + limits * (expanded ? 36 : 24));
   const height = Math.round(Math.min(area.height - 24, scale * contentHeight));
   const y = Math.round(Math.max(area.y + 12, Math.min(panelDrag?.y ?? preferences.value.y ?? area.y + (area.height - height) / 2, area.y + area.height - height - 12)));
   const bounds = { x: display.bounds.x + display.bounds.width - width, y, width, height };
   const current = win.getBounds();
   stopResize();
   if (animate && !reducedMotion && win.isVisible()) {
-    const motion = panelResize = { id: ++resizeId, duration: 280, delay: preferences.value.expanded ? 0 : 70, height: bounds.height };
+    const motion = panelResize = { id: ++resizeId, duration: 280, delay: expanded ? 0 : 70, height: bounds.height };
     const started = performance.now() + motion.delay;
     const edge = bounds.x + bounds.width;
     const step = () => {
@@ -218,8 +219,13 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
     case 'sort':
       await preferences.save({ ...prefs, sortOrder: value.order }); break;
     case 'expand':
-      await preferences.save({ ...prefs, expanded: !prefs.expanded });
+      expanded = !expanded;
       panelView = 'threads';
+      positionPanel({ animate: true, reducedMotion: value.reducedMotion === true }); notify(); return;
+    case 'set-expanded':
+      if (expanded === value.expanded) return;
+      expanded = value.expanded;
+      if (!expanded) panelView = 'threads';
       positionPanel({ animate: true, reducedMotion: value.reducedMotion === true }); notify(); return;
     case 'pin': {
       if (!snapshot.sessions.some(s => s.key === value.key)) return;

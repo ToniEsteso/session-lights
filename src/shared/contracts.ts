@@ -63,7 +63,6 @@ export interface SessionAdapter {
 export type ThemeChoice = 'system' | 'light' | 'dark';
 export interface PanelPreferences {
   theme: ThemeChoice;
-  expanded: boolean;
   showAll: boolean;
   pinned: string[];
   hidden: string[];
@@ -78,6 +77,7 @@ export interface MonitorSnapshot {
 }
 export interface PanelMotion { id: number; duration: number; delay: number; height: number }
 export interface PanelPayload extends MonitorSnapshot {
+  expanded: boolean;
   view: 'threads' | 'settings';
   update: UpdateState;
   total: number;
@@ -94,6 +94,7 @@ export type PanelAction =
   | { type: 'settings'; reducedMotion?: boolean }
   | { type: 'sort'; order: SortOrder }
   | { type: 'expand'; reducedMotion?: boolean }
+  | { type: 'set-expanded'; expanded: boolean; reducedMotion?: boolean }
   | { type: 'pin'; key: string }
   | { type: 'hide-session'; key: string }
   | { type: 'restore-session'; key: string }

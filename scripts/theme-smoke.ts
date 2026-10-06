@@ -45,7 +45,7 @@ export async function checkThemes({ win, tooltipWin, testDir, refresh }: ThemeCh
     await fs.writeFile(path.join(testDir, name), (await window.webContents.capturePage()).toPNG());
   };
   // Use the real two fixture sessions in the expanded panel for the requested captures.
-  await panel("window.sessionLights.read().then(value => { if (!value.preferences.expanded) return window.sessionLights.action({ type: 'expand', reducedMotion: true }); })");
+  await panel("window.sessionLights.read().then(value => { if (!value.expanded) return window.sessionLights.action({ type: 'set-expanded', expanded: true, reducedMotion: true }); })");
   for (const theme of ['light', 'dark'] as const) {
     await choose(theme);
     // Contrast is an observable requirement. Check text against the actual painted surfaces.

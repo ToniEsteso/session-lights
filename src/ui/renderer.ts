@@ -7,6 +7,7 @@ import { errorMessage } from '../shared/validation.js';
 import { closeSettings } from './settings.js';
 const { labels, available, countdown, age } = panelText;
 let snapshot: PanelPayload | undefined;
+let requestedExpanded: boolean | undefined;
 let renderSignature: string | undefined;
 let dragging: { pointerId: number; screenY: number; handle: HTMLElement } | undefined;
 let threadsScrollTop = 0;
@@ -78,7 +79,7 @@ function renderUsage(value: PanelPayload) {
     const gauge = $('.usage-gauge', row);
     gauge.setAttribute('aria-label', `${label}: ${ready ? `${percentage}% remaining` : 'Unavailable'}`);
     gauge.setAttribute('aria-description', [source.scope, countdown(limit.resetsAt), source.message].filter(Boolean).join('. '));
-    gauge.addEventListener('click', () => act({ type: 'expand' }));
+    gauge.addEventListener('click', () => requestExpanded(true));
     const reset = $('.usage-reset', row);
     reset.textContent = ready && limit.resetsAt ? countdown(limit.resetsAt) : '';
     reset.hidden = !reset.textContent;
@@ -90,10 +91,22 @@ function renderUsage(value: PanelPayload) {
 async function act(value: PanelAction) {
   hideTooltip();
   try {
-    await window.sessionLights.action(value.type === 'expand' || value.type === 'settings' ? { ...value, reducedMotion: reducedMotion.matches } : value);
+    await window.sessionLights.action(value.type === 'expand' || value.type === 'set-expanded' || value.type === 'settings'
+      ? { ...value, reducedMotion: reducedMotion.matches } : value);
     $('#error').hidden = true;
   }
-  catch (error) { $('#error').textContent = errorMessage(error); $('#error').hidden = false; }
+  catch (error) {
+    if (value.type === 'set-expanded' && requestedExpanded === value.expanded) requestedExpanded = undefined;
+    $('#error').textContent = errorMessage(error); $('#error').hidden = false;
+  }
+}
+function requestExpanded(expanded: boolean) {
+  if (requestedExpanded === expanded || (requestedExpanded === undefined && snapshot?.expanded === expanded)) return;
+  requestedExpanded = expanded;
+  void act({ type: 'set-expanded', expanded });
+}
+function panelIsExpanded() {
+  return requestedExpanded ?? snapshot?.expanded ?? false;
 }
 function render(value: PanelPayload) {
   if (collapseTimer && value.motion?.id === motionId) { pendingRender = value; return; }
@@ -103,7 +116,7 @@ function render(value: PanelPayload) {
     clearTimeout(collapseTimer); collapseTimer = undefined; pendingRender = undefined;
     effects.forEach(effect => effect.cancel()); effects = [];
     motionId = value.motion?.id;
-    if (value.motion?.delay && snapshot?.preferences.expanded && !value.preferences.expanded) {
+    if (value.motion?.delay && snapshot?.expanded && !value.expanded) {
       pendingRender = value;
       document.body.classList.add('resizing');
       for (const element of document.querySelectorAll('.wide')) {
@@ -120,9 +133,10 @@ function render(value: PanelPayload) {
   renderNow(value);
 }
 function renderNow(value: PanelPayload) {
+  if (requestedExpanded === value.expanded) requestedExpanded = undefined;
   const viewChanged = snapshot !== undefined && snapshot.view !== value.view;
   if (viewChanged && snapshot?.view === 'threads') threadsScrollTop = $('#sessions').scrollTop;
-  const changing = snapshot && snapshot.preferences.expanded !== value.preferences.expanded;
+  const changing = snapshot && snapshot.expanded !== value.expanded;
   const previousList = changing ? $('#sessions').getBoundingClientRect() : null;
   const previousDots = new Map(changing ? [...document.querySelectorAll<HTMLButtonElement>('.session-button')].map(button =>
     [button.dataset.key, $('.dot', button).getBoundingClientRect()]) : []);
@@ -137,11 +151,11 @@ function renderNow(value: PanelPayload) {
   // Do not rebuild focused buttons during the two-second update.
   // Refresh the usage display when a reset passes, even if no source data changed.
   const signature = JSON.stringify([value,
-    value.preferences.expanded && [...value.sessions, ...(value.showHidden ? value.hiddenSessions : [])].map(session => age(session.updatedAt)),
+    value.expanded && [...value.sessions, ...(value.showHidden ? value.hiddenSessions : [])].map(session => age(session.updatedAt)),
     value.usage?.flatMap(source => source.windows.map(limit => [available(limit), countdown(limit.resetsAt)]))]);
   if (signature === renderSignature) return;
   renderSignature = signature;
-  const expanded = value.preferences.expanded;
+  const expanded = value.expanded;
   document.body.style.setProperty('--text-scale', String(value.textScale));
   document.body.classList.toggle('resizing', Boolean(value.motion));
   document.body.style.setProperty('--compact-inset', `${value.compactInset || 0}px`);
@@ -149,9 +163,6 @@ function renderNow(value: PanelPayload) {
   $('#panel').dataset.view = value.view;
   $('#threads-view').hidden = value.view !== 'threads';
   $('#settings-view').hidden = value.view !== 'settings';
-  $('#expand').setAttribute('aria-expanded', String(expanded));
-  $('#expand').setAttribute('aria-label', expanded ? 'Hide session names' : 'Show session names');
-  $('#expand').title = expanded ? 'Hide session names' : 'Show session names';
   const allHidden = value.sources.length === 0;
   $('#empty').hidden = value.sessions.length > 0 || value.showHidden || allHidden;
   $('#empty .wide').textContent = value.hiddenSessions.length ? 'All sessions are hidden.' : 'No local sessions.';
@@ -161,6 +172,7 @@ function renderNow(value: PanelPayload) {
   hiddenToggle.textContent = `${value.hiddenSessions.length} ${value.hiddenSessions.length === 1 ? 'session' : 'sessions'} hidden`;
   hiddenToggle.setAttribute('aria-expanded', String(value.showHidden));
   hiddenToggle.title = value.showHidden ? 'Close hidden sessions' : 'Show hidden sessions';
+  $('#threads-view > footer').hidden = expanded && value.hiddenSessions.length === 0;
   $('#adapters-hidden').hidden = !allHidden;
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-sort]')) {
     button.setAttribute('aria-pressed', String(button.dataset.sort === (value.preferences.sortOrder || 'activity')));
@@ -208,7 +220,7 @@ function renderNow(value: PanelPayload) {
       activity.setAttribute('aria-label', `Last activity: ${timestamp ? activityAge : 'Time unavailable'}`);
       if (timestamp) activity.dateTime = timestamp;
       text.append(title, detail); button.append(dot, text, activity);
-      button.addEventListener('click', () => act(expanded ? { type: 'open', key: session.key } : { type: 'expand' }));
+      button.addEventListener('click', () => act(panelIsExpanded() ? { type: 'open', key: session.key } : { type: 'set-expanded', expanded: true }));
       const pin = document.createElement('button'); pin.className = 'wide pin'; pin.dataset.key = session.key; pin.dataset.action = 'pin';
       const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       icon.setAttribute('viewBox', '0 0 16 16'); icon.setAttribute('aria-hidden', 'true');
@@ -281,11 +293,12 @@ function renderNow(value: PanelPayload) {
   }
 }
 $('#empty-settings').addEventListener('click', () => act({ type: 'settings' }));
-$('#expand').addEventListener('click', () => act({ type: 'expand' }));
+$('#panel').addEventListener('pointerenter', () => requestExpanded(true));
+$('#panel').addEventListener('pointerleave', () => { if (!dragging) requestExpanded(false); });
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-settings]')) {
   button.addEventListener('click', () => act({ type: 'settings' }));
 }
-$('#empty').addEventListener('click', () => { if (!snapshot?.preferences.expanded) act({ type: 'expand' }); });
+$('#empty').addEventListener('click', () => requestExpanded(true));
 $('#hidden-sessions').addEventListener('click', () => act({ type: 'show-hidden' }));
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-sort]')) {
   button.addEventListener('click', () => {
@@ -330,9 +343,9 @@ document.addEventListener('keydown', event => {
     if (snapshot?.view === 'settings') {
       event.preventDefault(); closeSettings(); return;
     }
-    if (snapshot?.preferences.expanded) {
+    if (panelIsExpanded()) {
       event.preventDefault();
-      act({ type: 'expand' });
+      requestExpanded(false);
     }
   }
 });

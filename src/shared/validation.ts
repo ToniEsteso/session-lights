@@ -17,6 +17,9 @@ export function parseAction(value: unknown): PanelAction | undefined {
       if (value.order === 'activity' || value.order === 'project') return { type: 'sort', order: value.order };
       return;
     case 'expand': return { type: 'expand', reducedMotion: value.reducedMotion === true };
+    case 'set-expanded':
+      if (typeof value.expanded === 'boolean') return { type: 'set-expanded', expanded: value.expanded, reducedMotion: value.reducedMotion === true };
+      return;
     case 'pin': case 'open': case 'hide-session': case 'restore-session':
       if (typeof value.key === 'string') return { type: value.type, key: value.key };
       return;

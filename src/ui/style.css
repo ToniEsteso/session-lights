@@ -54,16 +54,12 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 .pin[aria-pressed='true'] path { fill: currentColor; }
 footer { display: flex; align-items: center; justify-content: center; min-height: 24px; flex-shrink: 0; }
 .panel:not(.expanded) footer { margin-top: 5px; padding-top: 4px; border-top: 1px solid var(--border); }
-.panel:not(.expanded) #expand { display: none; }
 .expanded .compact { display: none; }
 .gear { position: relative; width: 22px; height: 24px; padding: 3px; color: var(--muted); border-radius: 3px; }
 .gear:hover { color: var(--text); background: var(--selected); }
 .gear svg { display: block; width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
 .update-badge { position: absolute; right: 1px; top: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--status-waiting); box-shadow: 0 0 0 2px var(--surface); }
-#expand { display: grid; place-items: center; padding: 0; width: 32px; height: 28px; border-radius: 8px; color: var(--muted); }
-.expanded #expand { width: 34px; }
-.expanded #expand svg { transform: rotate(180deg); }
-.expanded footer { display: flex; justify-content: space-between; margin-top: 5px; border-top: 1px solid var(--border-soft); padding-top: 5px; }
+.expanded footer { display: flex; justify-content: flex-start; margin-top: 5px; border-top: 1px solid var(--border-soft); padding-top: 5px; }
 .health { font-size: 9px; color: var(--muted); margin: 5px 5px 2px; line-height: 1.4; }
 #empty { display: flex; align-items: center; gap: 10px; padding: 7px; color: var(--muted); font-size: 11px; }
 .panel:not(.expanded) #empty { justify-content: center; padding: 7px 0; }
@@ -111,7 +107,6 @@ footer { display: flex; align-items: center; justify-content: center; min-height
 .restore-session, .restore-all { flex-shrink: 0; padding: 4px 6px; border-radius: 3px; font-size: 10px; color: var(--muted); }
 .hidden-toggle { padding: 5px 6px; border-radius: 3px; font-size: 10px; color: var(--muted); }
 .hidden-toggle[aria-expanded='true'] { color: var(--text); background: var(--selected); }
-.expanded #expand { margin-left: auto; }
 #adapters-hidden { flex-shrink: 0; margin: 7px 5px; color: var(--muted); font-size: 11px; }
 #adapters-hidden p { margin: 4px 0; }
 #empty-settings { display: flex; align-items: center; padding: 7px 0; }

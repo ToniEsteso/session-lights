@@ -174,7 +174,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded')");
     assert.equal(await js("[...document.querySelectorAll('.dot')].every(dot => dot.textContent === '' && dot.getBoundingClientRect().width <= 10.5)"), true);
-    assert.equal(await js("document.querySelector('.grip') === null && getComputedStyle(document.querySelector('footer')).display === 'flex' && getComputedStyle(document.querySelector('#expand')).display === 'none'"), true);
+    assert.equal(await js("document.querySelector('.grip') === null && getComputedStyle(document.querySelector('footer')).display === 'flex' && document.querySelector('#expand') === null"), true);
     const usageLayout = await js(`(() => {
       const section = document.querySelector('#usage');
       const lastSession = document.querySelector('.session:last-child').getBoundingClientRect();
@@ -192,6 +192,12 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     win.focus();
     await waitNative(() => win.isFocused());
     win.webContents.sendInputEvent({ type: 'mouseMove', x: 0, y: 0 });
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: 16, y: 10, globalX: win.getBounds().x + 16, globalY: win.getBounds().y + 10 });
+    await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: 0, y: 10, globalX: win.getBounds().x, globalY: win.getBounds().y + 10 });
+    await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing') && innerWidth === " + nativeWidth);
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: 16, y: 10, globalX: win.getBounds().x + 16, globalY: win.getBounds().y + 10 });
+    await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     const light = await js(`(() => { const box = document.querySelector('[data-key="codex:22222222-2222-4222-8222-222222222222"].session-button').getBoundingClientRect(); return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }; })()`);
     win.webContents.sendInputEvent({ type: 'mouseMove', ...light, globalX: win.getBounds().x + light.x, globalY: win.getBounds().y + light.y });
     await wait("document.querySelector('[data-key=\"codex:22222222-2222-4222-8222-222222222222\"].session-button').matches(':hover')");
@@ -204,7 +210,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     await capture('hover.png');
     // Catch movement delayed until release, overshoot on repeated moves, and lost position.
     const dragStart = win.getBounds();
-    const handle = await js(`(() => { const box = document.querySelector('#handle').getBoundingClientRect(); return { x: Math.round(box.x + box.width / 2), y: 4 }; })()`);
+    const handle = await js(`(() => { const box = document.querySelector('#handle').getBoundingClientRect(); return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + 4) }; })()`);
     await js(`window.dragEvidence = []; for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'lostpointercapture']) document.addEventListener(type, event => window.dragEvidence.push({ type, target: event.target.id || event.target.className, screenY: event.screenY, clientY: event.clientY, pointerId: event.pointerId, button: event.button }), true);`);
     win.focus();
     // Electron input needs explicit global coordinates for PointerEvent.screenY.
@@ -240,11 +246,14 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     assert.equal(await js("getComputedStyle(document.querySelector('#handle')).cursor"), 'grab');
     await wait(`window.sessionLights.read().then(value => Math.abs(value.preferences.y - ${dragStart.y - 20}) <= 1)`);
     await refresh(); await waitPosition(dragStart.y - 20);
+    await js('window.sessionLights.action({ type: "set-expanded", expanded: false, reducedMotion: true })');
+    await wait("window.sessionLights.read().then(value => !value.expanded && !document.querySelector('#panel').classList.contains('expanded'))");
     // Catch an instant resize, a moving screen edge, and refreshes that interrupt motion.
     const frames: (Rectangle & { at: number; aboveOtherWindows: boolean })[] = [];
     const recordFrame = () => frames.push({ ...win.getBounds(), at: Date.now(), aboveOtherWindows: win.isAlwaysOnTop() });
     win.on('resize', recordFrame);
-    await js("document.querySelector('.usage-gauge').click()");
+    await js("document.querySelector('#panel').dispatchEvent(new PointerEvent('pointerenter'))");
+    await wait("window.sessionLights.read().then(value => value.expanded)");
     await wait("innerWidth > 50 && innerWidth < 320");
     checkScreenEdge(); await capture('expanding.png');
     const duringMotion = new DatabaseSync(path.join(data.root, 'state_5.sqlite'));
@@ -259,7 +268,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     assert.ok(frames.every(frame => Math.abs(frame.x + frame.width - expandedEdge) <= 1), 'Expansion moved away from the screen edge.');
     assert.ok(frames.every(frame => frame.aboveOtherWindows), 'The panel lost its topmost state during expansion.');
     frames.length = 0;
-    await js("document.querySelector('#expand').click()");
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("innerWidth > 40 && innerWidth < 300");
     await capture('collapsing.png');
     await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
@@ -270,22 +279,22 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     // A second click during collapse must reverse smoothly and reach the new state.
     await js("document.querySelector('.session-button').click()");
     await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
-    await js("document.querySelector('#expand').click()");
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded') && document.body.classList.contains('resizing')");
     await js("document.querySelector('.session-button').click()");
     await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     assert.equal(win.getBounds().width, 328); checkScreenEdge();
-    await js("document.querySelector('#expand').click()");
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     // The user's reduced-motion setting must avoid native and content animation.
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     frames.length = 0;
-    await js("document.querySelector('.usage-gauge').click()");
+    await js("document.querySelector('#panel').dispatchEvent(new PointerEvent('pointerenter'))");
     await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     assert.equal(win.getBounds().width, 328);
     assert.equal(frames.some(frame => frame.width > nativeWidth + 2 && frame.width < 326), false, 'Reduced motion still animated the native window.');
     assert.equal(await js("document.getAnimations().some(animation => animation.playState === 'running')"), false);
-    await js("document.querySelector('#expand').click()");
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] });
     win.webContents.debugger.detach(); win.removeListener('resize', recordFrame);
@@ -386,7 +395,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     assert.equal(await js("[...document.querySelectorAll('.usage-track')].every(track => !track.hasAttribute('aria-valuenow'))"), true);
     assert.equal(await js("[...document.querySelectorAll('.usage-reset')].every(reset => reset.hidden && !reset.textContent)"), true);
     await capture('usage-unavailable.png');
-    await js("document.querySelector('#expand').click()");
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     assert.equal(await js("[...document.querySelectorAll('.gauge-needle')].every(needle => getComputedStyle(needle).visibility === 'hidden')"), true);
     await capture('compact-unavailable.png');
@@ -429,7 +438,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     await wait("document.querySelector('[data-limit=fiveHour] .usage-value').textContent === 'Unavailable'");
     await fs.writeFile(usageFile, initialUsage); await refreshUsage();
     await wait("document.querySelector('[data-limit=fiveHour] .usage-value').textContent === '76% left'");
-    await js("document.querySelector('.usage-gauge').click()");
+    await js("document.querySelector('#panel').dispatchEvent(new PointerEvent('pointerenter'))");
     await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     await logLine(data, Date.now() + 1000, `[desktop-notifications] show notification conversationId=${id} kind=approval`);
     await refresh();
@@ -443,7 +452,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     await win.webContents.reload();
     await wait("document.querySelector('#panel').classList.contains('expanded') && document.querySelector('.pin').getAttribute('aria-pressed') === 'true'");
     const persisted = JSON.parse(await fs.readFile(preferences.file, 'utf8'));
-    assert.equal(persisted.expanded, true); assert.equal(persisted.pinned.length, 1);
+    assert.equal(Object.hasOwn(persisted, 'expanded'), false); assert.equal(persisted.pinned.length, 1);
     assert.ok(Math.abs(persisted.y - (dragStart.y - 20)) <= 1);
     assert.ok(Math.abs(win.getBounds().y - persisted.y) <= 1);
     assert.equal(await js("document.querySelectorAll('.session').length"), 2);
@@ -457,13 +466,13 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     await wait("document.querySelectorAll('.session').length === 24");
     assert.equal(await js("document.querySelector('#sessions').scrollHeight > document.querySelector('#sessions').clientHeight"), true);
     assert.equal(await js("['#usage', 'footer'].every(selector => document.querySelector(selector).getBoundingClientRect().bottom <= innerHeight + 0.5)"), true);
-    await js("document.querySelector('#expand').click()");
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     const longCenters = await js(`['#panel', '.dot', '.usage-gauge'].map(selector => { const box = document.querySelector(selector).getBoundingClientRect(); return box.x + box.width / 2; })`);
     assert.ok(Math.max(...longCenters) - Math.min(...longCenters) < 0.5, `Long list lights are off center: ${longCenters}`);
     assert.equal(await js("document.querySelector('#usage').getBoundingClientRect().bottom <= innerHeight + 0.5"), true);
     await capture('compact-many-chats.png');
-    await js("document.querySelector('.usage-gauge').click()");
+    await js("document.querySelector('#panel').dispatchEvent(new PointerEvent('pointerenter'))");
     await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     await js("document.querySelector('.session-button').focus(); document.querySelector('.session:last-child').scrollIntoView({ block: 'end' })");
     const scrollBefore = await js("document.querySelector('#sessions').scrollTop");
@@ -490,7 +499,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     await wait("document.querySelectorAll('.session').length === 0 && !document.querySelector('#empty').hidden");
     assert.equal(await js("['#empty', '#usage', 'footer'].every(selector => { const box = document.querySelector(selector).getBoundingClientRect(); return box.height > 0 && box.bottom <= innerHeight + 0.5; })"), true);
     await capture('empty.png');
-    await js("document.querySelector('#expand').click()");
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     assert.equal(await js("['#empty', '#usage'].every(selector => { const box = document.querySelector(selector).getBoundingClientRect(); return box.height > 0 && box.bottom <= innerHeight + 0.5; })"), true);
     await capture('compact-no-chats.png');
@@ -571,7 +580,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     await waitTooltip("document.querySelector('#meta').textContent.includes('Codex') && document.querySelector('#meta').textContent.includes('Atlas')");
     assert.match(await tooltipWin.webContents.executeJavaScript("document.querySelector('#detail').textContent"), /work.*project/i);
     await fs.writeFile(path.join(testDir, 'project-tooltip.png'), (await tooltipWin.webContents.capturePage()).toPNG());
-    await js("document.querySelector('#expand').click()");
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing') && document.querySelectorAll('.session').length === 7 && document.querySelectorAll('.project-heading').length === 0");
     assert.equal(await js("getComputedStyle(document.querySelector('.sort-tools')).display"), 'none');
     await capture('compact-project-order.png');
@@ -610,7 +619,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     await win.webContents.reload();
     await wait("document.querySelector('#hidden-sessions').textContent === '2 sessions hidden' && document.querySelectorAll('.session').length === 5");
     await capture('sessions-hidden.png');
-    await clickControl('#expand');
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
     assert.equal(await js("document.querySelectorAll('.dot').length"), 5);
     await capture('hidden-compact.png');
@@ -644,7 +653,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     await selectSort('project');
     await capture('bookmarks-restored-project.png');
     assert.deepEqual(errors, [], 'Renderer errors after hiding and restoring.');
-    const report = { result: 'passed', checks: ['always on top', 'half-width compact bar', 'compact center alignment', 'equal top and bottom spacing', 'compact and expanded panels touch screen edge', 'small plain lights', 'no compact icons or grip', 'no hover highlight', 'grab and grabbing cursors', 'panel follows held drag', 'reverse drag without overshoot', 'drag position survives refresh and is saved on release', 'click light to show names', 'no panel title', 'only activity and project sorting', 'no legend or extra text', 'no recent-only or quit button', 'workspace in tooltip', 'short list needs no scrollbar', 'compact divider and two gauges', 'green gauges and limit tooltips', 'click gauge to expand', 'red yellow and green follow amount left', 'unavailable gauge clears pointer', 'compact gauges fit with no chats', 'remaining percentages and reset tooltip', 'usage bars fit expanded panel', 'usage failure clears figures and keeps sessions', 'usage connection recovers', 'Codex bucket and window duration selection', 'empty and missing usage windows', 'reset clears expired figures until new data arrives', 'usage fits with no local chats', 'live approval', 'pin', 'old chats visible with old show-all setting', 'panel has no close or quit control', 'live completion', 'reload and persistence', 'horizontal fit', 'no renderer errors'] };
+    const report = { result: 'passed', checks: ['always on top', 'half-width compact bar', 'compact center alignment', 'equal top and bottom spacing', 'compact and expanded panels touch screen edge', 'small plain lights', 'no compact icons or grip', 'no hover highlight', 'grab and grabbing cursors', 'panel follows held drag', 'reverse drag without overshoot', 'drag position survives refresh and is saved on release', 'hover panel to show names', 'pointer leave closes the panel', 'no panel title', 'only activity and project sorting', 'no legend or extra text', 'no recent-only or quit button', 'workspace in tooltip', 'short list needs no scrollbar', 'compact divider and two gauges', 'green gauges and limit tooltips', 'red yellow and green follow amount left', 'unavailable gauge clears pointer', 'compact gauges fit with no chats', 'remaining percentages and reset tooltip', 'usage bars fit expanded panel', 'usage failure clears figures and keeps sessions', 'usage connection recovers', 'Codex bucket and window duration selection', 'empty and missing usage windows', 'reset clears expired figures until new data arrives', 'usage fits with no local chats', 'live approval', 'pin', 'old chats visible with old show-all setting', 'panel has no close or quit control', 'live completion', 'reload and persistence', 'horizontal fit', 'no renderer errors'] };
     report.checks.push('bookmarks stay above all project groups', 'bookmarks stay above activity sessions', 'hide control removes a session', 'hidden count stays at the bottom', 'hidden sessions stay hidden after refresh and reload', 'compact lights exclude hidden sessions', 'keyboard opens hidden sessions', 'individual restore preserves a bookmark', 'restore all returns every session', 'all sessions can be hidden and restored');
     report.checks.push('long lists keep compact lights centered', 'long lists keep usage and controls visible', 'background updates preserve scroll position');
     report.checks.push('last activity ages fit on the right', 'row timestamp matches adapter activity', 'row ages update without changed data', 'second provider supplies last activity', 'unavailable activity shows a dash');

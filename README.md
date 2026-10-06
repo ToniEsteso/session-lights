@@ -42,7 +42,7 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 
 - Text follows system display scaling. On Windows, it also follows **Settings → Accessibility → Text size** automatically, including changes while the app is running. The expanded panel and hover cards grow with the text; the compact bar keeps its width. The app checks the Windows text setting every ten seconds. macOS uses system display scaling; a separate accessibility text size reader is not implemented.
 - Hover over a dot for a small detail card beside the panel. It shows the chat name, project, state, and age of the last recorded activity. It does not change the dot or take keyboard focus.
-- Click a dot to show session names. Press Escape or use the arrow in the expanded panel to collapse it.
+- Hover over the compact panel to show session names. The panel closes when the pointer leaves. Press Escape to close it with the keyboard.
 - The panel opens and closes with a short slide and fade. Its right edge stays fixed. The system's reduced-motion setting skips the animation.
 - Click a name in the expanded panel to open a desktop chat or resume a CLI session.
 - Pin a session with the bookmark icon. A filled yellow bookmark marks a pinned session. Bookmarked sessions stay in a separate section at the top in both sort modes. Pins survive app restarts.
@@ -53,7 +53,7 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 - Use the two buttons at the top to sort by latest activity or project. The selected button has an underline. The choice is saved and also sets compact light order. Project headings appear only in the expanded list.
 - Bookmarked sessions come first and follow latest activity. In project mode, the other sessions appear below them in project groups.
 - Click the crossed-eye button to hide a session from the list and compact lights. Click `X sessions hidden` at the bottom to show hidden sessions. Use `Restore` for one session or `Restore all` for all of them. Hidden sessions stay hidden after app restarts. Restoring a bookmarked session puts it back at the top.
-- Below a thin divider, the compact panel shows two small gauges: 5-hour above weekly. Their arc and pointer show the amount left. Click a gauge to expand the panel.
+- Below a thin divider, the compact panel shows two small gauges: 5-hour above weekly. Their arc and pointer show the amount left.
 - Gauges and usage percentages are green above 20% remaining, yellow above 5% up to 20%, and red at 5% or less. Unavailable limits show a gray gauge with no pointer.
 - The expanded panel shows usage bars, percentages, and reset countdowns. Hover over a gauge or row for a detail card with its provider, scope, amount left, countdown, exact reset time, and reading age.
 - Click the tray icon to hide or show the panel. Quit is in Settings.
