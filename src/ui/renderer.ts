@@ -1,7 +1,6 @@
 import type { PanelPayload, PanelAction, TooltipTarget } from '../shared/contracts.js';
 import { panelText } from './text.js';
 import { sessionSections } from '../shared/session-sections.js';
-import { updateView } from '../shared/updates.js';
 import { element as $, svgElement, usageRow } from './dom.js';
 import { errorMessage } from '../shared/validation.js';
 import { closeSettings } from './settings.js';
@@ -142,12 +141,6 @@ function renderNow(value: PanelPayload) {
     [button.dataset.key, $('.dot', button).getBoundingClientRect()]) : []);
   const openingHidden = value.showHidden && !snapshot?.showHidden;
   snapshot = value;
-  const update = updateView(value.update);
-  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-settings]')) {
-    button.setAttribute('aria-label', update.badge ? 'Settings. Update available.' : 'Settings');
-    button.title = update.badge ? update.label : 'Settings';
-    $('.update-badge', button).hidden = !update.badge;
-  }
   // Do not rebuild focused buttons during the two-second update.
   // Refresh the usage display when a reset passes, even if no source data changed.
   const signature = JSON.stringify([value,

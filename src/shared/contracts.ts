@@ -1,5 +1,4 @@
 import type { EpochMilliseconds, UnixSeconds } from './time.js';
-import type { UpdateCommand, UpdateState } from './updates.js';
 // This module has no Node or Electron dependencies. Adapters and renderers share it.
 export const STATES = Object.freeze({
   idle: { label: 'Idle', color: '#8cce6b', symbol: '✓' },
@@ -79,7 +78,6 @@ export interface PanelMotion { id: number; duration: number; delay: number; heig
 export interface PanelPayload extends MonitorSnapshot {
   expanded: boolean;
   view: 'threads' | 'settings';
-  update: UpdateState;
   total: number;
   hiddenSessions: Session[];
   showHidden: boolean;
@@ -122,15 +120,13 @@ export interface SessionLightsBridge {
 export interface SettingsPayload {
   theme: ThemeChoice;
   version: string;
-  update: UpdateState;
   adapters: { id: string; name: string; visible: boolean }[];
   textScale: number;
 }
 export type SettingsAction =
   | { type: 'theme'; theme: ThemeChoice }
   | { type: 'adapter'; id: string; visible: boolean }
-  | { type: 'update'; command: UpdateCommand }
-  | { type: 'close' | 'quit' };
+  | { type: 'releases' | 'close' | 'quit' };
 export interface SettingsBridge {
   read(): Promise<SettingsPayload>;
   action(value: SettingsAction): Promise<void>;

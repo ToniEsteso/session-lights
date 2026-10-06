@@ -8,8 +8,3 @@ allowBuilds:
   # The project builds NSIS installers, not Squirrel installers.
   electron-winstaller: false
   esbuild: true
-packageExtensions:
-  # AppUpdater.d.ts imports semver but the package omits its declarations.
-  electron-updater@6.8.9:
-    dependencies:
-      '@types/semver': 7.8.0

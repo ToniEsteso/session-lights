@@ -58,7 +58,6 @@ footer { display: flex; align-items: center; justify-content: center; min-height
 .gear { position: relative; width: 22px; height: 24px; padding: 3px; color: var(--muted); border-radius: 3px; }
 .gear:hover { color: var(--text); background: var(--selected); }
 .gear svg { display: block; width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
-.update-badge { position: absolute; right: 1px; top: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--status-waiting); box-shadow: 0 0 0 2px var(--surface); }
 .expanded footer { display: flex; justify-content: flex-start; margin-top: 5px; border-top: 1px solid var(--border-soft); padding-top: 5px; }
 .health { font-size: 9px; color: var(--muted); margin: 5px 5px 2px; line-height: 1.4; }
 #empty { display: flex; align-items: center; gap: 10px; padding: 7px; color: var(--muted); font-size: 11px; }

@@ -84,7 +84,7 @@ const test = base.extend({
       const start = async () => {
         app = await _electron.launch({ args: [bootstrap, ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], env,
           colorScheme: null,
-          ...(testInfo.file.endsWith('claude-code.spec.cjs') ? {
+          ...(testInfo.file.endsWith('claude-code.spec.cjs') || testInfo.file.endsWith('releases.spec.cjs') ? {
             recordVideo: { dir: testInfo.outputPath('video'), size: { width: 600, height: 800 } },
           } : {}),
         });

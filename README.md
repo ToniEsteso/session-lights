@@ -31,7 +31,7 @@ pnpm start
 Source launches use a profile under `.tmp/dev-profile` in each checkout, so worktrees can run independently.
 Use `pnpm run demo` to see all five colors with sample sessions.
 Use `pnpm run pack` to build an installer for the current system.
-Windows builds produce a per-user NSIS installer. Mac builds produce a DMG and an update ZIP.
+Windows builds produce a per-user NSIS installer. Mac builds produce a DMG and a ZIP.
 Use `pnpm run pack --dir` for an unpacked development build.
 See [build and release instructions](docs/releases.md) for signing, release setup, and verification.
 
@@ -39,7 +39,7 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 
 - Click the gear for Appearance, adapter switches, updates, and Quit. Settings replaces the thread list in the same expanded sidebar. Click Threads or press Escape to return to the thread list. Its scroll position is kept. Press Escape from the thread list to collapse the sidebar.
 - Choose System, Light, or Dark in Appearance. System is the default and follows device theme changes. The choice applies at once and stays after app restarts. Use Tab to reach the theme choices and arrow keys to change the choice.
-- A yellow badge on the gear marks an available update. Downloads and restarts require a click. Installed releases check at startup and every six hours.
+- In Settings, click **Downloads on GitHub** for new releases. Quit the app, then download and run the latest installer. Updates are manual; settings stay saved.
 
 - Text follows system display scaling. On Windows, it also follows **Settings → Accessibility → Text size** automatically, including changes while the app is running. The expanded panel and hover cards grow with the text; the compact bar keeps its width. The app checks the Windows text setting every ten seconds. macOS uses system display scaling; a separate accessibility text size reader is not implemented.
 - Hover over a dot for a small detail card beside the panel. It shows the chat name, project, state, and age of the last recorded activity. It does not change the dot or take keyboard focus.

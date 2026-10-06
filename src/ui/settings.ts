@@ -1,11 +1,8 @@
 import type { SettingsAction, SettingsPayload } from '../shared/contracts.js';
-import { updateView } from '../shared/updates.js';
 import { element as $ } from './dom.js';
 import { errorMessage } from '../shared/validation.js';
-let snapshot: SettingsPayload | undefined;
 const switches = new Map<string, HTMLInputElement>();
 function render(value: SettingsPayload) {
-  snapshot = value;
   for (const input of document.querySelectorAll<HTMLInputElement>('input[name=theme]')) input.checked = input.value === value.theme;
   document.body.style.setProperty('--text-scale', String(value.textScale));
   for (const adapter of value.adapters) {
@@ -24,18 +21,7 @@ function render(value: SettingsPayload) {
     }
     input.checked = adapter.visible;
   }
-  const view = updateView(value.update);
   $('#version').textContent = `v${value.version}`;
-  $('#update').textContent = view.label;
-  const button = $('#update');
-  if (button instanceof HTMLButtonElement) button.disabled = view.command === null;
-  button.classList.toggle('available', view.badge);
-  button.title = view.detail;
-  const progress = $('#progress');
-  if (progress instanceof HTMLProgressElement) {
-    progress.hidden = value.update.kind !== 'downloading';
-    progress.value = value.update.kind === 'downloading' ? value.update.percent : 0;
-  }
 }
 async function act(value: SettingsAction) {
   try { await window.settings.action(value); $('#settings-error').hidden = true; }
@@ -49,11 +35,7 @@ for (const input of document.querySelectorAll<HTMLInputElement>('input[name=them
     if (input.checked && (input.value === 'system' || input.value === 'light' || input.value === 'dark')) void act({ type: 'theme', theme: input.value });
   });
 }
-$('#update').addEventListener('click', () => {
-  if (!snapshot) return;
-  const command = updateView(snapshot.update).command;
-  if (command) void act({ type: 'update', command });
-});
+$('#releases').addEventListener('click', () => { void act({ type: 'releases' }); });
 $('#quit').addEventListener('click', () => { void act({ type: 'quit' }); });
 export function closeSettings() { void act({ type: 'close' }); }
 $('#settings-back').addEventListener('click', closeSettings);

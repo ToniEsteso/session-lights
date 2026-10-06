@@ -1,78 +1,70 @@
 # Build and release Session Lights
 
-## Build a local installer
+## First Windows release
+
+The first Windows release uses an unsigned per-user installer and manual GitHub downloads. No signing certificate, Apple account, or update service credentials are required.
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm run check
+pnpm run build
+pnpm run test:e2e
 pnpm run pack
 ```
 
-On Windows, the output is `dist/Session-Lights-<version>-<architecture>-Setup.exe`.
-The unpacked app is in `dist/win-unpacked`.
-On macOS, the output includes a `.dmg`, a `.zip`, and update metadata.
-Build on each operating system and CPU type that you distribute.
-`pnpm run pack --dir` builds an unpacked app without an installer.
-Local packaging never publishes a release.
+The installer is `dist/Session-Lights-<version>-x64-Setup.exe` on an x64 Windows host. The unpacked app is in `dist/win-unpacked`. The installer includes Electron and its runtime. Users do not need Node.js or pnpm.
 
-The version in `package.json` is the version source for the installer and the app.
-Keep `appId`, `productName`, and the release repository stable after the first release.
-These values determine installation identity, settings paths, and update discovery.
+`pnpm run pack --dir` produces only the unpacked app. Local packaging never publishes a release.
 
-## Configure release access
+Before publishing:
 
-The publish configuration uses `ToniEsteso/session-lights` for installers and updates.
-Make the repository public before distributing the first release to users.
-The app cannot read private GitHub releases without account access.
-Public download links must work without a GitHub account or token.
-If distribution must stay private, change the release service before publishing.
-Do not put a GitHub token in the app.
+1. Check fresh installation, Start menu launch, panel controls, and uninstall on an isolated Windows system.
+2. Check that installing a newer version keeps saved settings.
+3. Inspect the packaged app, help, project license, third-party notices, LICENSE.electron.txt, and LICENSES.chromium.html.
+4. Confirm code and icon rights and consent to personal metadata in public Git history. See the historical [audit](../AUDIT.md).
+5. Make the GitHub repository public if users must download without repository access.
 
-## Configure signing
+The old lazy-val notice gate no longer applies to this package: electron-updater and its runtime dependencies have been removed. Keep the earlier audit as history. Its test results do not verify a new installer.
 
-Add these repository secrets for Windows releases:
+## Create a GitHub release
 
-- `WIN_CSC_LINK`: the Windows signing certificate, as a supported certificate link or Base64 value.
-- `WIN_CSC_KEY_PASSWORD`: the certificate password.
+The version in package.json supplies the app and installer version. Keep appId and productName stable to preserve installation identity and settings paths.
 
-For Mac releases, also add:
+1. Commit the checked source and set a stable version tag, such as v0.1.0, that matches package.json.
+2. Push the commit and tag.
+3. Run the Release workflow for the tag. Leave sign_windows and include_mac off for the unsigned Windows release.
+4. Review the draft release. It contains the installer, SHA256SUMS.txt, and the prepared release notes.
+5. Publish the draft and verify that the download works without a GitHub account.
 
-- `MAC_CSC_LINK`: the Apple Developer ID certificate.
-- `MAC_CSC_KEY_PASSWORD`: the certificate password.
-- `APPLE_ID`: the Apple developer account.
-- `APPLE_APP_SPECIFIC_PASSWORD`: the notarization password.
-- `APPLE_TEAM_ID`: the Apple developer team.
+The workflow checks the version, builds the app, runs feature tests, builds the installer, and writes its SHA-256 checksum. It uses the workflow's normal GitHub token for draft uploads. No personal token is put in the app.
 
-The release workflow requires a signing certificate. It fails if signing credentials are missing. Signing secrets are limited to their platform build step.
-Windows update checks require valid signatures on both the installed app and the download, with the same publisher subject. A failed verification blocks installation. A publisher subject change needs a manual install.
-Local Windows installers can be unsigned for testing.
+Alternatively, upload a locally checked installer to a draft GitHub Release. Add SHA256SUMS.txt and use [release notes](release-notes.md). For a local checksum:
 
-## Prepare a release
+```powershell
+$installer = Get-Item -LiteralPath dist/Session-Lights-0.1.0-x64-Setup.exe
+$digest = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+"$digest  $($installer.Name)" | Set-Content -LiteralPath dist/SHA256SUMS.txt -Encoding ascii
+```
 
-Before distributing installers, resolve the release gates in [AUDIT.md](../AUDIT.md). Obtain the missing lazy-val notice, include it in the distribution, and confirm code and icon rights. The current notice file records this open requirement.
+Use the current version's filename. A checksum checks file integrity; it does not establish the publisher's identity.
 
-1. Update the version in `package.json` with an appropriate version increment.
-2. Run `pnpm run check` and `pnpm run build`.
-3. Build the installer with `pnpm run pack`. Verify installation and panel behavior on a disposable system.
-4. Verify an update between two signed installed versions on each supported operating system.
-5. Commit the reviewed changes and create a version tag such as `v0.2.0`.
-6. Push the commit and tag to the source repository.
-7. Run the **Release** workflow for that tag. Select Mac builds only when Mac signing is configured.
-8. Review the installers in the draft release.
-9. Publish the draft when its installers and metadata are ready.
+## Manual updates
 
-The workflow checks that the selected tag matches `package.json`.
-Build jobs finish before the upload job starts.
-The upload job adds installers, block maps, and update metadata to one draft release.
-Installed apps see the release after you publish the draft.
-Keep previous releases available for downloads and recovery.
+Settings and the tray menu provide Downloads on GitHub. This opens the fixed release page in the user's browser. The app does not check for updates, download packages, or start an update installer.
 
-## Verify an update
+To update, quit the app, then download and run the new installer. Saved settings remain. Keep earlier releases available for recovery.
 
-Use two signed installed versions on a disposable system before a public release.
-Check update discovery, manual download, progress, restart, and the installed version.
-Confirm that saved preferences remain after the update.
-Check download failure and retry. Confirm that an invalid Windows publisher prevents installation.
-Verify Mac updates with signed builds on a Mac.
-Record the observed results and any paths that could not be checked.
-The previous automated updater scripts have been removed.
+## Optional Windows signing
+
+Enable sign_windows to use the existing certificate-file path:
+
+- WIN_CSC_LINK: the Windows signing certificate as a supported link or Base64 value.
+- WIN_CSC_KEY_PASSWORD: the certificate password.
+
+This option fails when signing credentials are missing. Cloud or hardware signing services need their own workflow integration. Windows can show warnings for unsigned installers; some security policies block them.
+
+## macOS
+
+Mac packaging remains configured for DMG and ZIP output. Hold Mac distribution until native installation, launch, update, uninstall, and provider discovery have been checked on a Mac.
+
+The optional Mac workflow requires MAC_CSC_LINK, MAC_CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID for Developer ID signing and notarization. Mac updates also use manual downloads. These credentials are not needed for the Windows release.

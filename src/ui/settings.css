@@ -7,12 +7,11 @@
 .settings-content { flex: 1; min-height: 0; overflow-y: auto; padding-top: 10px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 .settings-view button:hover { background: var(--hover); }
 .settings-view button:disabled { cursor: default; color: var(--muted); }
-#update { display: block; width: 100%; text-align: left; padding: 8px; border-radius: 3px; }
-#update.available { color: var(--status-waiting); }
+#releases { display: block; width: 100%; text-align: left; padding: 8px; border-radius: 3px; }
+.update-help { margin: 0 8px 8px; font-size: 11px; color: var(--muted); }
 #settings-footer { margin: 5px 5px 0; padding-top: 5px; min-height: 36px; }
 #quit { padding: 6px 8px; color: var(--muted); border-radius: 3px; }
 #version { margin-right: 7px; color: var(--muted); font-size: 10px; }
-#progress { display: block; width: calc(100% - 16px); height: 2px; margin: 0 8px; accent-color: var(--status-waiting); }
 #settings-error { color: var(--status-error); font-size: 11px; margin: 4px 8px 8px; overflow-wrap: anywhere; }
 .settings-view fieldset { min-width: 0; margin: 16px 8px 8px; padding: 0; border: 0; }
 .settings-view legend { width: 100%; padding: 0 0 6px; border-bottom: 1px solid var(--border-soft); font-size: 11px; font-weight: 600; color: var(--muted); }

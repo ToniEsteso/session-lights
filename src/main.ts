@@ -1,15 +1,13 @@
 import type { IpcMainEvent, IpcMainInvokeEvent, Rectangle } from 'electron';
 import type { MonitorSnapshot, ProviderUsage, PanelMotion, PanelPayload, TooltipTarget, TooltipData, SettingsPayload } from './shared/contracts.js';
 import { parseAction, parseTooltipTarget, parseSettingsAction, errorMessage, hasErrorCode } from './shared/validation.js';
-import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, nativeTheme, autoUpdater } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, nativeTheme } from 'electron';
 import * as path from 'node:path';
-import { existsSync, mkdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { SessionMonitor, visibleSessions } from './core.js';
 import { sessionSections } from './shared/session-sections.js';
 import { createAdapters } from './adapters/index.js';
 import { Preferences } from './preferences.js';
-import { Updates } from './updates.js';
-import { updateView } from './shared/updates.js';
 import { readSystemTextScale } from './system-text.js';
 
 app.setName('Session Lights');
@@ -43,7 +41,7 @@ let usageTimer: NodeJS.Timeout | undefined;
 let usage: ProviderUsage[] = [];
 let tooltipWin: BrowserWindow;
 let tooltipTarget: TooltipTarget | undefined;
-let updates: Updates;
+const releasesUrl = 'https://github.com/ToniEsteso/session-lights/releases';
 let systemTextScale = 1;
 let lastTextScaleRead = 0;
 // The floating level clears Windows topmost state in the tested Electron runtime.
@@ -73,7 +71,6 @@ function payload(): PanelPayload {
   const sources = snapshot.sources.filter(source => !preferences.value.hiddenAdapters.includes(source.id));
   const visibleUsage = usage.filter(source => !preferences.value.hiddenAdapters.includes(source.providerId));
   return { sources, sessions, expanded, view: panelView,
-    update: updates.state,
     hiddenSessions,
     showHidden: expanded && showHidden && hiddenSessions.length > 0,
     total: sessions.length, preferences: preferences.value, usage: visibleUsage, demo,
@@ -87,7 +84,7 @@ function notify() {
   updateTooltip();
 }
 function settingsPayload(): SettingsPayload {
-  return { version: app.getVersion(), update: updates.state, theme: preferences.value.theme, textScale: systemTextScale,
+  return { version: app.getVersion(), theme: preferences.value.theme, textScale: systemTextScale,
     adapters: monitor.adapters.map(adapter => ({ id: adapter.id, name: adapter.name,
       visible: !preferences.value.hiddenAdapters.includes(adapter.id) })) };
 }
@@ -106,7 +103,7 @@ function updateTrayMenu() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Show panel', click: showPanel },
     { label: 'Settings', click: openSettings },
-    { label: updateView(updates.state).label, click: openSettings },
+    { label: 'Downloads on GitHub', click: () => { void shell.openExternal(releasesUrl).catch(console.error); } },
     { label: 'Move to this screen', click: () => {
       actionQueue = actionQueue.then(async () => {
         await preferences.save({ ...preferences.value, displayId: screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id, y: null }); showPanel();
@@ -280,11 +277,6 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
 }
 
 async function main() {
-  const enabled = app.isPackaged && !demo && existsSync(path.join(process.resourcesPath, 'app-update.yml'));
-  const engine = enabled ? (await import('electron-updater')).default.autoUpdater : undefined;
-  updates = new Updates(engine, 'Use an installed release to check for updates.', () => {
-    notify(); updateTrayMenu();
-  });
   preferences = new Preferences(path.join(app.getPath('userData'), 'preferences.json'));
   await preferences.load();
   // Set Chromium and native menus before any window can paint.
@@ -339,8 +331,10 @@ async function main() {
       }
       case 'close': panelView = 'threads'; stopResize(); positionPanel(); notify(); return;
       case 'quit': app.quit(); return;
-      case 'update':
-        void updates.run(value.command); return;
+      case 'releases':
+        try { await shell.openExternal(releasesUrl); }
+        catch { throw Error('Could not open GitHub. Try again or open github.com/ToniEsteso/session-lights/releases in your browser.'); }
+        return;
       default: { const exhaustive: never = value; return exhaustive; }
     }
   };
@@ -373,7 +367,6 @@ async function main() {
   updateTrayMenu(); tray.on('click', () => win.isVisible() ? win.hide() : showPanel());
   showPanel();
   console.log(`Session Lights is running. Local sessions: ${snapshot.sessions.length}. Panel above other windows: ${win.isAlwaysOnTop()}.`);
-  updates.start();
   const pollUsage = async () => {
     await refreshUsage();
     if (!quitting) usageTimer = setTimeout(pollUsage, 60000);
@@ -403,8 +396,6 @@ if (!app.requestSingleInstanceLock()) {
     app.setPath('sessionData', standardSessionData);
   }
   app.on('second-instance', () => { if (win) showPanel(); });
-  // Native updates can close windows before the normal before-quit event.
-  autoUpdater.on('before-quit-for-update', () => { quitting = true; });
-  app.on('before-quit', () => { quitting = true; updates?.close(); stopResize(); hideTooltip(); clearTimeout(timer); clearTimeout(usageTimer); monitor?.close(); tray?.destroy(); });
+  app.on('before-quit', () => { quitting = true; stopResize(); hideTooltip(); clearTimeout(timer); clearTimeout(usageTimer); monitor?.close(); tray?.destroy(); });
   app.whenReady().then(main).catch(error => { console.error(error); app.exit(1); });
 }

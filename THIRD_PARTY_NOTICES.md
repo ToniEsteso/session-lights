@@ -1,10 +1,7 @@
 # Third-party notices
 
-Session Lights includes Electron, Chromium, and the production dependencies of electron-updater. Keep their supplied license files. Electron's LICENSE and LICENSES.chromium.html are beside the app executable.
+Session Lights includes Electron and Chromium. Keep their supplied license files. LICENSE.electron.txt and LICENSES.chromium.html are beside the app executable. These files contain the runtime's third-party notices.
 
-## lazy-val 1.0.5
-
-Author: Vladimir Krivosheev. Source: https://github.com/develar/lazy-val.
-The upstream package metadata declares MIT. The package omits a copyright and permission notice. Obtain the upstream notice before distributing installers. Do not treat this file as a verified replacement for that notice.
+The app uses manual downloads from GitHub Releases. It does not include electron-updater or lazy-val. Build tools are development dependencies and are not included in the installer.
 
 The project license in LICENSE applies to Session Lights. It does not replace third-party notices.

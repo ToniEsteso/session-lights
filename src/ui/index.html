@@ -17,7 +17,7 @@
         <button data-sort="activity" aria-label="Sort by latest activity" aria-pressed="true">Activity</button>
         <button data-sort="project" aria-label="Group by project" aria-pressed="false">Project</button>
       </div>
-      <button class="wide gear" data-settings aria-label="Settings" aria-controls="settings-view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.6 2.1-1.8 1-2.1-.5-2.5 4.3 1.5 1.6v2.1l-1.5 1.5L5 19.4l2.1-.5 1.8 1 .6 2.1h5l.6-2.1 1.8-1 2.1.5 2.5-4.3-1.5-1.5v-2.1l1.5-1.6L19 5.6l-2.1.5-1.8-1-.6-2.1z"/><circle cx="12" cy="12.5" r="3.2"/></svg><span class="update-badge" hidden></span></button>
+      <button class="wide gear" data-settings aria-label="Settings" aria-controls="settings-view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.6 2.1-1.8 1-2.1-.5-2.5 4.3 1.5 1.6v2.1l-1.5 1.5L5 19.4l2.1-.5 1.8 1 .6 2.1h5l.6-2.1 1.8-1 2.1.5 2.5-4.3-1.5-1.5v-2.1l1.5-1.6L19 5.6l-2.1.5-1.8-1-.6-2.1z"/><circle cx="12" cy="12.5" r="3.2"/></svg></button>
     </header>
     <div id="sessions" role="list" aria-label="Sessions"></div>
     <button id="empty" aria-label="No sessions. Show session list." hidden><span class="empty-dot" aria-hidden="true"></span><span class="wide">No local sessions.</span></button>
@@ -56,8 +56,8 @@
           <legend>Adapters</legend>
           <div id="adapters"></div>
         </fieldset>
-        <progress id="progress" max="100" aria-label="Update download" hidden></progress>
-        <button id="update" disabled>Check for updates</button>
+        <button id="releases">Downloads on GitHub</button>
+        <p class="update-help">Download and run the latest installer to update.</p>
         <p id="settings-error" role="alert" hidden></p>
       </div>
       <footer id="settings-footer"><button id="quit">Quit</button><span id="version"></span></footer>

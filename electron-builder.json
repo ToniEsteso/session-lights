@@ -11,12 +11,13 @@
   ],
   "asar": true,
   "npmRebuild": false,
-  "publish": [{ "provider": "github", "owner": "ToniEsteso", "repo": "session-lights", "releaseType": "draft" }],
+  "publish": null,
   "win": { "target": "nsis", "icon": "assets/icon.ico", "artifactName": "Session-Lights-${version}-${arch}-Setup.${ext}" },
   "nsis": {
     "oneClick": true, "perMachine": false, "allowElevation": false,
     "createDesktopShortcut": false, "createStartMenuShortcut": true,
-    "deleteAppDataOnUninstall": false, "runAfterFinish": true
+    "deleteAppDataOnUninstall": false, "runAfterFinish": true,
+    "differentialPackage": false, "packElevateHelper": false
   },
   "mac": {
     "target": ["dmg", "zip"], "icon": "assets/icon.png",

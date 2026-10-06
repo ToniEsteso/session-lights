@@ -45,10 +45,16 @@ used. The only substituted function is Electron's external URL handoff. It
 records accepted URLs or reports an OS failure. This proves routing and error
 handling; it cannot prove that an installed Codex app opens a chat.
 
-Live account authentication, successful CLI terminal resume, installed updates,
+Live account authentication, successful CLI terminal resume, installer upgrades,
 tray controls, and display scaling are outside this suite. No claim is made
 that these paths pass. Electron requires a desktop display (or Xvfb). Tests run
 with one worker because native windows share focus.
+
+The manual-update scenario opens Settings and clicks Downloads on GitHub. The
+fixed release URL must reach the OS boundary. A failed handoff must show an error;
+a successful retry must clear it. This checks the real renderer, IPC, and action
+handler. The OS handoff is substituted, so it cannot prove browser sign-in or
+public download access.
 
 Playwright reports, traces, and failure screenshots are saved under
 `.evidence/e2e/`. Open the report with

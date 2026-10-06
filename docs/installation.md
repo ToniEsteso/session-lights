@@ -13,8 +13,8 @@ Live sessions require local Codex desktop records. The app reads usage limits au
 The panel starts after installation. Its tray icon can show or hide the panel.
 The app does not start automatically when you sign in to Windows.
 
-Local test installers can be unsigned. Windows can show an unknown-publisher warning for these builds.
-Public signed releases depend on the publisher's signing certificate.
+The first Windows release is unsigned. Windows can show an unknown-publisher or SmartScreen warning. Some security policies can block unsigned apps.
+Signing is optional. A signed release needs the publisher's signing credentials.
 
 ## Install on macOS
 
@@ -29,33 +29,24 @@ Mac installation and updates need verification on a Mac before the first Mac rel
 
 ## Update the app
 
-The installed app checks at startup and every six hours.
-Checks do not download or install an update.
+Updates use manual GitHub downloads. The app does not check, download, or install updates automatically.
 
-1. Click the gear at the bottom of the compact panel or beside the hide button in the expanded panel.
-2. Click **Check for updates** to check immediately.
-3. If an update is available, click **Download update**.
-4. When the download finishes, click **Restart to update**.
+1. Open Settings and click **Downloads on GitHub**.
+2. Download the latest Windows installer.
+3. Quit Session Lights from Settings.
+4. Run the installer. It replaces the installed version and starts the panel.
 
-A small yellow badge on the gear marks an available update.
-The menu shows download progress and a retry button if a check or download fails.
-You can close the menu while the download continues.
-Quitting the app does not install a downloaded Windows update.
-On macOS, the native updater can apply a staged update on a later launch.
+Your pins, hidden sessions, adapter switches, theme, sort order, and panel position stay saved.
+The installer and app include their runtime. Node.js and pnpm are not required.
 
-Your pins, sort order, and panel position stay in the app's settings folder.
-The updater does not access Codex records or credentials. The Codex child manages its own data and authentication after restart.
-Update checks send requests to the release service. They do not include chat data.
-
-Development runs show **Updates unavailable**. Use an installed release to check for updates.
-Existing portable copies do not acquire an installer automatically. Install the new app once.
+For a Mac build, quit the app and replace it in Applications. Mac releases still require native verification before distribution.
 
 ## Resolve an installation problem
 
 - If the panel is hidden, click its tray icon or select **Show panel** from the tray menu.
 - If no sessions appear, start the Codex desktop app and open a local chat.
-- If an update check fails, check your internet connection and click **Retry**.
-- If a download fails verification, retry the download. You can also download the installer from the release page.
+- If Downloads on GitHub cannot open your browser, use the release link above and try again.
+- To check download integrity, compare the installer's SHA-256 hash with SHA256SUMS.txt from the same release.
 - If installation fails because the app is in use, quit Session Lights from its gear or tray menu and run the installer again.
 
 ## Remove the app

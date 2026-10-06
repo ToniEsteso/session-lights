@@ -10,6 +10,10 @@ on:
         description: Build signed and notarized Mac installers
         default: false
         type: boolean
+      sign_windows:
+        description: Sign the Windows installer (requires signing secrets)
+        default: false
+        type: boolean
 permissions:
   contents: read
 jobs:
@@ -50,12 +54,22 @@ jobs:
         if: matrix.platform == 'win' || inputs.include_mac
       - run: pnpm run build
         if: matrix.platform == 'win' || inputs.include_mac
-      - name: Build signed Windows installer
+      - run: pnpm run test:e2e
+        if: matrix.platform == 'win' || inputs.include_mac
+      - name: Build Windows installer
         if: matrix.platform == 'win'
         env:
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-        run: pnpm exec electron-builder --config electron-builder.json --win --x64 --config.forceCodeSigning=true --publish never
+          WIN_CSC_LINK: ${{ inputs.sign_windows && secrets.WIN_CSC_LINK || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ inputs.sign_windows && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+        run: pnpm exec electron-builder --config electron-builder.json --win --x64 --config.forceCodeSigning=${{ inputs.sign_windows }} --publish never
+      - name: Write Windows checksums
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -Filter '*-Setup.exe' | ForEach-Object {
+            $digest = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$digest  $($_.Name)"
+          } | Set-Content -LiteralPath dist/SHA256SUMS.txt -Encoding ascii
       - name: Build signed Mac installers
         if: matrix.platform == 'mac' && inputs.include_mac
         env:
@@ -73,8 +87,7 @@ jobs:
             dist/*.exe
             dist/*.dmg
             dist/*.zip
-            dist/*.blockmap
-            dist/latest*.yml
+            dist/SHA256SUMS.txt
           if-no-files-found: error
   draft:
     needs: build
@@ -82,6 +95,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag }}
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: installers
@@ -97,6 +113,6 @@ jobs:
           if gh release view "$RELEASE_TAG" --repo ToniEsteso/session-lights --json isDraft > release.json; then
             node -e "if (!require('./release.json').isDraft) throw Error('Refusing to replace a published release');"
           else
-            gh release create "$RELEASE_TAG" --repo ToniEsteso/session-lights --draft --title "Session Lights $RELEASE_TAG" --notes ""
+            gh release create "$RELEASE_TAG" --repo ToniEsteso/session-lights --draft --title "Session Lights $RELEASE_TAG" --notes-file docs/release-notes.md
           fi
           gh release upload "$RELEASE_TAG" installers/* --repo ToniEsteso/session-lights --clobber

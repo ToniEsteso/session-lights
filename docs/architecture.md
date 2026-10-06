@@ -31,7 +31,6 @@ These types remain numbers in JSON. The compiler prevents assignment between the
 | `src/preferences.ts` | Settings parsing and persistence |
 | `src/main.ts` | Native windows, scheduling, sender checks, and action handling |
 | `src/preload.ts` and `src/tooltip-preload.ts` | The permitted renderer bridge methods and subscription cleanup |
-| `src/updates.ts` | Update checks, downloads, installation, and update state |
 | `src/ui/` | DOM updates, shared display text, and user input |
 | `src/shared/` | Serializable contracts, input parsers, state metadata, and time units |
 
@@ -52,6 +51,7 @@ New providers must check their own external input before returning `SessionReadi
 The sidebar has one native panel window with thread and Settings views. The main process owns the current view and native bounds.
 Settings opens the expanded sidebar. Back and Escape return to expanded threads. The view resets to threads on app startup.
 The panel preload exposes both session and settings bridges to the same sandboxed main frame. Both IPC handlers check that frame.
+The Downloads on GitHub action opens a fixed release URL through the operating system. Updates are manual. No updater runtime dependency is included.
 The renderer keeps thread scroll position while Settings is visible. The tooltip remains a separate non-focusable window.
 
 ## Codex sources
