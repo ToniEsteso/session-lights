@@ -78,6 +78,7 @@ export interface MonitorSnapshot {
 }
 export interface PanelMotion { id: number; duration: number; delay: number; height: number }
 export interface PanelPayload extends MonitorSnapshot {
+  view: 'threads' | 'settings';
   update: UpdateState;
   total: number;
   hiddenSessions: Session[];
@@ -90,7 +91,7 @@ export interface PanelPayload extends MonitorSnapshot {
   textScale: number;
 }
 export type PanelAction =
-  | { type: 'settings'; y: number }
+  | { type: 'settings'; reducedMotion?: boolean }
   | { type: 'sort'; order: SortOrder }
   | { type: 'expand'; reducedMotion?: boolean }
   | { type: 'pin'; key: string }

@@ -53,11 +53,10 @@ global.setTimeout = (callback, delay, ...args) => timeout(callback, delay === 60
 require(process.argv[5]);
 (async () => {
   const deadline = Date.now() + 20000;
-  let panel, settings;
+  let panel;
   for (;;) {
     panel = BrowserWindow.getAllWindows().find(win => win.webContents.getURL().endsWith('/index.html'));
-    settings = BrowserWindow.getAllWindows().find(win => win.webContents.getURL().endsWith('/settings.html'));
-    if (panel && settings) {
+    if (panel && !panel.webContents.isLoading()) {
       const value = await panel.webContents.executeJavaScript('window.sessionLights.read()').catch(() => null);
       if (value?.update.kind === 'available') break;
     }
@@ -71,18 +70,23 @@ require(process.argv[5]);
       await pause(50);
     }
   };
-  await settings.webContents.executeJavaScript('window.settings.action({ type: "update", command: "download" })');
+  console.log('Native panel and update state are ready.');
+  await panel.webContents.executeJavaScript('window.settings.action({ type: "update", command: "download" })');
   await wait(value => value.update.kind === 'ready', 'Download did not become ready');
-  await settings.webContents.executeJavaScript('window.settings.action({ type: "update", command: "install" })');
+  console.log('Verified download is ready.');
+  await panel.webContents.executeJavaScript('window.settings.action({ type: "update", command: "install" })');
   await wait(value => value.update.kind === 'download-error', 'Delayed install failure was not reported');
+  console.log('Delayed install failure was reported.');
   after = true;
   await wait(value => value.sessions[0]?.title === 'After failure' && value.usage[0]?.windows[0]?.remainingPercent === 42,
     'Session or usage polling stopped after the failed install');
+  console.log('Session and usage polling recovered.');
   await panel.webContents.executeJavaScript('window.sessionLights.action({ type: "expand", reducedMotion: true })');
   assert.equal(await panel.webContents.executeJavaScript('document.querySelector(".session-title").textContent'), 'After failure');
-  await settings.webContents.executeJavaScript('window.settings.action({ type: "update", command: "download" })');
+  await panel.webContents.executeJavaScript('window.settings.action({ type: "update", command: "download" })');
   await wait(value => value.update.kind === 'ready', 'Download retry did not become ready');
-  await settings.webContents.executeJavaScript('window.settings.action({ type: "update", command: "install" })');
+  // Successful installation destroys this renderer before its IPC response returns.
+  await panel.webContents.executeJavaScript('void window.settings.action({ type: "update", command: "install" })');
   while (!panel.isDestroyed()) {
     assert.ok(Date.now() < deadline, 'The panel blocked update shutdown');
     await pause(50);
@@ -90,7 +94,7 @@ require(process.argv[5]);
   await fs.writeFile(path.join(__dirname, 'report.json'), JSON.stringify({ passed: true, checks: ['delayed install failure', 'session polling continues', 'usage polling continues', 'fresh session reaches the renderer', 'native update event permits panel shutdown'] }, null, 2));
   console.log('Update recovery passed: sessions, usage, and rendered rows stay live after failure; native update shutdown closes the panel.');
   app.quit();
-})().catch(error => { console.error(error); app.exit(1); });
+})().catch(error => { console.error(error); app.quit(); app.exit(1); });
 `;
   const runner = path.join(dir, 'runner.cjs');
   await fs.writeFile(runner, code);

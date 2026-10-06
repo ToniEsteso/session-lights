@@ -25,6 +25,7 @@ let preferences: Preferences;
 let monitor: SessionMonitor;
 let snapshot: MonitorSnapshot = { sessions: [], sources: [] };
 let showHidden = false;
+let panelView: PanelPayload['view'] = 'threads';
 let timer: NodeJS.Timeout | undefined;
 let quitting = false;
 let actionQueue = Promise.resolve();
@@ -36,7 +37,6 @@ let usageTimer: NodeJS.Timeout | undefined;
 let usage: ProviderUsage[] = [];
 let tooltipWin: BrowserWindow;
 let tooltipTarget: TooltipTarget | undefined;
-let settingsWin: BrowserWindow;
 let updates: Updates;
 let systemTextScale = 1;
 let lastTextScaleRead = 0;
@@ -66,7 +66,7 @@ function payload(): PanelPayload {
   const sessions = visibleSessions(snapshot.sessions, { ...preferences.value, showAll: true });
   const sources = snapshot.sources.filter(source => !preferences.value.hiddenAdapters.includes(source.id));
   const visibleUsage = usage.filter(source => !preferences.value.hiddenAdapters.includes(source.providerId));
-  return { sources, sessions,
+  return { sources, sessions, view: panelView,
     update: updates.state,
     hiddenSessions,
     showHidden: preferences.value.expanded && showHidden && hiddenSessions.length > 0,
@@ -74,8 +74,10 @@ function payload(): PanelPayload {
     motion: panelResize, compactInset: compactWidth - 26, textScale: systemTextScale };
 }
 function notify() {
-  if (win && !win.isDestroyed()) win.webContents.send('sessions:update', payload());
-  if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('settings:update', settingsPayload());
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('sessions:update', payload());
+    win.webContents.send('settings:update', settingsPayload());
+  }
   updateTooltip();
 }
 function settingsPayload(): SettingsPayload {
@@ -83,32 +85,24 @@ function settingsPayload(): SettingsPayload {
     adapters: monitor.adapters.map(adapter => ({ id: adapter.id, name: adapter.name,
       visible: !preferences.value.hiddenAdapters.includes(adapter.id) })) };
 }
-async function showSettings(y = 0) {
+async function showSettings(reducedMotion = false) {
   hideTooltip();
-  const bounds = win.getBounds();
-  const area = screen.getDisplayMatching(bounds).workArea;
-  const width = Math.round(Math.min(236 * systemTextScale, area.width - 16));
-  settingsWin.setSize(width, Math.floor(area.height - 16));
-  settingsWin.webContents.send('settings:update', settingsPayload());
-  const contentHeight: unknown = await settingsWin.webContents.executeJavaScript(
-    'document.querySelector("main").getBoundingClientRect().height');
-  if (typeof contentHeight !== 'number' || !Number.isFinite(contentHeight)) throw Error('Cannot measure Settings.');
-  const height = Math.min(Math.ceil(contentHeight), Math.floor(area.height - 16));
-  settingsWin.setBounds({ width, height,
-    x: Math.round(Math.max(area.x + 8, bounds.x - width - 8)),
-    y: Math.round(Math.max(area.y + 8, Math.min(bounds.y + y, area.y + area.height - height - 8))) });
-  settingsWin.webContents.send('settings:update', settingsPayload());
-  settingsWin.show(); settingsWin.setAlwaysOnTop(true, panelLevel);
+  if (!preferences.value.expanded) await preferences.save({ ...preferences.value, expanded: true });
+  panelView = 'settings';
+  positionPanel({ animate: true, reducedMotion }); notify();
+  win.show(); win.setAlwaysOnTop(true, panelLevel);
 }
 function updateTrayMenu() {
   if (!tray) return;
+  const openSettings = () => {
+    actionQueue = actionQueue.then(() => showSettings()).catch(console.error);
+  };
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Show panel', click: showPanel },
-    { label: 'Settings', click: () => { showPanel(); showSettings(); } },
-    { label: updateView(updates.state).label, click: () => { showPanel(); showSettings(); } },
+    { label: 'Settings', click: openSettings },
+    { label: updateView(updates.state).label, click: openSettings },
     { label: 'Move to this screen', click: () => {
       actionQueue = actionQueue.then(async () => {
-        settingsWin.hide();
         await preferences.save({ ...preferences.value, displayId: screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id, y: null }); showPanel();
       }).catch(console.error);
     } },
@@ -116,6 +110,7 @@ function updateTrayMenu() {
 }
 function hideTooltip() { tooltipTarget = undefined; tooltipWin?.hide(); }
 function tooltipData(target: TooltipTarget | undefined): TooltipData | undefined {
+  if (panelView === 'settings') return;
   const view = payload();
   if (target?.kind === 'session') {
     const session = [...view.sessions, ...(view.showHidden ? view.hiddenSessions : [])].find(session => session.key === target.key);
@@ -172,8 +167,9 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
   const overhead = preferences.value.expanded ? 104 : limits ? 62 : 51;
   const minimum = preferences.value.expanded ? (view.sources.length ? 128 : 184) : 41;
-  const height = Math.round(Math.min(area.height - 24, scale * Math.max(minimum,
-    rows * (preferences.value.expanded ? 40 : 24) + groupHeight + overhead + limits * (preferences.value.expanded ? 36 : 24))));
+  const contentHeight = panelView === 'settings' ? 260 + monitor.adapters.length * 32 : Math.max(minimum,
+    rows * (preferences.value.expanded ? 40 : 24) + groupHeight + overhead + limits * (preferences.value.expanded ? 36 : 24));
+  const height = Math.round(Math.min(area.height - 24, scale * contentHeight));
   const y = Math.round(Math.max(area.y + 12, Math.min(panelDrag?.y ?? preferences.value.y ?? area.y + (area.height - height) / 2, area.y + area.height - height - 12)));
   const bounds = { x: display.bounds.x + display.bounds.width - width, y, width, height };
   const current = win.getBounds();
@@ -218,12 +214,12 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
   const prefs = preferences.value;
   hideTooltip();
   switch (value?.type) {
-    case 'settings': await showSettings(value.y); return;
+    case 'settings': await showSettings(value.reducedMotion === true); return;
     case 'sort':
       await preferences.save({ ...prefs, sortOrder: value.order }); break;
     case 'expand':
-      settingsWin.hide();
       await preferences.save({ ...prefs, expanded: !prefs.expanded });
+      panelView = 'threads';
       positionPanel({ animate: true, reducedMotion: value.reducedMotion === true }); notify(); return;
     case 'pin': {
       if (!snapshot.sessions.some(s => s.key === value.key)) return;
@@ -241,7 +237,6 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
     case 'show-hidden':
       showHidden = !showHidden; break;
     case 'move': {
-      settingsWin.hide();
       if (!Number.isFinite(value.screenY)) return;
       if (value.phase === 'start') {
         if (panelResize) { stopResize(); positionPanel(); notify(); }
@@ -299,7 +294,7 @@ async function main() {
   }
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => event.preventDefault());
-  win.on('hide', () => { hideTooltip(); settingsWin?.hide(); }); win.on('blur', hideTooltip);
+  win.on('hide', hideTooltip); win.on('blur', hideTooltip);
   win.on('close', event => { if (!quitting) { event.preventDefault(); win.hide(); } });
   ipcMain.handle('sessions:read', event => {
     if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw Error('Unknown sender.');
@@ -311,17 +306,8 @@ async function main() {
     return result;
   });
   ipcMain.on('panel:tooltip', showTooltip);
-  settingsWin = new BrowserWindow({ width: 236, height: 210, show: false, frame: false, transparent: true,
-    resizable: false, maximizable: false, minimizable: false, skipTaskbar: true, alwaysOnTop: true,
-    webPreferences: { preload: path.join(__dirname, 'settings-preload.js'), nodeIntegration: false,
-      contextIsolation: true, sandbox: true } });
-  settingsWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  settingsWin.webContents.on('will-navigate', event => event.preventDefault());
-  settingsWin.on('blur', () => settingsWin.hide());
-  settingsWin.on('close', event => { if (!quitting) { event.preventDefault(); settingsWin.hide(); } });
-  if (process.platform === 'darwin') settingsWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   const checkSettingsSender = (event: IpcMainInvokeEvent) => {
-    if (event.sender !== settingsWin.webContents || event.senderFrame !== settingsWin.webContents.mainFrame) throw Error('Unknown sender.');
+    if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw Error('Unknown sender.');
   };
   ipcMain.handle('settings:read', event => { checkSettingsSender(event); return settingsPayload(); });
   const settingsAction = async (event: IpcMainInvokeEvent, input: unknown) => {
@@ -340,7 +326,7 @@ async function main() {
         await preferences.save({ ...preferences.value, hiddenAdapters });
         hideTooltip(); stopResize(); positionPanel(); notify(); return;
       }
-      case 'close': settingsWin.hide(); return;
+      case 'close': panelView = 'threads'; stopResize(); positionPanel(); notify(); return;
       case 'quit': app.quit(); return;
       case 'update':
         void updates.run(value.command); return;
@@ -352,7 +338,6 @@ async function main() {
     actionQueue = result.catch(() => {});
     return result;
   });
-  await settingsWin.loadFile(path.join(__dirname, 'ui', 'settings.html'));
   await refresh();
   tooltipWin = new BrowserWindow({ width: 280, height: 188, show: false, frame: false, transparent: true,
     focusable: false, resizable: false, skipTaskbar: true, alwaysOnTop: true, hasShadow: false,
@@ -369,20 +354,20 @@ async function main() {
     const startupTheme = process.argv.find(arg => arg.startsWith('--theme-startup='))?.slice('--theme-startup='.length);
     if (startupTheme === 'light' || startupTheme === 'dark' || startupTheme === 'system') {
       const { checkThemeStartup } = await import('../scripts/theme-smoke.js');
-      await checkThemeStartup({ win, settingsWin, tooltipWin, testDir, refresh }, startupTheme);
+      await checkThemeStartup({ win, tooltipWin, testDir, refresh }, startupTheme);
       app.quit(); return;
     }
     if (process.argv.includes('--theme-only')) {
       const { checkThemes } = await import('../scripts/theme-smoke.js');
       showPanel();
-      const checks = await checkThemes({ win, settingsWin, tooltipWin, testDir, refresh });
+      const checks = await checkThemes({ win, tooltipWin, testDir, refresh });
       const { writeFile } = await import('node:fs/promises');
       await writeFile(path.join(testDir, 'theme-report.json'), JSON.stringify({ checks }, null, 2));
       console.log(`Theme checks passed: ${checks.length}.`);
       app.quit(); return;
     }
     const { run } = await import('../scripts/desktop-smoke.js');
-    return run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, showPanel, testDir, preferences });
+    return run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, testDir, preferences });
   }
 
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect x="6" y="1" width="12" height="22" rx="6" fill="#25292d"/><circle cx="12" cy="6" r="3" fill="#8cce6b"/><circle cx="12" cy="12" r="3" fill="#ffd45e"/><circle cx="12" cy="18" r="3" fill="#f5f5ef"/></svg>';

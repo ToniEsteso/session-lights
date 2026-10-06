@@ -1,22 +1,21 @@
 import { required } from '../test/assertions.js';
-import type { App, BrowserWindow, Rectangle } from 'electron';
+import type { App, Rectangle } from 'electron';
 import { DatabaseSync } from 'node:sqlite';
 import { Preferences } from '../src/preferences.js';
 import type { SortOrder } from '../src/shared/contracts.js';
 import { errorMessage } from '../src/shared/validation.js';
-interface DesktopCheckOptions { app: App; win: BrowserWindow; tooltipWin: BrowserWindow; settingsWin: BrowserWindow; refresh: () => Promise<void>; refreshUsage: () => Promise<void>; showPanel: () => void; testDir: string; preferences: Preferences }
+interface DesktopCheckOptions { app: App; win: BrowserWindow; tooltipWin: BrowserWindow; refresh: () => Promise<void>; refreshUsage: () => Promise<void>; showPanel: () => void; testDir: string; preferences: Preferences }
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as assert from 'node:assert/strict';
-import { screen, nativeTheme } from 'electron';
+import { screen, nativeTheme, BrowserWindow } from 'electron';
 import { checkThemes } from './theme-smoke.js';
 import { logLine, setStatus, rolloutLine } from '../test/fixtures.js';
 
-async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, showPanel, testDir, preferences }: DesktopCheckOptions) {
+async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, testDir, preferences }: DesktopCheckOptions) {
   const errors: string[] = [];
   win.webContents.on('console-message', event => { if (event.level === 'error') errors.push(event.message); });
   tooltipWin.webContents.on('console-message', event => { if (event.level === 'error') errors.push(event.message); });
-  settingsWin.webContents.on('console-message', event => { if (event.level === 'error') errors.push(event.message); });
   const waitTooltip = async (condition: string) => {
     const deadline = Date.now() + 5000;
     while (!tooltipWin.isVisible() || !await tooltipWin.webContents.executeJavaScript(condition)) {
@@ -43,7 +42,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await js('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     await fs.writeFile(path.join(testDir, name), (await win.webContents.capturePage()).toPNG());
   };
-  const settingsJs = (code: string) => settingsWin.webContents.executeJavaScript(code);
+  const settingsJs = (code: string) => win.webContents.executeJavaScript(code);
   const waitSettings = async (condition: string) => {
     const deadline = Date.now() + 5000;
     while (!await settingsJs(condition)) {
@@ -52,15 +51,15 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     }
   };
   const closeSettings = async () => {
-    settingsWin.focus();
-    settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
-    settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
-    await waitNative(() => !settingsWin.isVisible());
+    win.focus();
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+    await wait("document.querySelector('#settings-view').hidden");
   };
   const toggleAdapter = async (id: string) => {
     await settingsJs(`[...document.querySelectorAll('input[data-adapter]')].find(input => input.dataset.adapter === ${JSON.stringify(id)}).focus()`);
-    settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Space' });
-    settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Space' });
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Space' });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Space' });
   };
   const data = { root: path.join(testDir, 'codex'), log: path.join(testDir, 'logs', ...new Date().toISOString().slice(0, 10).split('-'), 'desktop.log') };
   const id = '11111111-1111-4111-8111-111111111111';
@@ -81,10 +80,10 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       assert.equal(await js("document.querySelectorAll('.usage-row').length"), 2);
       await capture('live-cli.png');
       await js("document.querySelector('header [data-settings]').click()");
-      await waitNative(() => settingsWin.isVisible());
+      await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
       await toggleAdapter('codex-cli'); await wait(`!${selected}`);
       await toggleAdapter('codex-cli'); await wait(`Boolean(${selected})`);
-      await fs.writeFile(path.join(testDir, 'live-cli-settings.png'), (await settingsWin.webContents.capturePage()).toPNG());
+      await fs.writeFile(path.join(testDir, 'live-cli-settings.png'), (await win.webContents.capturePage()).toPNG());
       await closeSettings();
       assert.deepEqual(errors, []);
       await fs.writeFile(path.join(testDir, 'live-cli-report.json'), JSON.stringify({ result: 'passed', sessionId: liveCliId, state, checks: ['live CLI record reaches the native light', 'one set of account gauges', 'CLI switch hides and restores its live session', 'no renderer errors'] }, null, 2));
@@ -100,7 +99,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
       win.webContents.sendInputEvent({ type: 'char', keyCode: 'Enter' });
       win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
-      await waitNative(() => settingsWin.isVisible());
+      await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
       await waitSettings("document.querySelectorAll('input[role=switch]').length === 3 && [...document.querySelectorAll('input[role=switch]')].every(input => !input.checked)");
       await toggleAdapter('codex');
       await wait("document.querySelectorAll('.session').length === 2 && document.querySelector('#sessions').textContent.includes('Hidden Codex update')");
@@ -155,19 +154,25 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     };
     checkScreenEdge();
     await js("document.querySelector('footer [data-settings]').click()");
-    await waitNative(() => settingsWin.isVisible());
-    assert.ok(settingsWin.getBounds().x + settingsWin.getBounds().width < win.getBounds().x, 'Settings must open to the left.');
-    assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('#update').disabled"), true);
-    assert.match(await settingsWin.webContents.executeJavaScript("document.querySelector('#update').title"), /installed release/);
-    assert.equal(await settingsWin.webContents.executeJavaScript("document.querySelector('h1, h2, #release-notes, #installation-help') === null"), true);
-    await settingsWin.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
+    assert.equal(BrowserWindow.getAllWindows().length, 2, 'Settings must share the panel window.');
+    checkScreenEdge();
+    assert.equal(await js("document.querySelector('#threads-view').hidden && document.querySelector('#panel').classList.contains('expanded')"), true);
+    assert.equal(await js("document.activeElement.id"), 'settings-back', 'Settings must focus its Back button.');
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('#update').disabled"), true);
+    assert.match(await win.webContents.executeJavaScript("document.querySelector('#update').title"), /installed release/);
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('#release-notes, #installation-help') === null"), true);
+    await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     // Catch old saved opt-out flags still suppressing usage and excess Settings height.
     await wait("window.sessionLights.read().then(value => value.usage.find(source => source.providerId === 'codex').windows.some(window => window.remainingPercent === 76))");
     assert.equal(await settingsJs("document.querySelector('#codex-usage, #close, #theme-help, #adapter-help') === null"), true);
-    assert.equal(await settingsJs("document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight && innerHeight - document.querySelector('footer').getBoundingClientRect().bottom <= 12"), true);
-    await fs.writeFile(path.join(testDir, 'settings.png'), (await settingsWin.webContents.capturePage()).toPNG());
+    assert.equal(await settingsJs("document.querySelector('#settings-footer').getBoundingClientRect().bottom <= innerHeight && innerHeight - document.querySelector('#settings-footer').getBoundingClientRect().bottom <= 12"), true);
+    await fs.writeFile(path.join(testDir, 'settings.png'), (await win.webContents.capturePage()).toPNG());
     await closeSettings();
-    await waitNative(() => !settingsWin.isVisible());
+    assert.equal(await js("!document.querySelector('#threads-view').hidden && document.querySelector('#panel').classList.contains('expanded')"), true);
+    assert.equal(await js("document.activeElement.hasAttribute('data-settings')"), true, 'Back must return focus to the thread Settings button.');
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
+    await wait("!document.querySelector('#panel').classList.contains('expanded')");
     assert.equal(await js("[...document.querySelectorAll('.dot')].every(dot => dot.textContent === '' && dot.getBoundingClientRect().width <= 10.5)"), true);
     assert.equal(await js("document.querySelector('.grip') === null && getComputedStyle(document.querySelector('footer')).display === 'flex' && getComputedStyle(document.querySelector('#expand')).display === 'none'"), true);
     const usageLayout = await js(`(() => {
@@ -290,7 +295,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     checkScreenEdge();
     assert.match(await js("document.querySelector('#sessions').textContent"), /Build the service/);
     assert.equal(await js("Boolean(document.querySelector('.legend, #health, .summary'))"), false);
-    assert.equal(await js("document.querySelector('#all, #quit') === null"), true);
+    assert.equal(await js("document.querySelector('#threads-view #all, #threads-view #quit') === null"), true);
     assert.equal(await js("document.querySelector('.session-project').textContent"), 'project');
     assert.equal(await js("document.querySelector('.session-button').hasAttribute('title')"), false);
     await wait("[...document.querySelectorAll('.session-activity')].every(time => time.textContent === 'just now')");
@@ -313,7 +318,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     assert.equal(await js("document.querySelector('.title') === null"), true);
     assert.equal(await js("document.querySelector('[data-sort][aria-pressed=true]').dataset.sort"), 'activity');
     // Catch controls hidden below the list, clipped choices, and more than one selected sort.
-    assert.equal(await js("document.querySelector('input, select, #search, #state-filter') === null"), true);
+    assert.equal(await js("document.querySelector('#threads-view input, #threads-view select, #search, #state-filter') === null"), true);
     assert.equal(await js(`(() => {
       const tools = document.querySelector('.sort-tools').getBoundingClientRect();
       const header = document.querySelector('header').getBoundingClientRect();
@@ -432,7 +437,7 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await capture('expanded.png');
     await js("document.querySelector('.pin').click()");
     await wait("document.querySelector('.pin').getAttribute('aria-pressed') === 'true'");
-    assert.equal(await js("document.querySelector('#hide, #quit') === null"), true);
+    assert.equal(await js("document.querySelector('#threads-view #hide, #threads-view #quit') === null"), true);
     setStatus(data, id, 'completed'); await refresh();
     await wait("document.querySelectorAll('.dot.idle').length === 2");
     await win.webContents.reload();
@@ -467,6 +472,16 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     changed.prepare('UPDATE threads SET title = ? WHERE id = ?').run('Updated service title', id); changed.close();
     await refresh(); await wait("document.querySelector('#sessions').textContent.includes('Updated service title')");
     assert.ok(Math.abs(await js("document.querySelector('#sessions').scrollTop") - scrollBefore) < 1, 'A session refresh lost the scroll position.');
+    const threadBounds = win.getBounds();
+    await js("window.sessionLights.action({ type: 'settings', reducedMotion: true })");
+    await wait("!document.querySelector('#settings-view').hidden");
+    assert.equal(win.getBounds().width, threadBounds.width, 'Settings must use the expanded thread width.');
+    checkScreenEdge();
+    await refresh();
+    await js("document.querySelector('#settings-back').click()");
+    await wait("document.querySelector('#settings-view').hidden && !document.querySelector('#threads-view').hidden");
+    assert.ok(Math.abs(await js("document.querySelector('#sessions').scrollTop") - scrollBefore) < 1, 'Back from Settings lost the thread scroll position.');
+    assert.equal(BrowserWindow.getAllWindows().length, 2, 'Settings navigation created an extra native window.');
     assert.equal(errors.length, 0, errors.join('\n'));
     // Usage must remain accessible when there are no local chats.
     const db = new DatabaseSync(path.join(data.root, 'state_5.sqlite'));
@@ -643,6 +658,8 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       'pins stay first in activity order', 'same workspace groups across providers and Windows path spellings', 'same folder name at different paths stays separate', 'missing workspace has a useful label',
       'project groups keep usage and footer visible', 'project heading tooltip shows full path and providers', 'compact project order has no headings or controls',
       'project grouping survives reload with pins and position intact', 'shared project ID groups chats with different labels', 'different project IDs with equal labels stay separate', 'project ID supplies a label when its name is missing');
+    report.checks.push('Settings replaces threads in the same native panel', 'Back and Escape return to expanded threads with focus',
+      'Settings uses the thread width and screen edge', 'thread scroll survives Settings and background refresh');
     // Simulate OS setting reads without changing the user's Windows settings.
     for (const percent of [125, 150, 225, 100]) {
       const scale = percent / 100;
@@ -665,11 +682,11 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
         await wait("document.querySelectorAll('.session').length === 7 && document.querySelector('#hidden-sessions').hidden");
       }
       await js("document.querySelector('header [data-settings]').click()");
-      await waitNative(() => settingsWin.isVisible());
+      await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
       await waitSettings(`document.body.style.getPropertyValue('--text-scale') === '${scale}'`);
-      assert.equal(await settingsJs("[...document.querySelectorAll('.adapter-row, footer')].every(row => row.getBoundingClientRect().bottom <= innerHeight + 1)"), true);
+      assert.equal(await settingsJs("[...document.querySelectorAll('.adapter-row, #settings-footer')].every(row => row.getBoundingClientRect().bottom <= innerHeight + 1)"), true);
       await settingsJs('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-      await fs.writeFile(path.join(testDir, `adapter-controls-text-${percent}.png`), (await settingsWin.webContents.capturePage()).toPNG());
+      await fs.writeFile(path.join(testDir, `adapter-controls-text-${percent}.png`), (await win.webContents.capturePage()).toPNG());
       await closeSettings();
       const key = await js("document.querySelector('.session-button').dataset.key");
       await js(`window.sessionLights.tooltip({ kind: 'session', key: ${JSON.stringify(key)}, y: 40 })`);
@@ -686,14 +703,14 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
       await wait("document.querySelector('#panel').classList.contains('expanded')");
     }
     assert.deepEqual(errors, [], 'Renderer errors after system text changes.');
-    report.checks.push('system text changes update the panel automatically', 'large system text fits long lists and controls up to 225 percent', 'hover cards follow system text size', 'no text selector or saved text override', 'compact panel stays narrow at every text size', 'compact gear opens settings to the left', 'development updates are disabled', 'Escape closes Settings');
-    report.checks.push(...await checkThemes({ win, settingsWin, tooltipWin, testDir, refresh }));
+    report.checks.push('system text changes update the panel automatically', 'large system text fits long lists and controls up to 225 percent', 'hover cards follow system text size', 'no text selector or saved text override', 'compact panel stays narrow at every text size', 'compact gear opens Settings in the same panel', 'development updates are disabled', 'Escape returns from Settings to threads');
+    report.checks.push(...await checkThemes({ win, tooltipWin, testDir, refresh }));
     assert.deepEqual(errors, [], 'Renderer errors after theme changes.');
     // Catch hidden-session rows leaking from a hidden adapter or lost session choices when it returns.
     await clickControl('.hide-session[data-key="atlas:other"]');
     await wait("document.querySelector('#hidden-sessions').textContent === '1 session hidden'");
     await js("document.querySelector('header [data-settings]').click()");
-    await waitNative(() => settingsWin.isVisible());
+    await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
     await toggleAdapter('atlas');
     await wait("document.querySelectorAll('.session').length === 2 && document.querySelector('#hidden-sessions').hidden");
     await toggleAdapter('atlas');
@@ -715,13 +732,13 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     await wait("document.querySelectorAll('.session').length === 8 && document.querySelector('[data-key=\"codex-cli:" + cliId + "\"] .dot').classList.contains('working')");
     assert.equal(await js("document.querySelectorAll('[data-provider=codex]').length"), 2);
     await js("document.querySelector('header [data-settings]').click()");
-    await waitNative(() => settingsWin.isVisible());
+    await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
     await toggleAdapter('codex-cli');
     await wait("document.querySelectorAll('.session').length === 7 && !document.querySelector('[data-key=\"codex-cli:" + cliId + "\"]')");
     await rolloutLine(data, cliId, Date.now() + 1, 'event_msg', { type: 'task_complete', turn_id: 'cli-ui' });
     await refresh(); await toggleAdapter('codex-cli');
     await wait("Boolean(document.querySelector('[data-key=\"codex-cli:" + cliId + "\"] .dot.idle'))");
-    await fs.writeFile(path.join(testDir, 'cli-adapter-settings.png'), (await settingsWin.webContents.capturePage()).toPNG());
+    await fs.writeFile(path.join(testDir, 'cli-adapter-settings.png'), (await win.webContents.capturePage()).toPNG());
     await closeSettings(); await capture('cli-sessions.png');
     const archiveCli = new DatabaseSync(path.join(data.root, 'state_5.sqlite'));
     archiveCli.prepare('UPDATE threads SET archived = 1 WHERE id = ?').run(cliId); archiveCli.close();
@@ -729,17 +746,17 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     report.checks.push('CLI sessions appear beside desktop sessions with one set of account limits', 'CLI switch hides only CLI sessions and restores their latest state', 'archived CLI sessions leave the panel');
     // Catch hidden sessions or gauges that remain visible, lost pins, stopped reads, and unsaved switches.
     await js("document.querySelector('header [data-settings]').click()");
-    await waitNative(() => settingsWin.isVisible());
+    await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
     await waitSettings("document.querySelectorAll('input[role=switch]').length === 3 && [...document.querySelectorAll('input[role=switch]')].every(input => input.checked)");
     assert.deepEqual(await settingsJs("[...document.querySelectorAll('.adapter-row')].map(row => row.textContent)"), ['Codex', 'Codex CLI', 'Atlas']);
-    assert.equal(await settingsJs("[...document.querySelectorAll('.adapter-row, footer')].every(row => row.getBoundingClientRect().bottom <= innerHeight)"), true);
-    await fs.writeFile(path.join(testDir, 'adapter-controls.png'), (await settingsWin.webContents.capturePage()).toPNG());
-    await settingsJs("document.querySelector('#quit').focus()");
-    settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
-    settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
+    assert.equal(await settingsJs("[...document.querySelectorAll('.adapter-row, #settings-footer')].every(row => row.getBoundingClientRect().bottom <= innerHeight)"), true);
+    await fs.writeFile(path.join(testDir, 'adapter-controls.png'), (await win.webContents.capturePage()).toPNG());
+    await settingsJs("document.querySelector('#settings-back').focus()");
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
     await waitSettings("document.activeElement.name === 'theme' && document.activeElement.matches(':focus-visible')");
-    settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
-    settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
     await waitSettings("document.activeElement.dataset.adapter === 'codex' && document.activeElement.matches(':focus-visible')");
     await toggleAdapter('codex');
     await wait("document.querySelectorAll('.session').length === 5 && document.querySelectorAll('[data-provider=codex]').length === 0");
@@ -761,20 +778,19 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     } } } };
     await fs.writeFile(path.join(testDir, 'usage.json'), JSON.stringify(hiddenUsage)); await refreshUsage();
     await js("document.querySelector('footer [data-settings]').click()");
-    await waitNative(() => settingsWin.isVisible());
+    await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
     await toggleAdapter('codex');
     await wait("document.querySelectorAll('.session').length === 7 && document.querySelector('[data-provider=codex][data-limit=fiveHour] .usage-value').textContent === '60% left'");
     await closeSettings();
-    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("document.querySelector('#panel').classList.contains('expanded') && document.querySelector('#sessions').textContent.includes('Hidden Codex update')");
     assert.equal(await js(`document.querySelector('[data-key="codex:${id}"] .dot').classList.contains('error')`), true);
     assert.equal(await js("document.querySelectorAll('.pin[aria-pressed=true]').length"), 1);
     // A failed preference write must restore the switch and keep the displayed adapter visible.
     await fs.mkdir(`${preferences.file}.tmp`);
     await js("document.querySelector('header [data-settings]').click()");
-    await waitNative(() => settingsWin.isVisible());
+    await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
     await toggleAdapter('codex');
-    await waitSettings("!document.querySelector('#error').hidden && document.querySelector('[data-adapter=codex]').checked");
+    await waitSettings("!document.querySelector('#settings-error').hidden && document.querySelector('[data-adapter=codex]').checked");
     assert.equal(await js("document.querySelectorAll('.session').length"), 7);
     await fs.rename(`${preferences.file}.tmp`, path.join(testDir, 'failed-write-temp'));
     await toggleAdapter('codex');
@@ -786,15 +802,14 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     assert.equal(await js("['#adapters-hidden', 'footer'].every(selector => { const box = document.querySelector(selector).getBoundingClientRect(); return box.height > 0 && box.bottom <= innerHeight; })"), true);
     await capture('adapter-all-hidden.png');
     await js("document.querySelector('#empty-settings').click()");
-    await waitNative(() => settingsWin.isVisible());
+    await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
     await closeSettings();
     await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded')");
     await capture('adapter-all-hidden-compact.png');
     await js("document.querySelector('#empty-settings').click()");
-    await waitNative(() => settingsWin.isVisible());
+    await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
     await closeSettings();
-    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("document.querySelector('#panel').classList.contains('expanded')");
     assert.deepEqual(errors, []);
     report.checks.push('all registered adapters have labelled switches and start visible with legacy settings', 'Tab reaches the adapter switch with a visible focus outline',
@@ -805,11 +820,11 @@ async function run({ app, win, tooltipWin, settingsWin, refresh, refreshUsage, s
     console.log(`Desktop checks passed: ${report.checks.length}.`);
     // Catch Quit that leaves the app or its automatic usage runtime running.
     await js("document.querySelector('header [data-settings]').click()");
-    await waitNative(() => settingsWin.isVisible());
+    await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
     void settingsJs("document.querySelector('#quit').click()").catch(() => { /* Quit can close the renderer before the click reply. */ });
   } catch (error) {
     try { await capture('failure.png'); } catch (captureError) { console.error('Screenshot failed:', errorMessage(captureError)); }
-    console.error(error); app.exit(1);
+    console.error(error); app.quit(); app.exit(1);
   }
 }
 export { run };

@@ -38,9 +38,9 @@ function render(value: SettingsPayload) {
   }
 }
 async function act(value: SettingsAction) {
-  try { await window.settings.action(value); $('#error').hidden = true; }
+  try { await window.settings.action(value); $('#settings-error').hidden = true; }
   catch (error) {
-    $('#error').textContent = errorMessage(error); $('#error').hidden = false;
+    $('#settings-error').textContent = errorMessage(error); $('#settings-error').hidden = false;
     try { render(await window.settings.read()); } catch { /* Keep the action error visible. */ }
   }
 }
@@ -55,6 +55,7 @@ $('#update').addEventListener('click', () => {
   if (command) void act({ type: 'update', command });
 });
 $('#quit').addEventListener('click', () => { void act({ type: 'quit' }); });
-document.addEventListener('keydown', event => { if (event.key === 'Escape') void act({ type: 'close' }); });
+export function closeSettings() { void act({ type: 'close' }); }
+$('#settings-back').addEventListener('click', closeSettings);
 window.settings.subscribe(render);
-window.settings.read().then(render).catch(error => { $('#error').textContent = errorMessage(error); $('#error').hidden = false; });
+window.settings.read().then(render).catch(error => { $('#settings-error').textContent = errorMessage(error); $('#settings-error').hidden = false; });

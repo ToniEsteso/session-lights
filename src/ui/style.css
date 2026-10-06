@@ -11,6 +11,7 @@ button { font: inherit; border: 0; color: inherit; background: none; cursor: poi
 button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: 3px; }
 [hidden] { display: none !important; }
 .panel { position: relative; width: 100%; max-height: 100vh; display: flex; flex-direction: column; padding: 3px; border: 1px solid var(--border); border-right: 0; border-radius: 6px 0 0 6px; background: var(--panel); }
+.threads-view { display: flex; flex-direction: column; min-height: 0; }
 .wide { display: none; }
 .panel:not(.expanded) { width: 26px; margin-left: auto; padding: 8px 4px 8px 3px; }
 body.resizing .panel { overflow: hidden; transition: padding 280ms cubic-bezier(.333, 1, .667, 1), border-radius 280ms cubic-bezier(.333, 1, .667, 1); }

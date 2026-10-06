@@ -8,15 +8,15 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 
-interface ThemeCheckOptions { win: BrowserWindow; settingsWin: BrowserWindow; tooltipWin: BrowserWindow; testDir: string; refresh: () => Promise<void> }
+interface ThemeCheckOptions { win: BrowserWindow; tooltipWin: BrowserWindow; testDir: string; refresh: () => Promise<void> }
 // Catch lost saved choices, mixed window themes, unreadable status text, and broken radio keyboard input.
-export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refresh }: ThemeCheckOptions): Promise<string[]> {
+export async function checkThemes({ win, tooltipWin, testDir, refresh }: ThemeCheckOptions): Promise<string[]> {
   const rendererErrors: string[] = [];
   const onConsole = (event: Electron.Event<Electron.WebContentsConsoleMessageEventParams>) => { if (event.level === 'error') rendererErrors.push(event.message); };
-  for (const window of [win, settingsWin, tooltipWin]) window.webContents.on('console-message', onConsole);
-  assert.equal(await settingsWin.webContents.executeJavaScript('window.settings.read().then(value => value.theme)'), 'system', 'Old preferences must default to System.');
+  for (const window of [win, tooltipWin]) window.webContents.on('console-message', onConsole);
+  assert.equal(await win.webContents.executeJavaScript('window.settings.read().then(value => value.theme)'), 'system', 'Old preferences must default to System.');
   const panel = (code: string) => win.webContents.executeJavaScript(code);
-  const settings = (code: string) => settingsWin.webContents.executeJavaScript(code);
+  const settings = (code: string) => win.webContents.executeJavaScript(code);
   const wait = async (check: () => Promise<boolean>) => {
     const deadline = Date.now() + 8000;
     while (!await check()) {
@@ -25,17 +25,17 @@ export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refre
     }
   };
   const closeSettings = async () => {
-    settingsWin.focus();
-    settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
-    settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
-    await wait(async () => !settingsWin.isVisible());
+    win.focus();
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+    await wait(async () => await panel("document.querySelector('#settings-view').hidden"));
   };
   const themeMatches = async (dark: boolean) => {
     const query = `matchMedia('(prefers-color-scheme: dark)').matches === ${dark} && getComputedStyle(document.documentElement).colorScheme === '${dark ? 'dark' : 'light'}'`;
-    return (await Promise.all([win, settingsWin, tooltipWin].map(window => window.webContents.executeJavaScript(query)))).every(Boolean);
+    return (await Promise.all([win, tooltipWin].map(window => window.webContents.executeJavaScript(query)))).every(Boolean);
   };
   const choose = async (theme: ThemeChoice) => {
-    await panel("window.sessionLights.action({ type: 'settings', y: 0 })");
+    await panel("window.sessionLights.action({ type: 'settings', reducedMotion: true })");
     await settings(`document.querySelector('input[value=${theme}]').click()`);
     await wait(async () => await settings(`document.querySelector('input[value=${theme}]').checked && window.settings.read().then(value => value.theme === '${theme}')`));
     if (theme !== 'system') await wait(() => themeMatches(theme === 'dark'));
@@ -63,9 +63,10 @@ export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refre
     const ratios: { token: string; ratio: number }[] = await panel(contrastCode);
     for (const reading of ratios) assert.ok(reading.ratio >= 4.5, `${theme} ${reading.token} contrast is ${reading.ratio}`);
     await fs.writeFile(path.join(testDir, `contrast-${theme}.json`), JSON.stringify(ratios, null, 2));
-    assert.equal(await settings("document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight && document.querySelector('#appearance').getBoundingClientRect().width > 0"), true);
+    assert.equal(await settings("document.querySelector('#settings-footer').getBoundingClientRect().bottom <= innerHeight && document.querySelector('#appearance').getBoundingClientRect().width > 0"), true);
+    await capture(win, `settings-${theme}.png`);
+    await closeSettings();
     await capture(win, `app-${theme}.png`);
-    await capture(settingsWin, `settings-${theme}.png`);
     if (process.argv.includes('--theme-only')) {
       const db = new DatabaseSync(path.join(testDir, 'codex', 'state_5.sqlite'));
       try {
@@ -78,7 +79,6 @@ export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refre
         db.close(); await refresh();
       }
     }
-    await closeSettings();
     const key: string = await panel("document.querySelector('.session-button').dataset.key");
     await panel(`window.sessionLights.tooltip({ kind: 'session', key: ${JSON.stringify(key)}, y: 45 })`);
     await wait(async () => tooltipWin.isVisible() && await tooltipWin.webContents.executeJavaScript("document.querySelector('#title').textContent.length > 0"));
@@ -86,7 +86,7 @@ export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refre
     await capture(tooltipWin, `tooltip-${theme}.png`);
     await panel('window.sessionLights.tooltip(null)');
     // Reload every window, with the theme already set, to catch late JavaScript theme application.
-    for (const window of [win, settingsWin, tooltipWin]) {
+    for (const window of [win, tooltipWin]) {
       await window.webContents.reload();
       await new Promise<void>(resolve => window.webContents.once('did-finish-load', () => resolve()));
     }
@@ -123,18 +123,18 @@ export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refre
     } finally { await command('Restore', original); }
   }
   // Native radio arrows change the selected theme and keep keyboard focus visible.
-  settingsWin.focus();
-  await settings("document.querySelector('#quit').focus()");
-  settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
-  settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
+  win.focus();
+  await settings("document.querySelector('#settings-back').focus()");
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+  win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
   await wait(async () => await settings("document.activeElement.value === 'system'"));
-  settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Right' });
-  settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Right' });
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Right' });
+  win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Right' });
   await wait(async () => await settings("document.activeElement.value === 'light' && window.settings.read().then(value => value.theme === 'light')"));
   await wait(() => themeMatches(false));
   assert.equal(await settings("getComputedStyle(document.activeElement.closest('label')).outlineStyle"), 'solid');
-  settingsWin.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Left' });
-  settingsWin.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Left' });
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Left' });
+  win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Left' });
   await wait(async () => await settings("document.activeElement.value === 'system' && window.settings.read().then(value => value.theme === 'system')"));
   checks.push('keyboard arrow keys change themes and show focus');
   await settings("window.settings.action({ type: 'theme', theme: 'invalid' })");
@@ -145,7 +145,7 @@ export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refre
     await fs.mkdir(blockedWrite);
     try {
       await settings("document.querySelector('input[value=dark]').click()");
-      await wait(async () => await settings("!document.querySelector('#error').hidden && document.querySelector('input[value=system]').checked"));
+      await wait(async () => await settings("!document.querySelector('#settings-error').hidden && document.querySelector('input[value=system]').checked"));
       assert.equal(nativeTheme.themeSource, 'system');
     } finally { await fs.rmdir(blockedWrite); }
     checks.push('failed preference writes show an error and preserve the current theme', 'empty states use both themes');
@@ -159,23 +159,24 @@ export async function checkThemes({ win, settingsWin, tooltipWin, testDir, refre
   }
   // Leave Dark saved so the parent can verify a cold app restart.
   await choose('dark');
+  await closeSettings();
   assert.deepEqual(rendererErrors, [], 'Renderer errors after theme checks.');
-  for (const window of [win, settingsWin, tooltipWin]) window.webContents.removeListener('console-message', onConsole);
+  for (const window of [win, tooltipWin]) window.webContents.removeListener('console-message', onConsole);
   return checks;
 }
 
 // Catch a saved choice that applies only after a window has already loaded.
-export async function checkThemeStartup({ win, settingsWin, tooltipWin, testDir }: ThemeCheckOptions, theme: ThemeChoice): Promise<void> {
+export async function checkThemeStartup({ win, tooltipWin, testDir }: ThemeCheckOptions, theme: ThemeChoice): Promise<void> {
   assert.equal(nativeTheme.themeSource, theme);
   const scheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
-  for (const window of [win, settingsWin, tooltipWin]) {
+  for (const window of [win, tooltipWin]) {
     assert.equal(await window.webContents.executeJavaScript('getComputedStyle(document.documentElement).colorScheme'), scheme);
   }
-  assert.equal(await settingsWin.webContents.executeJavaScript('window.settings.read().then(value => value.theme)'), theme);
-  assert.equal(await settingsWin.webContents.executeJavaScript("window.settings.read().then(value => value.adapters.some(adapter => adapter.id === 'atlas' && !adapter.visible))"), true, 'Theme restart must preserve hidden adapters.');
+  assert.equal(await win.webContents.executeJavaScript('window.settings.read().then(value => value.theme)'), theme);
+  assert.equal(await win.webContents.executeJavaScript("window.settings.read().then(value => value.adapters.some(adapter => adapter.id === 'atlas' && !adapter.visible))"), true, 'Theme restart must preserve hidden adapters.');
   assert.equal(await win.webContents.executeJavaScript("window.sessionLights.read().then(value => value.sessions.length === 1 && value.hiddenSessions.some(session => session.key === 'codex:22222222-2222-4222-8222-222222222222'))"), true, 'Theme restart must preserve hidden sessions.');
   const next = theme === 'dark' ? 'light' : 'system';
-  await settingsWin.webContents.executeJavaScript(`window.settings.action({ type: 'theme', theme: '${next}' })`);
+  await win.webContents.executeJavaScript(`window.settings.action({ type: 'theme', theme: '${next}' })`);
   await fs.writeFile(path.join(testDir, `startup-${theme}.json`), JSON.stringify({ theme, scheme, passed: true }, null, 2));
   console.log(`Cold restart passed: ${theme}.`);
 }

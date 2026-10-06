@@ -36,7 +36,7 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 
 ## Use the panel
 
-- Click the gear for Appearance, adapter switches, updates, and Quit. The menu opens to the left of the panel. Press Escape or click outside to close it.
+- Click the gear for Appearance, adapter switches, updates, and Quit. Settings replaces the thread list in the same expanded sidebar. Click Threads or press Escape to return to the thread list. Its scroll position is kept. Press Escape from the thread list to collapse the sidebar.
 - Choose System, Light, or Dark in Appearance. System is the default and follows device theme changes. The choice applies at once and stays after app restarts. Use Tab to reach the theme choices and arrow keys to change the choice.
 - A yellow badge on the gear marks an available update. Downloads and restarts require a click. Installed releases check at startup and every six hours.
 

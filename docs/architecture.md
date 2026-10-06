@@ -30,7 +30,7 @@ These types remain numbers in JSON. The compiler prevents assignment between the
 | `src/core.ts` | Provider aggregation, project identity, session state rules, sorting, and failure isolation |
 | `src/preferences.ts` | Settings parsing and persistence |
 | `src/main.ts` | Native windows, scheduling, sender checks, and action handling |
-| `src/preload.ts`, `src/tooltip-preload.ts`, and `src/settings-preload.ts` | The permitted renderer bridge methods and subscription cleanup |
+| `src/preload.ts` and `src/tooltip-preload.ts` | The permitted renderer bridge methods and subscription cleanup |
 | `src/updates.ts` | Update checks, downloads, installation, and update state |
 | `src/ui/` | DOM updates, shared display text, and user input |
 | `src/shared/` | Serializable contracts, input parsers, state metadata, and time units |
@@ -49,6 +49,11 @@ The Codex adapter checks those values before using them.
 The settings and IPC parsers accept `unknown` and produce domain values.
 New providers must check their own external input before returning `SessionReading` or `UsageReading`.
 
+The sidebar has one native panel window with thread and Settings views. The main process owns the current view and native bounds.
+Settings opens the expanded sidebar. Back and Escape return to expanded threads. The view resets to threads on app startup.
+The panel preload exposes both session and settings bridges to the same sandboxed main frame. Both IPC handlers check that frame.
+The renderer keeps thread scroll position while Settings is visible. The tooltip remains a separate non-focusable window.
+
 ## Codex sources
 
 The desktop and CLI adapters share `CodexRecords` for read-only SQLite and session JSONL parsing.
@@ -66,7 +71,7 @@ Electron's declarations require the DOM library, but renderer code has a separat
 `src/ui/tsconfig.json` exposes browser types without Node globals and prevents UI emission by the TypeScript compiler.
 
 The build first checks both configurations.
-`scripts/build.ts` then copies HTML and CSS and bundles the three renderer entries with esbuild.
+`scripts/build.ts` then copies HTML and CSS and bundles the panel and tooltip renderer entries with esbuild. The panel imports the Settings module.
 It also bundles the preload entries. Each sandboxed preload can require only Electron.
 Local shared modules are included in the preload bundle.
 

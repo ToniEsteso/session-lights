@@ -4,10 +4,12 @@ import { sessionSections } from '../shared/session-sections.js';
 import { updateView } from '../shared/updates.js';
 import { element as $, svgElement, usageRow } from './dom.js';
 import { errorMessage } from '../shared/validation.js';
+import { closeSettings } from './settings.js';
 const { labels, available, countdown, age } = panelText;
 let snapshot: PanelPayload | undefined;
 let renderSignature: string | undefined;
-let dragging: { pointerId: number; screenY: number } | undefined;
+let dragging: { pointerId: number; screenY: number; handle: HTMLElement } | undefined;
+let threadsScrollTop = 0;
 let dragFrame: number | undefined;
 let motionId: number | undefined;
 let collapseTimer: ReturnType<typeof setTimeout> | undefined;
@@ -88,7 +90,7 @@ function renderUsage(value: PanelPayload) {
 async function act(value: PanelAction) {
   hideTooltip();
   try {
-    await window.sessionLights.action(value.type === 'expand' ? { ...value, reducedMotion: reducedMotion.matches } : value);
+    await window.sessionLights.action(value.type === 'expand' || value.type === 'settings' ? { ...value, reducedMotion: reducedMotion.matches } : value);
     $('#error').hidden = true;
   }
   catch (error) { $('#error').textContent = errorMessage(error); $('#error').hidden = false; }
@@ -118,6 +120,8 @@ function render(value: PanelPayload) {
   renderNow(value);
 }
 function renderNow(value: PanelPayload) {
+  const viewChanged = snapshot !== undefined && snapshot.view !== value.view;
+  if (viewChanged && snapshot?.view === 'threads') threadsScrollTop = $('#sessions').scrollTop;
   const changing = snapshot && snapshot.preferences.expanded !== value.preferences.expanded;
   const previousList = changing ? $('#sessions').getBoundingClientRect() : null;
   const previousDots = new Map(changing ? [...document.querySelectorAll<HTMLButtonElement>('.session-button')].map(button =>
@@ -142,6 +146,9 @@ function renderNow(value: PanelPayload) {
   document.body.classList.toggle('resizing', Boolean(value.motion));
   document.body.style.setProperty('--compact-inset', `${value.compactInset || 0}px`);
   $('#panel').classList.toggle('expanded', expanded);
+  $('#panel').dataset.view = value.view;
+  $('#threads-view').hidden = value.view !== 'threads';
+  $('#settings-view').hidden = value.view !== 'settings';
   $('#expand').setAttribute('aria-expanded', String(expanded));
   $('#expand').setAttribute('aria-label', expanded ? 'Hide session names' : 'Show session names');
   $('#expand').title = expanded ? 'Hide session names' : 'Show session names';
@@ -233,6 +240,16 @@ function renderNow(value: PanelPayload) {
     }
   }
   $('#sessions').replaceChildren(fragment);
+  if (viewChanged) {
+    hideTooltip();
+    if (value.view === 'settings') {
+      $('.settings-content').scrollTop = 0;
+      $('#settings-back').focus({ preventScroll: true });
+    } else if (expanded) {
+      $('#sessions').scrollTop = threadsScrollTop;
+      $('header [data-settings]').focus({ preventScroll: true });
+    }
+  }
   if (focused?.key) {
     const target = [...document.querySelectorAll<HTMLButtonElement>('button[data-key]')].find(button => button.dataset.key === focused.key && button.dataset.action === focused.action);
     if (target) target.focus({ preventScroll: true });
@@ -241,7 +258,7 @@ function renderNow(value: PanelPayload) {
   }
   if (focused?.action === 'restore-all') (document.querySelector<HTMLButtonElement>('.restore-all') ?? document.querySelector<HTMLButtonElement>('.session-button'))?.focus({ preventScroll: true });
   if (openingHidden) document.querySelector('.hidden-heading')?.scrollIntoView({ block: 'start' });
-  if (changing && previousList && value.motion) {
+  if (changing && previousList && value.motion && value.view === 'threads') {
     const timing = { duration: value.motion.duration, easing: 'cubic-bezier(.333, 1, .667, 1)' };
     const listOffset = previousList.top - $('#sessions').getBoundingClientRect().top;
     for (const button of document.querySelectorAll<HTMLButtonElement>('.session-button')) {
@@ -263,10 +280,10 @@ function renderNow(value: PanelPayload) {
     }
   }
 }
-$('#empty-settings').addEventListener('click', () => act({ type: 'settings', y: $('#empty-settings').getBoundingClientRect().top }));
+$('#empty-settings').addEventListener('click', () => act({ type: 'settings' }));
 $('#expand').addEventListener('click', () => act({ type: 'expand' }));
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-settings]')) {
-  button.addEventListener('click', () => act({ type: 'settings', y: button.getBoundingClientRect().top }));
+  button.addEventListener('click', () => act({ type: 'settings' }));
 }
 $('#empty').addEventListener('click', () => { if (!snapshot?.preferences.expanded) act({ type: 'expand' }); });
 $('#hidden-sessions').addEventListener('click', () => act({ type: 'show-hidden' }));
@@ -276,38 +293,43 @@ for (const button of document.querySelectorAll<HTMLButtonElement>('[data-sort]')
     if (order === 'activity' || order === 'project') act({ type: 'sort', order });
   });
 }
-$('#handle').addEventListener('pointerdown', event => {
-  if (event.button !== 0 || dragging || (event.target instanceof Element && event.target.closest('button'))) return;
-  event.preventDefault();
-  dragging = { pointerId: event.pointerId, screenY: event.screenY };
-  $('#handle').setPointerCapture(event.pointerId);
-  document.body.classList.add('dragging');
-  act({ type: 'move', phase: 'start', screenY: event.screenY });
-});
-$('#handle').addEventListener('pointermove', event => {
-  if (!dragging || event.pointerId !== dragging.pointerId) return;
-  dragging.screenY = event.screenY;
-  if (dragFrame) return;
-  dragFrame = requestAnimationFrame(() => {
-    dragFrame = undefined;
-    if (dragging) act({ type: 'move', phase: 'update', screenY: dragging.screenY });
+for (const handle of document.querySelectorAll<HTMLElement>('.panel-handle')) {
+  handle.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || dragging || (event.target instanceof Element && event.target.closest('button'))) return;
+    event.preventDefault();
+    dragging = { pointerId: event.pointerId, screenY: event.screenY, handle };
+    handle.setPointerCapture(event.pointerId);
+    document.body.classList.add('dragging');
+    act({ type: 'move', phase: 'start', screenY: event.screenY });
   });
-});
+  handle.addEventListener('pointermove', event => {
+    if (!dragging || event.pointerId !== dragging.pointerId) return;
+    dragging.screenY = event.screenY;
+    if (dragFrame) return;
+    dragFrame = requestAnimationFrame(() => {
+      dragFrame = undefined;
+      if (dragging) act({ type: 'move', phase: 'update', screenY: dragging.screenY });
+    });
+  });
+  handle.addEventListener('pointerup', finishDrag);
+  handle.addEventListener('pointercancel', finishDrag);
+  handle.addEventListener('lostpointercapture', finishDrag);
+}
 function finishDrag(event: PointerEvent) {
   if (!dragging || event.pointerId !== dragging.pointerId) return;
-  const { pointerId, screenY } = dragging;
+  const { pointerId, screenY, handle } = dragging;
   dragging = undefined;
   if (dragFrame !== undefined) cancelAnimationFrame(dragFrame); dragFrame = undefined;
   document.body.classList.remove('dragging');
   act({ type: 'move', phase: 'end', screenY: event.type === 'pointerup' ? event.screenY : screenY });
-  if ($('#handle').hasPointerCapture(pointerId)) $('#handle').releasePointerCapture(pointerId);
+  if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
 }
-$('#handle').addEventListener('pointerup', finishDrag);
-$('#handle').addEventListener('pointercancel', finishDrag);
-$('#handle').addEventListener('lostpointercapture', finishDrag);
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') {
     hideTooltip();
+    if (snapshot?.view === 'settings') {
+      event.preventDefault(); closeSettings(); return;
+    }
     if (snapshot?.preferences.expanded) {
       event.preventDefault();
       act({ type: 'expand' });

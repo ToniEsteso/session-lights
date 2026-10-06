@@ -7,21 +7,23 @@
   <title>Session Lights</title>
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="settings.css">
 </head>
 <body>
-  <main id="panel" class="panel" aria-label="Session Lights">
-    <header id="handle">
+  <main id="panel" class="panel" data-view="threads" aria-label="Session Lights">
+    <section id="threads-view" class="threads-view" aria-label="Threads">
+    <header id="handle" class="panel-handle">
       <div class="wide sort-tools" role="group" aria-label="Sort chats">
         <button data-sort="activity" aria-label="Sort by latest activity" aria-pressed="true">Activity</button>
         <button data-sort="project" aria-label="Group by project" aria-pressed="false">Project</button>
       </div>
-      <button class="wide gear" data-settings aria-label="Settings" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.6 2.1-1.8 1-2.1-.5-2.5 4.3 1.5 1.6v2.1l-1.5 1.5L5 19.4l2.1-.5 1.8 1 .6 2.1h5l.6-2.1 1.8-1 2.1.5 2.5-4.3-1.5-1.5v-2.1l1.5-1.6L19 5.6l-2.1.5-1.8-1-.6-2.1z"/><circle cx="12" cy="12.5" r="3.2"/></svg><span class="update-badge" hidden></span></button>
+      <button class="wide gear" data-settings aria-label="Settings" aria-controls="settings-view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.6 2.1-1.8 1-2.1-.5-2.5 4.3 1.5 1.6v2.1l-1.5 1.5L5 19.4l2.1-.5 1.8 1 .6 2.1h5l.6-2.1 1.8-1 2.1.5 2.5-4.3-1.5-1.5v-2.1l1.5-1.6L19 5.6l-2.1.5-1.8-1-.6-2.1z"/><circle cx="12" cy="12.5" r="3.2"/></svg><span class="update-badge" hidden></span></button>
     </header>
     <div id="sessions" role="list" aria-label="Sessions"></div>
     <button id="empty" aria-label="No sessions. Show session list." hidden><span class="empty-dot" aria-hidden="true"></span><span class="wide">No local sessions.</span></button>
     <section id="adapters-hidden" aria-label="All adapters are hidden" hidden>
       <p class="wide">All adapters are hidden.</p>
-      <button id="empty-settings" aria-label="All adapters are hidden. Open Settings." aria-haspopup="dialog"><span class="compact empty-dot" aria-hidden="true"></span><span class="wide">Open Settings</span></button>
+      <button id="empty-settings" aria-label="All adapters are hidden. Open Settings." aria-controls="settings-view"><span class="compact empty-dot" aria-hidden="true"></span><span class="wide">Open Settings</span></button>
     </section>
     <section id="usage" aria-label="Usage limits" hidden></section>
     <template id="usage-template">
@@ -33,10 +35,35 @@
     </template>
     <footer>
       <button class="wide hidden-toggle" id="hidden-sessions" aria-expanded="false" aria-controls="sessions" hidden></button>
-      <button class="compact gear" data-settings aria-label="Settings" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.6 2.1-1.8 1-2.1-.5-2.5 4.3 1.5 1.6v2.1l-1.5 1.5L5 19.4l2.1-.5 1.8 1 .6 2.1h5l.6-2.1 1.8-1 2.1.5 2.5-4.3-1.5-1.5v-2.1l1.5-1.6L19 5.6l-2.1.5-1.8-1-.6-2.1z"/><circle cx="12" cy="12.5" r="3.2"/></svg><span class="update-badge" hidden></span></button>
+      <button class="compact gear" data-settings aria-label="Settings" aria-controls="settings-view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.6 2.1-1.8 1-2.1-.5-2.5 4.3 1.5 1.6v2.1l-1.5 1.5L5 19.4l2.1-.5 1.8 1 .6 2.1h5l.6-2.1 1.8-1 2.1.5 2.5-4.3-1.5-1.5v-2.1l1.5-1.6L19 5.6l-2.1.5-1.8-1-.6-2.1z"/><circle cx="12" cy="12.5" r="3.2"/></svg><span class="update-badge" hidden></span></button>
       <button id="expand" title="Show session names" aria-label="Show session names" aria-expanded="false"><svg width="12" height="16" viewBox="0 0 12 16" aria-hidden="true"><path d="M8 4 4 8 8 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </footer>
     <p class="wide health error" id="error" role="alert" hidden></p>
+    </section>
+    <section id="settings-view" class="settings-view" aria-label="Settings" hidden>
+      <header id="settings-handle" class="panel-handle settings-header">
+        <button id="settings-back" aria-label="Back to threads"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.5 4-4 4 4 4"/></svg>Threads</button>
+        <h1>Settings</h1>
+      </header>
+      <div class="settings-content">
+        <fieldset id="appearance">
+          <legend>Appearance</legend>
+          <div class="theme-choices">
+            <label><input type="radio" name="theme" value="system" checked>System</label>
+            <label><input type="radio" name="theme" value="light">Light</label>
+            <label><input type="radio" name="theme" value="dark">Dark</label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Adapters</legend>
+          <div id="adapters"></div>
+        </fieldset>
+        <progress id="progress" max="100" aria-label="Update download" hidden></progress>
+        <button id="update" disabled>Check for updates</button>
+        <p id="settings-error" role="alert" hidden></p>
+      </div>
+      <footer id="settings-footer"><button id="quit">Quit</button><span id="version"></span></footer>
+    </section>
   </main>
   <script src="renderer.js"></script>
 </body>

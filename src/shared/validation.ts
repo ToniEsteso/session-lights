@@ -12,9 +12,7 @@ export function hasErrorCode(error: unknown, code: string): boolean {
 export function parseAction(value: unknown): PanelAction | undefined {
   if (!isRecord(value)) return;
   switch (value.type) {
-    case 'settings':
-      if (typeof value.y === 'number' && Number.isFinite(value.y)) return { type: 'settings', y: value.y };
-      return;
+    case 'settings': return { type: 'settings', reducedMotion: value.reducedMotion === true };
     case 'sort':
       if (value.order === 'activity' || value.order === 'project') return { type: 'sort', order: value.order };
       return;
