@@ -1,23 +1,30 @@
 import type { IpcMainEvent, IpcMainInvokeEvent, Rectangle } from 'electron';
 import type { MonitorSnapshot, ProviderUsage, PanelMotion, PanelPayload, TooltipTarget, TooltipData, SettingsPayload } from './shared/contracts.js';
-import { parseAction, parseTooltipTarget, parseSettingsAction, errorMessage } from './shared/validation.js';
+import { parseAction, parseTooltipTarget, parseSettingsAction, errorMessage, hasErrorCode } from './shared/validation.js';
 import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, nativeTheme, autoUpdater } from 'electron';
 import * as path from 'node:path';
+import { existsSync, mkdirSync } from 'node:fs';
 import { SessionMonitor, visibleSessions } from './core.js';
 import { sessionSections } from './shared/session-sections.js';
 import { createAdapters } from './adapters/index.js';
 import { Preferences } from './preferences.js';
-import { existsSync } from 'node:fs';
 import { Updates } from './updates.js';
 import { updateView } from './shared/updates.js';
 import { readSystemTextScale, readTestTextScale } from './system-text.js';
 
 const testDir = process.argv.find(arg => arg.startsWith('--desktop-test='))?.split('=').slice(1).join('=');
-if (testDir) app.setPath('userData', path.join(testDir, 'profile'));
-else if (process.argv.includes('--launch-check') || process.argv.includes('--demo')) {
-  app.setPath('userData', path.join(app.getPath('temp'), `session-lights-preview-${process.pid}`));
-}
 app.setName('Session Lights');
+const preview = process.argv.includes('--launch-check') || process.argv.includes('--demo');
+const standardUserData = app.getPath('userData');
+const standardSessionData = app.getPath('sessionData');
+let lockProfile = standardUserData;
+try { mkdirSync(lockProfile, { recursive: true }); }
+catch (error) {
+  if (app.isPackaged || !['EACCES', 'EPERM', 'EROFS'].some(code => hasErrorCode(error, code))) throw error;
+  lockProfile = path.join(path.resolve(__dirname, '..', '..'), '.tmp', 'session-lights-dev-lock');
+  mkdirSync(lockProfile, { recursive: true });
+}
+app.setPath('userData', lockProfile);
 const demo = process.argv.includes('--demo');
 let win: BrowserWindow;
 let tray: Tray | undefined;
@@ -405,8 +412,27 @@ async function main() {
   app.on('activate', showPanel);
 }
 
-if (!app.requestSingleInstanceLock()) app.quit();
-else {
+if (!app.requestSingleInstanceLock()) {
+  if (testDir) {
+    console.error('Another Session Lights instance is already running; desktop tests did not start.');
+    app.exit(1);
+  } else app.quit();
+} else {
+  // Source launches share a lock, then restore their normal or isolated data profile.
+  if (testDir) {
+    const profile = path.join(testDir, 'profile');
+    mkdirSync(profile, { recursive: true });
+    app.setPath('userData', profile);
+    app.setPath('sessionData', profile);
+  } else if (preview) {
+    const profile = path.join(app.getPath('temp'), `session-lights-preview-${process.pid}`);
+    mkdirSync(profile, { recursive: true });
+    app.setPath('userData', profile);
+    app.setPath('sessionData', profile);
+  } else if (!app.isPackaged) {
+    app.setPath('userData', standardUserData);
+    app.setPath('sessionData', standardSessionData);
+  }
   app.on('second-instance', () => { if (win) showPanel(); });
   // Native updates can close windows before the normal before-quit event.
   autoUpdater.on('before-quit-for-update', () => { quitting = true; });
