@@ -66,7 +66,7 @@ CLI opening checks the saved session and workspace, then starts an interactive t
 ## Compilation and packaging
 
 `tsconfig.base.json` enables strict checks, checked array access, exact optional properties, and unused code checks.
-`tsconfig.json` checks and compiles the Node, Electron, script, and test modules.
+`tsconfig.json` checks and compiles the Node, Electron, and script modules.
 Electron's declarations require the DOM library, but renderer code has a separate configuration.
 `src/ui/tsconfig.json` exposes browser types without Node globals and prevents UI emission by the TypeScript compiler.
 
@@ -84,7 +84,7 @@ It would not improve the provider contract, so the migration keeps these runtime
 All generated output goes into `build/`. `pnpm run build` clears that directory first.
 Packages include `build/src/`, with `build/src/main.js` as their entry point.
 They do not require TypeScript, esbuild, tests, or installed npm packages at runtime.
-Test adapters and native smoke checks load only when the isolated desktop test flag is present.
+The app has no test adapters or native test hooks.
 
 Relative imports use the emitted `.js` extension. TypeScript resolves these imports to `.ts` source during checks.
 Source maps support debugging the emitted code.
@@ -92,17 +92,14 @@ The local UI configuration also gives editors the browser project when they open
 
 ## Verification
 
-`pnpm run check` checks all source, scripts, tests, renderer globals, and negative type fixtures.
-`pnpm test` builds and runs the real SQLite and child-process tests.
-`pnpm run audit:migration` verifies source coverage and the generated browser and preload boundaries.
-`pnpm run test:desktop` runs the native Electron app with isolated files and records its checks and screenshots.
-Use `node --experimental-sqlite build/scripts/desktop-test.js --theme-only` after a build for the focused theme checks and cold restarts.
-Add `--verify-system-theme` on Windows to check real operating system theme changes. This optional check restores the original theme setting.
-`pnpm run test:package <folder>` compares packaged files with build output and checks a native launch.
-The package launch check uses isolated files and verifies the installed version, update setup, and native window.
+`pnpm run check` checks source, scripts, and renderer globals.
+`pnpm run build` compiles and bundles the app.
+The previous automated suite, source assertions, and native test hooks have been removed.
+Future tests must prove feature behavior through public interfaces. See [AGENTS.md](../AGENTS.md) for the test rules.
 
 CI checks Node 22.12 and Node 24 on Windows, macOS, and Linux.
 It also builds a Windows installer and an unpacked macOS app.
-Native desktop checks still require a desktop session. Successful compilation does not verify native window behavior.
+Feature verification requires the running app and a desktop session for native behavior.
+Successful compilation does not verify native window behavior.
 
 See [Add a provider](add-a-provider.md) for a complete extension example.

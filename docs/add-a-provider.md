@@ -4,7 +4,8 @@
 2. Implement `SessionAdapter`. Use a unique provider `id`.
 3. Parse your provider's external data before returning it.
 4. Add the adapter to `createAdapters()` in `src/adapters/index.ts`.
-5. Run `pnpm run check`, `pnpm test`, and `pnpm run test:desktop`.
+5. Run `pnpm run check` and `pnpm run build`.
+6. Verify the provider's session states, usage, and chat opening through the running app.
 
 The following adapter shows the required contract and the optional usage and opening capabilities.
 
@@ -59,6 +60,7 @@ Use a shared `projectId` only when providers refer to the same project.
 Prefix a provider-local project ID with the provider ID.
 See the [README project rules](../README.md#extend) for workspace normalization and grouping.
 
-Add a test that reads a provider fixture through `SessionMonitor`.
-Check its project grouping, usage, and failure recovery.
-The extension test in `test/contracts.test.ts` uses a second provider through the public monitor methods.
+For each future test, name a feature failure that it detects.
+Use public adapter or `SessionMonitor` methods with small external data fixtures.
+Check observable session states, project grouping, usage, and failure recovery where applicable.
+Follow the [test rules](../AGENTS.md#test-feature-behavior). The previous extension tests have been removed.

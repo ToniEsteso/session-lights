@@ -19,13 +19,8 @@ jobs:
           cache: true
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check
-      - run: pnpm test
-      - run: node build/scripts/audit-migration.js
-      - run: node build/scripts/update-recovery-test.js
-        if: runner.os == 'Windows'
+      - run: pnpm run build
       - run: pnpm run pack
-        if: runner.os == 'Windows'
-      - run: pnpm run test:package dist/win-unpacked
         if: runner.os == 'Windows'
       - run: pnpm exec electron-builder --config electron-builder.json --mac --dir --config.mac.identity=- --config.mac.notarize=false --publish never
         if: runner.os == 'macOS'

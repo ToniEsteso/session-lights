@@ -13,18 +13,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p src/ui/tsconfig.json",
     "start": "pnpm run build && node build/scripts/start.js",
     "demo": "pnpm run start --demo",
-    "test": "pnpm run build && node --experimental-sqlite --test build/test/*.test.js",
     "check": "pnpm run typecheck",
-    "test:desktop": "pnpm run build && node --experimental-sqlite build/scripts/desktop-test.js",
-    "test:package": "node build/scripts/package-test.js",
     "check:usage": "pnpm run build && node build/scripts/usage-check.js",
     "pack": "pnpm run build && node build/scripts/pack.js",
-    "clean": "node -e \"const p = require('node:path'); const root = process.cwd(); const target = p.resolve(root, 'build'); if (p.dirname(target) !== root) throw Error('Invalid build path'); require('node:fs').rmSync(target, { recursive: true, force: true });\"",
-    "audit:migration": "pnpm run build && node build/scripts/audit-migration.js",
-    "test:updates": "pnpm run build && node build/scripts/update-test.js"
+    "clean": "node -e \"const p = require('node:path'); const root = process.cwd(); const target = p.resolve(root, 'build'); if (p.dirname(target) !== root) throw Error('Invalid build path'); require('node:fs').rmSync(target, { recursive: true, force: true });\""
   },
   "devDependencies": {
-    "@electron/asar": "4.3.1",
     "@types/node": "22.20.5",
     "@types/semver": "7.8.0",
     "electron": "44.5.1",

@@ -26,7 +26,7 @@ These are ideas, not implemented features.
 ## Providers
 
 The adapter contract now covers sessions, opening chats, usage, and resource cleanup.
-A second test provider checks different limit names, limits without a reset time, failures, and chat opening.
+The previous second-provider test fixture has been removed. Future provider tests must follow `AGENTS.md`.
 
 Choose the next real provider before adding more shared abstractions.
 Confirm how it identifies active sessions, requests user input, reports limits, and opens an existing chat.

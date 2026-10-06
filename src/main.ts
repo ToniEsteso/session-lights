@@ -10,11 +10,9 @@ import { createAdapters } from './adapters/index.js';
 import { Preferences } from './preferences.js';
 import { Updates } from './updates.js';
 import { updateView } from './shared/updates.js';
-import { readSystemTextScale, readTestTextScale } from './system-text.js';
+import { readSystemTextScale } from './system-text.js';
 
-const testDir = process.argv.find(arg => arg.startsWith('--desktop-test='))?.split('=').slice(1).join('=');
 app.setName('Session Lights');
-const preview = process.argv.includes('--launch-check') || process.argv.includes('--demo');
 const standardUserData = app.isPackaged ? app.getPath('userData') : path.join(app.getAppPath(), '.tmp', 'dev-profile');
 const standardSessionData = app.isPackaged ? app.getPath('sessionData') : standardUserData;
 let lockProfile = standardUserData;
@@ -58,9 +56,9 @@ function panelDisplay() {
   return screen.getAllDisplays().find(d => d.id === (panelDrag?.displayId ?? preferences.value.displayId)) || screen.getPrimaryDisplay();
 }
 async function refreshTextScale(force = false) {
-  if (!force && !testDir && Date.now() - lastTextScaleRead < 10000) return;
+  if (!force && Date.now() - lastTextScaleRead < 10000) return;
   lastTextScaleRead = Date.now();
-  const scale = testDir ? await readTestTextScale(path.join(testDir, 'system-text-percent.json')) : await readSystemTextScale();
+  const scale = await readSystemTextScale();
   if (scale !== systemTextScale) {
     systemTextScale = scale;
     hideTooltip(); stopResize(); positionPanel(); notify();
@@ -282,7 +280,7 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
 }
 
 async function main() {
-  const enabled = app.isPackaged && !demo && !testDir && existsSync(path.join(process.resourcesPath, 'app-update.yml'));
+  const enabled = app.isPackaged && !demo && existsSync(path.join(process.resourcesPath, 'app-update.yml'));
   const engine = enabled ? (await import('electron-updater')).default.autoUpdater : undefined;
   updates = new Updates(engine, 'Use an installed release to check for updates.', () => {
     notify(); updateTrayMenu();
@@ -292,7 +290,7 @@ async function main() {
   // Set Chromium and native menus before any window can paint.
   nativeTheme.themeSource = preferences.value.theme;
   await refreshTextScale(true);
-  monitor = new SessionMonitor(await createAdapters({ demo, testDir }));
+  monitor = new SessionMonitor(await createAdapters({ demo }));
   usage = monitor.usageSnapshot();
   win = new BrowserWindow({ width: compactWidth, height: 100, show: false, frame: false, transparent: true,
     resizable: false, maximizable: false, minimizable: false, fullscreenable: false, skipTaskbar: true,
@@ -303,7 +301,7 @@ async function main() {
   win.setAlwaysOnTop(true, panelLevel);
   if (process.platform === 'darwin') {
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    if (!testDir) app.dock?.hide();
+    app.dock?.hide();
   }
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => event.preventDefault());
@@ -362,27 +360,6 @@ async function main() {
   if (process.platform === 'darwin') tooltipWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   await tooltipWin.loadFile(path.join(__dirname, 'ui', 'tooltip.html'));
   await win.loadFile(path.join(__dirname, 'ui', 'index.html'));
-  if (testDir) {
-    await refreshUsage();
-    const startupTheme = process.argv.find(arg => arg.startsWith('--theme-startup='))?.slice('--theme-startup='.length);
-    if (startupTheme === 'light' || startupTheme === 'dark' || startupTheme === 'system') {
-      const { checkThemeStartup } = await import('../scripts/theme-smoke.js');
-      await checkThemeStartup({ win, tooltipWin, testDir, refresh }, startupTheme);
-      app.quit(); return;
-    }
-    if (process.argv.includes('--theme-only')) {
-      const { checkThemes } = await import('../scripts/theme-smoke.js');
-      showPanel();
-      const checks = await checkThemes({ win, tooltipWin, testDir, refresh });
-      const { writeFile } = await import('node:fs/promises');
-      await writeFile(path.join(testDir, 'theme-report.json'), JSON.stringify({ checks }, null, 2));
-      console.log(`Theme checks passed: ${checks.length}.`);
-      app.quit(); return;
-    }
-    const { run } = await import('../scripts/desktop-smoke.js');
-    return run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, testDir, preferences });
-  }
-
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect x="6" y="1" width="12" height="22" rx="6" fill="#25292d"/><circle cx="12" cy="6" r="3" fill="#8cce6b"/><circle cx="12" cy="12" r="3" fill="#ffd45e"/><circle cx="12" cy="18" r="3" fill="#f5f5ef"/></svg>';
   const icon = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
   // Electron's native tray needs a bitmap on Windows. Chromium renders the SVG first.
@@ -396,12 +373,6 @@ async function main() {
   updateTrayMenu(); tray.on('click', () => win.isVisible() ? win.hide() : showPanel());
   showPanel();
   console.log(`Session Lights is running. Local sessions: ${snapshot.sessions.length}. Panel above other windows: ${win.isAlwaysOnTop()}.`);
-  if (process.argv.includes('--launch-check')) {
-    console.log(`Version: ${app.getVersion()}.`);
-    console.log(`Update mode: ${updates.state.kind}.`);
-    await refreshUsage(); console.log(`Usage windows: ${usage.reduce((sum, source) => sum + source.windows.filter(limit => Number.isFinite(limit.remainingPercent)).length, 0)}.`);
-    app.quit(); return;
-  }
   updates.start();
   const pollUsage = async () => {
     await refreshUsage();
@@ -419,18 +390,10 @@ async function main() {
 }
 
 if (!app.requestSingleInstanceLock()) {
-  if (testDir) {
-    console.error('Another Session Lights instance is already running; desktop tests did not start.');
-    app.exit(1);
-  } else app.quit();
+  app.quit();
 } else {
   // Source launches restore their normal or isolated data profile.
-  if (testDir) {
-    const profile = path.join(testDir, 'profile');
-    mkdirSync(profile, { recursive: true });
-    app.setPath('userData', profile);
-    app.setPath('sessionData', profile);
-  } else if (preview) {
+  if (demo) {
     const profile = path.join(app.getPath('temp'), `session-lights-preview-${process.pid}`);
     mkdirSync(profile, { recursive: true });
     app.setPath('userData', profile);

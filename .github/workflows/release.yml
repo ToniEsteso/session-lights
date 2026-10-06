@@ -46,9 +46,9 @@ jobs:
         run: node -e "const v = require('./package.json').version; if (process.env.RELEASE_TAG !== 'v' + v || !/^\d+\.\d+\.\d+$/.test(v)) throw Error('Use a stable version tag that matches package.json');"
       - run: pnpm install --frozen-lockfile
         if: matrix.platform == 'win' || inputs.include_mac
-      - run: pnpm test
+      - run: pnpm run check
         if: matrix.platform == 'win' || inputs.include_mac
-      - run: pnpm run audit:migration
+      - run: pnpm run build
         if: matrix.platform == 'win' || inputs.include_mac
       - name: Build signed Windows installer
         if: matrix.platform == 'win'

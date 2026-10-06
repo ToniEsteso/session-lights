@@ -96,7 +96,7 @@ The CLI does not record every shell or file approval prompt in its session histo
 Only local sessions with local records are supported. Remote/cloud sessions are not included.
 The adapter reads the last 512 KiB of each record or log file. Older pending notifications or input requests outside that range can be missed.
 If the turn history database cannot be read, the adapter uses session records and reports the limit in its status tooltip. Conflicting records show Unknown until the current turn can be confirmed. Invalid timestamp rows are skipped without hiding healthy chats.
-macOS window behavior and its default log path need validation on a Mac. Windows native tests are included.
+macOS window behavior and its default log path need validation on a Mac.
 
 Codex documents runtime states in its [app-server protocol](https://learn.chatgpt.com/docs/app-server).
 Chat links use the [documented desktop link format](https://learn.chatgpt.com/docs/reference/commands).
@@ -105,15 +105,6 @@ Account limits remain under the Codex adapter and cover both desktop and CLI use
 
 Starting a separate app-server does not give this panel the desktop app's live runtime state.
 The local session reader opens Codex records read-only. The optional usage process has the separate side effects described above.
-
-To check the installed CLI and its local records, run:
-
-```sh
-pnpm run build
-node --experimental-sqlite build/scripts/cli-check.js
-```
-
-Add `--id=<session-id> --expect=idle` to check a known session. Add `--open` to test terminal resume. Add `--panel` to check its light and adapter switch in a separate native test profile. Add `--root=<Codex home>` when testing records outside the default Codex home.
 
 ## Extend
 
@@ -184,27 +175,23 @@ Claude, OpenCode, and other tools are not yet implemented.
 
 ```sh
 pnpm run check
-pnpm test
-pnpm run audit:migration
-pnpm run test:desktop
-node build/scripts/update-recovery-test.js
+pnpm run build
 node --experimental-sqlite build/scripts/records-benchmark.js
 ```
 
-Run native desktop checks one at a time. They share the operating system desktop and keyboard focus.
-The update recovery check uses a controlled updater and verifier in the real native app. It checks that session and usage reads continue after a delayed install failure. It cannot install an update.
+`pnpm run check` checks types. `pnpm run build` compiles and bundles the app.
+These commands do not verify feature behavior.
 The records benchmark measures three polls of 300 large saved sessions in an isolated fixture. Add `--root=<fixture folder>` to reuse the same records for a comparison.
 
-The desktop check runs the real Electron app against isolated test files.
-It checks the panel, state updates, long lists, pins, usage, dragging, and saved settings. It saves screenshots and a report under `evidence/`.
-It does not change your Codex data or click into a real Codex chat.
-Usage UI checks use an isolated local JSON-RPC service. Run `pnpm run check:usage` to check the real account connection.
+The previous test suite and native test hooks have been removed.
+See [AGENTS.md](AGENTS.md) for the rules for future feature tests and verification.
+Use `pnpm run demo` to inspect the panel with sample sessions.
+Run `pnpm run check:usage` to read the real account limits. This diagnostic prints the reading and does not verify the usage UI.
 
-All app code, scripts, and tests use TypeScript. Generated output goes into `build/`.
+All app code and scripts use TypeScript. Generated output goes into `build/`.
 See [TypeScript architecture](docs/architecture.md) for compiler settings, module ownership, and build rules.
 The source is kept in a local Git repo. Builds, dependencies, and test evidence are excluded.
-See [Migration verification](docs/migration-verification.md) for the current checks and platform limits.
-See [VERIFICATION.md](VERIFICATION.md) for earlier review results.
+The [migration report](docs/migration-verification.md) and [earlier review](VERIFICATION.md) record historical results from the removed suite.
 
 ## License
 

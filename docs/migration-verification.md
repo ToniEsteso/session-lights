@@ -1,5 +1,7 @@
 # TypeScript migration verification
 
+Historical report. The test suite and test hooks described below were removed on 6 October 2026. These results do not verify the current checkout.
+
 Verified on Windows on 5 October 2026.
 All 35 app, script, test, and declaration files use TypeScript.
 The compiler uses strict checks without skipped dependency checks or suppressed implementation errors.

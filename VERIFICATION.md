@@ -1,5 +1,7 @@
 # Review and verification
 
+Historical report. The test suite and test hooks described below were removed on 6 October 2026. These results do not verify the current checkout.
+
 Project: `./`.
 Review date: 2026-10-05.
 

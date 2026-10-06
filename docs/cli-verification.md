@@ -1,5 +1,7 @@
 # Codex CLI adapter verification
 
+Historical report. The test suite and test hooks described below were removed on 6 October 2026. These results do not verify the current checkout.
+
 The desktop and CLI adapters now show separate sessions and Settings switches. The desktop adapter keeps its `codex` ID. CLI sessions use `codex-cli`. Both adapters share record parsing. Account limits have one reader. CLI sessions open with `codex resume` in their saved workspace.
 
 The change was developed and verified in `C:/workspaces/session-lights/.worktrees/codex-cli-20261005`.

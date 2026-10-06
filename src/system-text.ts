@@ -1,5 +1,4 @@
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -28,8 +27,4 @@ export async function readSystemTextScale(): Promise<number> {
     // A missing value means the user has not changed the default text size.
     return 1;
   }
-}
-
-export async function readTestTextScale(file: string): Promise<number> {
-  return scaleFromPercent(JSON.parse(await readFile(file, 'utf8')));
 }

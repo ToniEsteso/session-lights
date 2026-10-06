@@ -4,7 +4,7 @@
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm test
+pnpm run check
 pnpm run pack
 ```
 
@@ -52,9 +52,9 @@ Local Windows installers can be unsigned for testing.
 Before distributing installers, resolve the release gates in [AUDIT.md](../AUDIT.md). Obtain the missing lazy-val notice, include it in the distribution, and confirm code and icon rights. The current notice file records this open requirement.
 
 1. Update the version in `package.json` with an appropriate version increment.
-2. Run `pnpm test`, `pnpm run test:desktop`, and `pnpm run audit:migration`.
-3. Build the installer and verify it with `pnpm run test:package dist/win-unpacked` on Windows.
-4. Run `pnpm run test:updates dist/Session-Lights-<version>-x64-Setup.exe` on Windows.
+2. Run `pnpm run check` and `pnpm run build`.
+3. Build the installer with `pnpm run pack`. Verify installation and panel behavior on a disposable system.
+4. Verify an update between two signed installed versions on each supported operating system.
 5. Commit the reviewed changes and create a version tag such as `v0.2.0`.
 6. Push the commit and tag to the source repository.
 7. Run the **Release** workflow for that tag. Select Mac builds only when Mac signing is configured.
@@ -69,8 +69,10 @@ Keep previous releases available for downloads and recovery.
 
 ## Verify an update
 
-`pnpm run test:updates <installer>` runs the real Windows updater against an isolated local HTTP server.
-It checks version discovery, manual download, checksum verification, failure, retry, unsigned publisher rejection, and an unavailable signature verifier. It runs from an unsigned development Electron runtime, so it must reject the final download. It does not prove that a signed installed app accepts a valid update.
-The server and updater cache use test folders. The check does not publish a release or install an update.
-Use two installed versions on a test computer to verify the restart and installation step before the first public release.
-Mac updates need a separate signed test on a Mac.
+Use two signed installed versions on a disposable system before a public release.
+Check update discovery, manual download, progress, restart, and the installed version.
+Confirm that saved preferences remain after the update.
+Check download failure and retry. Confirm that an invalid Windows publisher prevents installation.
+Verify Mac updates with signed builds on a Mac.
+Record the observed results and any paths that could not be checked.
+The previous automated updater scripts have been removed.
