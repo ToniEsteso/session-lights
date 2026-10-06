@@ -6,6 +6,14 @@ build/
 .pnpm-store/
 .evidence/
 .playwright-cli/
-.tmp/
+.tmp
+.tmp-*
+*.tmp
+*.log
+*.tsbuildinfo
+
+.DS_Store
+Thumbs.db
+Desktop.ini
 
 .worktrees/
