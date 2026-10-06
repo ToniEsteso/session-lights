@@ -204,7 +204,7 @@ function renderNow(value: PanelPayload) {
       button.dataset.key = session.key; button.dataset.action = 'session';
       const activityAge = age(session.updatedAt);
       button.setAttribute('aria-label', `${session.title}: ${labels[session.state]}`);
-      button.setAttribute('aria-description', [session.provider, session.workspace || session.project, session.detail,
+      button.setAttribute('aria-description', [panelText.provider(session), session.workspace || session.project, session.detail,
         `Last activity: ${activityAge}`].filter(Boolean).join('. '));
       const dot = document.createElement('span'); dot.className = `dot ${session.state}`;
       dot.setAttribute('aria-hidden', 'true');
@@ -212,7 +212,7 @@ function renderNow(value: PanelPayload) {
       const title = document.createElement('span'); title.className = 'session-title'; title.textContent = session.title;
       const detail = document.createElement('span'); detail.className = 'session-detail';
       const project = document.createElement('span'); project.className = 'session-project'; project.textContent = session.project;
-      const meta = document.createElement('span'); meta.className = 'session-meta'; meta.textContent = `· ${session.provider} · ${labels[session.state]}`;
+      const meta = document.createElement('span'); meta.className = 'session-meta'; meta.textContent = `· ${panelText.provider(session)} · ${labels[session.state]}`;
       detail.append(project, meta);
       const activity = document.createElement('time'); activity.className = 'wide session-activity';
       const timestamp = session.updatedAt > 0 ? new Date(session.updatedAt).toJSON() : null;

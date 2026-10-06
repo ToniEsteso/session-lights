@@ -19,14 +19,29 @@ class Preferences {
   value: PanelPreferences = { ...DEFAULTS, pinned: [], hidden: [], hiddenAdapters: [] };
   constructor(public readonly file: string) {}
   async load() {
-    try { this.value = clean(JSON.parse(await fs.readFile(this.file, 'utf8'))); }
+    try {
+      const stored: unknown = JSON.parse(await fs.readFile(this.file, 'utf8'));
+      const next = clean(stored);
+      // Unversioned files used separate desktop and CLI switches. Keep the merged
+      // provider visible if either old source was visible. Do not repeat this rule
+      // for saved unified settings or reinterpret an unknown layout marker.
+      if (isRecord(stored) && stored.adapterLayout === undefined) {
+        const hidden = new Set(next.hiddenAdapters);
+        next.hiddenAdapters = next.hiddenAdapters.filter(id => id !== 'codex' && id !== 'codex-cli');
+        if (hidden.has('codex') && hidden.has('codex-cli')) next.hiddenAdapters.push('codex');
+        const sessionKey = (key: string) => key.startsWith('codex-cli:') ? `codex:${key.slice('codex-cli:'.length)}` : key;
+        next.pinned = [...new Set(next.pinned.map(sessionKey))];
+        next.hidden = [...new Set(next.hidden.map(sessionKey))];
+      }
+      this.value = next;
+    }
     catch (error) { if (!hasErrorCode(error, 'ENOENT') && !(error instanceof SyntaxError)) throw error; }
     return this.value;
   }
   async save(value: PanelPreferences) {
     const next = clean(value);
     await fs.mkdir(path.dirname(this.file), { recursive: true });
-    await fs.writeFile(`${this.file}.tmp`, JSON.stringify(next, null, 2));
+    await fs.writeFile(`${this.file}.tmp`, JSON.stringify({ ...next, adapterLayout: 'providers' }, null, 2));
     await fs.rename(`${this.file}.tmp`, this.file);
     this.value = next;
     return this.value;

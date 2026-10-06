@@ -56,6 +56,11 @@ Define known windows in `usage` if their labels must remain visible during faile
 Omit `open()` when chat links are unavailable.
 Add `close()` when the adapter owns a child process or another resource that needs cleanup.
 
+Use one adapter for each provider. If one provider has multiple interfaces, set
+the optional session `source` label, such as `CLI` or `Desktop`. The panel shows
+it beside the provider name. The adapter keeps interface-specific reading and
+opening rules. The provider still has one Settings switch and one usage reader.
+
 Use a shared `projectId` only when providers refer to the same project.
 Prefix a provider-local project ID with the provider ID.
 See the [README project rules](../README.md#extend) for workspace normalization and grouping.

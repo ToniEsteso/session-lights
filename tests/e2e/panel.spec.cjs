@@ -76,11 +76,10 @@ test('theme and adapter switches persist; the empty panel can restore a source',
   await expect.poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(true);
   await page.getByRole('switch', { name: 'Codex', exact: true }).uncheck();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
-  await expect(page.getByRole('listitem')).toHaveText([/Fix CLI/]);
+  await expect(page.getByRole('listitem')).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Usage limits', exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByRole('switch', { name: 'Codex CLI', exact: true }).uncheck();
-  await page.getByRole('switch', { name: 'Claude Code', exact: true }).uncheck();
+  await page.getByRole('switch', { name: 'Claude', exact: true }).uncheck();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
   await expect(page.getByText('All adapters are hidden.', { exact: true })).toBeVisible();
   await lights.restart();
@@ -89,14 +88,14 @@ test('theme and adapter switches persist; the empty panel can restore a source',
   await expect(page.getByRole('radio', { name: 'Dark', exact: true })).toBeChecked();
   await expect.poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(true);
   await expect(page.getByRole('switch', { name: 'Codex', exact: true })).not.toBeChecked();
-  await expect(page.getByRole('switch', { name: 'Codex CLI', exact: true })).not.toBeChecked();
+  await expect(page.getByRole('switch', { name: 'Claude', exact: true })).not.toBeChecked();
   await page.getByRole('switch', { name: 'Codex', exact: true }).check();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
-  await expect(page.getByRole('listitem')).toHaveText([/Review release/, /Build API/]);
+  await expect(page.getByRole('listitem')).toHaveText([/Review release/, /Build API/, /Fix CLI/]);
   await expect(page.getByRole('button', { name: 'Unpin Review release', exact: true })).toBeVisible();
   await expect(page.getByText('Unavailable', { exact: true })).toHaveCount(2);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByRole('switch', { name: 'Codex CLI', exact: true }).check();
+  await page.getByRole('switch', { name: 'Claude', exact: true }).check();
   await page.getByRole('radio', { name: 'Light', exact: true }).check();
   await expect.poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: light)').matches)).toBe(true);
   await page.keyboard.press('Escape');
@@ -108,7 +107,7 @@ test('theme and adapter switches persist; the empty panel can restore a source',
   await expect(page.getByRole('radio', { name: 'Light', exact: true })).toBeChecked();
   await expect.poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: light)').matches)).toBe(true);
   await expect(page.getByRole('switch', { name: 'Codex', exact: true })).toBeChecked();
-  await expect(page.getByRole('switch', { name: 'Codex CLI', exact: true })).toBeChecked();
+  await expect(page.getByRole('switch', { name: 'Claude', exact: true })).toBeChecked();
 });
 
 test('opening a desktop chat hands off its link; launch failures appear and the panel recovers', async ({ lights }) => {

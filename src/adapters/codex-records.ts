@@ -167,12 +167,12 @@ class CodexRecords {
     return turn;
   }
 
-  async read(kind: 'desktop' | 'cli', logData = { signals: new Map<string, TurnSignal>(), found: false }): Promise<SessionReading> {
+  async read(logData = { signals: new Map<string, TurnSignal>(), found: false }): Promise<SessionReading> {
     const now = this.now();
     let stateFile;
     try { stateFile = await newestDatabase(this.root, 'state'); }
     catch (error) { if (!hasErrorCode(error, 'ENOENT')) throw error; }
-    if (!stateFile) return { sessions: [], health: `No Codex session database. Start a local Codex ${kind === 'cli' ? 'CLI session' : 'desktop chat'}.` };
+    if (!stateFile) return { sessions: [], health: 'No Codex session database. Start a local Codex desktop or CLI session.' };
     const state = readDatabase(stateFile, db => {
       const columns = new Set(db.prepare('PRAGMA table_info(threads)').all().map(c => c.name));
       if (!['id', 'title', 'cwd', 'source', 'rollout_path', 'updated_at', 'archived'].every(c => columns.has(c))) throw Error('Unsupported Codex database.');
@@ -184,7 +184,7 @@ class CodexRecords {
     const { rows, projects, invalidRows } = state;
     const selected: ThreadRow[] = [];
     for (const row of rows) {
-      if (kind === 'cli') { if (row.source === 'cli' && row.id) selected.push(row); continue; }
+      if (row.source === 'cli') { if (row.id) selected.push(row); continue; }
       if (!['vscode', 'app', 'desktop'].includes(row.source) || typeof row.id !== 'string' || !row.id) continue;
       let origin = row.originator;
       if (!origin) {
@@ -217,11 +217,12 @@ class CodexRecords {
     }
     const sessions: SessionReading['sessions'] = [];
     for (const row of selected) {
+      const cli = row.source === 'cli';
       let recorded: RolloutTurn | undefined;
       try { recorded = await this.rolloutState(row.rollout_path); }
       catch { recorded = undefined; }
       const updatedAt = epochMilliseconds(Math.max(0, row.updated_at_ms || row.updated_at * 1000, recorded?.updatedAt || 0));
-      const signal: TurnSignal = kind === 'cli' ? { ...(recorded?.waiting ? { waiting: recorded.waiting } : {}), lastUserAt: recorded?.lastUserAt || 0, lastProgressAt: 0 } : logData.signals.get(row.id) || { lastUserAt: 0, lastProgressAt: 0 };
+      const signal: TurnSignal = cli ? { ...(recorded?.waiting ? { waiting: recorded.waiting } : {}), lastUserAt: recorded?.lastUserAt || 0, lastProgressAt: 0 } : logData.signals.get(row.id) || { lastUserAt: 0, lastProgressAt: 0 };
       const history = turns.get(row.id);
       const sameTurn = recorded?.turnId && history?.turnId === recorded.turnId;
       let status = history?.status || recorded?.status;
@@ -235,7 +236,7 @@ class CodexRecords {
         ...recorded, ...signal, status, updatedAt,
         lastUserAt: Math.max(recorded.lastUserAt || 0, signal.lastUserAt || 0),
         // CLI requests clear by call ID. Desktop questions stay open during tool work.
-        lastProgressAt: kind === 'cli' || signal.waiting?.kind === 'question' ? 0 : recorded.lastProgressAt || 0
+        lastProgressAt: cli || signal.waiting?.kind === 'question' ? 0 : recorded.lastProgressAt || 0
       }, now);
       const title = [row.name, row.title].find(value => typeof value === 'string' && value.trim()) || 'Untitled session';
       const cwd = typeof row.cwd === 'string' ? row.cwd : '';
@@ -244,14 +245,15 @@ class CodexRecords {
       const localProjectId = row.project_id == null ? undefined : String(row.project_id);
       const projectId = localProjectId ? `codex:${localProjectId}` : undefined;
       sessions.push({ id: row.id, title: title.replace(/\s+/g, ' ').trim().slice(0, 160),
-        project, ...(projectId ? { projectId } : {}), workspace: cwd, updatedAt, ...state });
+        source: cli ? 'CLI' : 'Desktop', project, ...(projectId ? { projectId } : {}), workspace: cwd, updatedAt, ...state });
     }
     // Release cached logs and rollouts which are no longer used.
     const activeRollouts = new Set(selected.map(row => row.rollout_path));
     for (const file of this.rolloutCache.keys()) if (!activeRollouts.has(file)) this.rolloutCache.delete(file);
     for (const [file, value] of this.fileCache) if (now - value.modifiedAt > 2 * 86_400_000) this.fileCache.delete(file);
-    return { sessions, health: (kind === 'cli' ? 'Reading local CLI session records. Approval prompts without recorded requests cannot be detected.' : logData.found ? 'Reading local session records. State is based on the last recorded event.' :
-      'Reading session records. Desktop logs are missing; approval and question detection is limited.') + historyHealth + (invalidRows ? ' Some session rows have invalid timestamps and were skipped.' : '') };
+    return { sessions, health: 'Reading local Codex desktop and CLI session records. State is based on the last recorded event. CLI approval prompts without recorded requests cannot be detected.' +
+      (logData.found ? '' : ' Desktop logs are missing; desktop approval and question detection is limited.') +
+      historyHealth + (invalidRows ? ' Some session rows have invalid timestamps and were skipped.' : '') };
   }
 }
 

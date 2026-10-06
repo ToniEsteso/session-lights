@@ -2,6 +2,9 @@ import type { EpochMilliseconds, UnixSeconds } from '../shared/time.js';
 import type { UsageWindow } from '../shared/contracts.js';
 import { STATES } from '../shared/contracts.js';
 export const panelText = {
+  provider(session: { provider: string; source?: string }) {
+    return [session.provider, session.source].filter(Boolean).join(' ');
+  },
   labels: { idle: STATES.idle.label, waiting: STATES.waiting.label, working: STATES.working.label, error: STATES.error.label, unknown: STATES.unknown.label },
   available(limit: UsageWindow): limit is UsageWindow & { remainingPercent: number } {
     return typeof limit.remainingPercent === 'number' && Number.isFinite(limit.remainingPercent) && limit.remainingPercent >= 0 && limit.remainingPercent <= 100 &&
