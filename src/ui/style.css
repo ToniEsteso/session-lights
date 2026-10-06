@@ -53,7 +53,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 .pin[aria-pressed='true'] { color: var(--status-waiting); }
 .pin[aria-pressed='true'] path { fill: currentColor; }
 footer { display: flex; align-items: center; justify-content: center; min-height: 24px; flex-shrink: 0; }
-.panel:not(.expanded) footer { margin-top: 5px; padding-top: 4px; border-top: 1px solid var(--border); }
+.panel:not(.expanded) footer { display: none; }
 .expanded .compact { display: none; }
 .gear { position: relative; width: 22px; height: 24px; padding: 3px; color: var(--muted); border-radius: 3px; }
 .gear:hover { color: var(--text); background: var(--selected); }
