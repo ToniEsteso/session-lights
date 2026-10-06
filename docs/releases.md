@@ -3,16 +3,16 @@
 ## Build a local installer
 
 ```sh
-npm ci
-npm test
-npm run pack
+pnpm install --frozen-lockfile
+pnpm test
+pnpm run pack
 ```
 
 On Windows, the output is `dist/Session-Lights-<version>-<architecture>-Setup.exe`.
 The unpacked app is in `dist/win-unpacked`.
 On macOS, the output includes a `.dmg`, a `.zip`, and update metadata.
 Build on each operating system and CPU type that you distribute.
-`npm run pack -- --dir` builds an unpacked app without an installer.
+`pnpm run pack --dir` builds an unpacked app without an installer.
 Local packaging never publishes a release.
 
 The version in `package.json` is the version source for the installer and the app.
@@ -51,10 +51,10 @@ Local Windows installers can be unsigned for testing.
 
 Before distributing installers, resolve the release gates in [AUDIT.md](../AUDIT.md). Obtain the missing lazy-val notice, include it in the distribution, and confirm code and icon rights. The current notice file records this open requirement.
 
-1. Update the version with `npm version patch --no-git-tag-version` or another appropriate version increment.
-2. Run `npm test`, `npm run test:desktop`, and `npm run audit:migration`.
-3. Build the installer and verify it with `npm run test:package -- dist/win-unpacked` on Windows.
-4. Run `npm run test:updates -- dist/Session-Lights-<version>-x64-Setup.exe` on Windows.
+1. Update the version in `package.json` with an appropriate version increment.
+2. Run `pnpm test`, `pnpm run test:desktop`, and `pnpm run audit:migration`.
+3. Build the installer and verify it with `pnpm run test:package dist/win-unpacked` on Windows.
+4. Run `pnpm run test:updates dist/Session-Lights-<version>-x64-Setup.exe` on Windows.
 5. Commit the reviewed changes and create a version tag such as `v0.2.0`.
 6. Push the commit and tag to the source repository.
 7. Run the **Release** workflow for that tag. Select Mac builds only when Mac signing is configured.
@@ -69,7 +69,7 @@ Keep previous releases available for downloads and recovery.
 
 ## Verify an update
 
-`npm run test:updates -- <installer>` runs the real Windows updater against an isolated local HTTP server.
+`pnpm run test:updates <installer>` runs the real Windows updater against an isolated local HTTP server.
 It checks version discovery, manual download, checksum verification, failure, retry, unsigned publisher rejection, and an unavailable signature verifier. It runs from an unsigned development Electron runtime, so it must reject the final download. It does not prove that a signed installed app accepts a valid update.
 The server and updater cache use test folders. The check does not publish a release or install an update.
 Use two installed versions on a test computer to verify the restart and installation step before the first public release.

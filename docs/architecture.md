@@ -81,7 +81,7 @@ The browser bundles use IIFE format and work with the existing content security 
 An all-ESM runtime would require separate handling for sandboxed preloads and file-loaded UI modules.
 It would not improve the provider contract, so the migration keeps these runtime formats.
 
-All generated output goes into `build/`. `npm run build` clears that directory first.
+All generated output goes into `build/`. `pnpm run build` clears that directory first.
 Packages include `build/src/`, with `build/src/main.js` as their entry point.
 They do not require TypeScript, esbuild, tests, or installed npm packages at runtime.
 Test adapters and native smoke checks load only when the isolated desktop test flag is present.
@@ -92,13 +92,13 @@ The local UI configuration also gives editors the browser project when they open
 
 ## Verification
 
-`npm run check` checks all source, scripts, tests, renderer globals, and negative type fixtures.
-`npm test` builds and runs the real SQLite and child-process tests.
-`npm run audit:migration` verifies source coverage and the generated browser and preload boundaries.
-`npm run test:desktop` runs the native Electron app with isolated files and records its checks and screenshots.
+`pnpm run check` checks all source, scripts, tests, renderer globals, and negative type fixtures.
+`pnpm test` builds and runs the real SQLite and child-process tests.
+`pnpm run audit:migration` verifies source coverage and the generated browser and preload boundaries.
+`pnpm run test:desktop` runs the native Electron app with isolated files and records its checks and screenshots.
 Use `node --experimental-sqlite build/scripts/desktop-test.js --theme-only` after a build for the focused theme checks and cold restarts.
 Add `--verify-system-theme` on Windows to check real operating system theme changes. This optional check restores the original theme setting.
-`npm run test:package -- <folder>` compares packaged files with build output and checks a native launch.
+`pnpm run test:package <folder>` compares packaged files with build output and checks a native launch.
 The package launch check uses isolated files and verifies the installed version, update setup, and native window.
 
 CI checks Node 22.12 and Node 24 on Windows, macOS, and Linux.

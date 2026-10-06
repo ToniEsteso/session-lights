@@ -34,25 +34,28 @@ jobs:
         if: matrix.platform == 'win' || inputs.include_mac
         with:
           node-version: '24'
-          cache: npm
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        if: matrix.platform == 'win' || inputs.include_mac
+        with:
+          cache: true
       - name: Validate tag and version
         if: matrix.platform == 'win' || inputs.include_mac
         shell: bash
         env:
           RELEASE_TAG: ${{ inputs.tag }}
         run: node -e "const v = require('./package.json').version; if (process.env.RELEASE_TAG !== 'v' + v || !/^\d+\.\d+\.\d+$/.test(v)) throw Error('Use a stable version tag that matches package.json');"
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
         if: matrix.platform == 'win' || inputs.include_mac
-      - run: npm test
+      - run: pnpm test
         if: matrix.platform == 'win' || inputs.include_mac
-      - run: npm run audit:migration
+      - run: pnpm run audit:migration
         if: matrix.platform == 'win' || inputs.include_mac
       - name: Build signed Windows installer
         if: matrix.platform == 'win'
         env:
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-        run: npx electron-builder --config electron-builder.json --win --x64 --config.forceCodeSigning=true --publish never
+        run: pnpm exec electron-builder --config electron-builder.json --win --x64 --config.forceCodeSigning=true --publish never
       - name: Build signed Mac installers
         if: matrix.platform == 'mac' && inputs.include_mac
         env:
@@ -61,7 +64,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npx electron-builder --config electron-builder.json --mac --universal --config.forceCodeSigning=true --publish never
+        run: pnpm exec electron-builder --config electron-builder.json --mac --universal --config.forceCodeSigning=true --publish never
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: matrix.platform == 'win' || inputs.include_mac
         with:

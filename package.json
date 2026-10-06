@@ -5,22 +5,23 @@
   "private": true,
   "main": "build/src/main.js",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.12.0",
+    "pnpm": "12.9.1"
   },
   "scripts": {
-    "build": "npm run clean && tsc -p tsconfig.json && tsc -p src/ui/tsconfig.json && node build/scripts/build.js",
+    "build": "pnpm run clean && tsc -p tsconfig.json && tsc -p src/ui/tsconfig.json && node build/scripts/build.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p src/ui/tsconfig.json",
-    "start": "npm run build && node build/scripts/start.js",
-    "demo": "npm run start -- --demo",
-    "test": "npm run build && node --experimental-sqlite --test build/test/*.test.js",
-    "check": "npm run typecheck",
-    "test:desktop": "npm run build && node --experimental-sqlite build/scripts/desktop-test.js",
+    "start": "pnpm run build && node build/scripts/start.js",
+    "demo": "pnpm run start --demo",
+    "test": "pnpm run build && node --experimental-sqlite --test build/test/*.test.js",
+    "check": "pnpm run typecheck",
+    "test:desktop": "pnpm run build && node --experimental-sqlite build/scripts/desktop-test.js",
     "test:package": "node build/scripts/package-test.js",
-    "check:usage": "npm run build && node build/scripts/usage-check.js",
-    "pack": "npm run build && node build/scripts/pack.js",
+    "check:usage": "pnpm run build && node build/scripts/usage-check.js",
+    "pack": "pnpm run build && node build/scripts/pack.js",
     "clean": "node -e \"const p = require('node:path'); const root = process.cwd(); const target = p.resolve(root, 'build'); if (p.dirname(target) !== root) throw Error('Invalid build path'); require('node:fs').rmSync(target, { recursive: true, force: true });\"",
-    "audit:migration": "npm run build && node build/scripts/audit-migration.js",
-    "test:updates": "npm run build && node build/scripts/update-test.js"
+    "audit:migration": "pnpm run build && node build/scripts/audit-migration.js",
+    "test:updates": "pnpm run build && node build/scripts/update-test.js"
   },
   "devDependencies": {
     "@electron/asar": "4.3.1",
@@ -40,5 +41,6 @@
     "type": "git",
     "url": "https://github.com/ToniEsteso/session-lights.git"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "packageManager": "pnpm@12.9.1"
 }

@@ -15,23 +15,24 @@ The panel reads local **Codex desktop and CLI** sessions on Windows and macOS. E
 
 Download an installer from [GitHub Releases](https://github.com/ToniEsteso/session-lights/releases).
 See [installation and update help](docs/installation.md) for Windows and macOS instructions.
-The installer includes its runtime. Node.js and npm are required only for development.
+The installer includes its runtime. Node.js and pnpm are required only for development.
 Release downloads become available after the repository is public and the first release is published.
 
 ## Run from source
 
-Install Node.js 22.12 or later and npm. In this folder, run:
+Install Node.js 22.12 or later and pnpm 12.9.1. In this folder, run:
 
 ```sh
-npm ci
-npm start
+pnpm install --frozen-lockfile
+pnpm start
 ```
 
-`npm start` builds the TypeScript code before starting Electron.
-Use `npm run demo` to see all five colors with sample sessions.
-Use `npm run pack` to build an installer for the current system.
+`pnpm start` builds the TypeScript code before starting Electron.
+Source launches use a profile under `.tmp/dev-profile` in each checkout, so worktrees can run independently.
+Use `pnpm run demo` to see all five colors with sample sessions.
+Use `pnpm run pack` to build an installer for the current system.
 Windows builds produce a per-user NSIS installer. Mac builds produce a DMG and an update ZIP.
-Use `npm run pack -- --dir` for an unpacked development build.
+Use `pnpm run pack --dir` for an unpacked development build.
 See [build and release instructions](docs/releases.md) for signing, release setup, and verification.
 
 ## Use the panel
@@ -108,7 +109,7 @@ The local session reader opens Codex records read-only. The optional usage proce
 To check the installed CLI and its local records, run:
 
 ```sh
-npm run build
+pnpm run build
 node --experimental-sqlite build/scripts/cli-check.js
 ```
 
@@ -182,10 +183,10 @@ Claude, OpenCode, and other tools are not yet implemented.
 ## Checks
 
 ```sh
-npm run check
-npm test
-npm run audit:migration
-npm run test:desktop
+pnpm run check
+pnpm test
+pnpm run audit:migration
+pnpm run test:desktop
 node build/scripts/update-recovery-test.js
 node --experimental-sqlite build/scripts/records-benchmark.js
 ```
@@ -197,7 +198,7 @@ The records benchmark measures three polls of 300 large saved sessions in an iso
 The desktop check runs the real Electron app against isolated test files.
 It checks the panel, state updates, long lists, pins, usage, dragging, and saved settings. It saves screenshots and a report under `evidence/`.
 It does not change your Codex data or click into a real Codex chat.
-Usage UI checks use an isolated local JSON-RPC service. Run `npm run check:usage` to check the real account connection.
+Usage UI checks use an isolated local JSON-RPC service. Run `pnpm run check:usage` to check the real account connection.
 
 All app code, scripts, and tests use TypeScript. Generated output goes into `build/`.
 See [TypeScript architecture](docs/architecture.md) for compiler settings, module ownership, and build rules.

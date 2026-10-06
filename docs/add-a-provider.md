@@ -4,7 +4,7 @@
 2. Implement `SessionAdapter`. Use a unique provider `id`.
 3. Parse your provider's external data before returning it.
 4. Add the adapter to `createAdapters()` in `src/adapters/index.ts`.
-5. Run `npm run check`, `npm test`, and `npm run test:desktop`.
+5. Run `pnpm run check`, `pnpm test`, and `pnpm run test:desktop`.
 
 The following adapter shows the required contract and the optional usage and opening capabilities.
 

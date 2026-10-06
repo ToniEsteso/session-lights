@@ -15,8 +15,8 @@ import { readSystemTextScale, readTestTextScale } from './system-text.js';
 const testDir = process.argv.find(arg => arg.startsWith('--desktop-test='))?.split('=').slice(1).join('=');
 app.setName('Session Lights');
 const preview = process.argv.includes('--launch-check') || process.argv.includes('--demo');
-const standardUserData = app.getPath('userData');
-const standardSessionData = app.getPath('sessionData');
+const standardUserData = app.isPackaged ? app.getPath('userData') : path.join(app.getAppPath(), '.tmp', 'dev-profile');
+const standardSessionData = app.isPackaged ? app.getPath('sessionData') : standardUserData;
 let lockProfile = standardUserData;
 try { mkdirSync(lockProfile, { recursive: true }); }
 catch (error) {
@@ -424,7 +424,7 @@ if (!app.requestSingleInstanceLock()) {
     app.exit(1);
   } else app.quit();
 } else {
-  // Source launches share a lock, then restore their normal or isolated data profile.
+  // Source launches restore their normal or isolated data profile.
   if (testDir) {
     const profile = path.join(testDir, 'profile');
     mkdirSync(profile, { recursive: true });
