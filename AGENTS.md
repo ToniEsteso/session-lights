@@ -7,15 +7,18 @@
 
 ## Test feature behavior
 
-The previous test suite has been removed. Add future tests only for useful feature behavior.
+Test only main use cases and reported defects through observable feature behavior.
 Test count and code coverage are not goals.
+
+- Prefer Playwright end-to-end tests of the running Electron app.
+- Keep zero unit tests. Use public adapter integration tests only when a main use case cannot be checked end to end.
 
 - Start with a feature requirement or a reported defect. Name the wrong behavior that the test must detect.
 - Describe the starting state, the user action or external input, and the expected result before writing the test.
 - Derive the expected result from the requirement. Do not copy the implementation's logic into the test.
 - Use a public interface. For panel features, use the running app. For provider behavior, use public adapter or monitor methods.
 - Assert an observable result, such as a session state, visible message, opened chat, or saved preference after a restart.
-- Test pure functions when their results express a feature rule. Do not test a helper only because the helper exists.
+- Do not test helpers or pure functions in isolation. Check the feature that uses them.
 - Keep tests valid when internal code changes without a change in feature behavior.
 - Use real local files, SQLite, IPC, and processes where practical. Keep fixtures small and isolate mutable data.
 - Use controlled substitutes only at external boundaries that cannot run in the check environment. State what they cannot prove.

@@ -14,11 +14,14 @@
     "start": "pnpm run build && node build/scripts/start.js",
     "demo": "pnpm run start --demo",
     "check": "pnpm run typecheck",
+    "test": "pnpm run test:e2e",
+    "test:e2e": "pnpm run build && node --experimental-sqlite node_modules/@playwright/test/cli.js test",
     "check:usage": "pnpm run build && node build/scripts/usage-check.js",
     "pack": "pnpm run build && node build/scripts/pack.js",
     "clean": "node -e \"const p = require('node:path'); const root = process.cwd(); const target = p.resolve(root, 'build'); if (p.dirname(target) !== root) throw Error('Invalid build path'); require('node:fs').rmSync(target, { recursive: true, force: true });\""
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/node": "22.20.5",
     "@types/semver": "7.8.0",
     "electron": "44.5.1",

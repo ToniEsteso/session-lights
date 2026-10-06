@@ -176,6 +176,7 @@ Claude, OpenCode, and other tools are not yet implemented.
 ```sh
 pnpm run check
 pnpm run build
+pnpm run test:e2e
 node --experimental-sqlite build/scripts/records-benchmark.js
 ```
 
@@ -183,8 +184,10 @@ node --experimental-sqlite build/scripts/records-benchmark.js
 These commands do not verify feature behavior.
 The records benchmark measures three polls of 300 large saved sessions in an isolated fixture. Add `--root=<fixture folder>` to reuse the same records for a comparison.
 
-The previous test suite and native test hooks have been removed.
-See [AGENTS.md](AGENTS.md) for the rules for future feature tests and verification.
+The test suite uses Playwright to run the real Electron app. It has no unit tests.
+It checks live session states, list controls, saved settings, and chat opening.
+Each test uses its own local records and app profile. Tests run one at a time.
+See [test scenarios and limits](tests/README.md) and [AGENTS.md](AGENTS.md).
 Use `pnpm run demo` to inspect the panel with sample sessions.
 Run `pnpm run check:usage` to read the real account limits. This diagnostic prints the reading and does not verify the usage UI.
 

@@ -1,0 +1,132 @@
+const { test, expect } = require('./fixtures.cjs');
+
+test('live local records update desktop and CLI states, including missing data and recovery', async ({ lights }) => {
+  await lights.expand();
+  const page = lights.page;
+  await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Review release: Idle', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fix CLI: Idle', exact: true })).toBeVisible();
+  await expect(page.getByText('Unavailable', { exact: true })).toHaveCount(2);
+
+  await lights.desktopQuestion();
+  await expect(page.getByRole('button', { name: 'Build API: Needs you', exact: true })).toBeVisible();
+  await lights.record(lights.ids.desktop, 'event_msg', { type: 'user_message', message: 'Continue' });
+  await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeVisible();
+  await lights.record(lights.ids.desktop, 'event_msg', { type: 'task_complete', error: 'Build failed' });
+  await expect(page.getByRole('button', { name: 'Build API: Failed', exact: true })).toBeVisible();
+  await lights.record(lights.ids.desktop, 'event_msg', { type: 'task_started' });
+  await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeVisible();
+  await lights.record(lights.ids.desktop, 'event_msg', { type: 'task_complete' });
+  await expect(page.getByRole('button', { name: 'Build API: Idle', exact: true })).toBeVisible();
+
+  await lights.record(lights.ids.cli, 'event_msg', { type: 'task_started' });
+  await lights.record(lights.ids.cli, 'response_item', { type: 'function_call', name: 'request_user_input', call_id: 'question-1' });
+  await expect(page.getByRole('button', { name: 'Fix CLI: Needs you', exact: true })).toBeVisible();
+  await lights.record(lights.ids.cli, 'response_item', { type: 'function_call_output', call_id: 'question-1', output: 'Continue' });
+  await expect(page.getByRole('button', { name: 'Fix CLI: Working', exact: true })).toBeVisible();
+  await lights.removeRecord(lights.ids.cli);
+  await expect(page.getByRole('button', { name: 'Fix CLI: Unknown', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Review release: Idle', exact: true })).toBeVisible();
+  await lights.record(lights.ids.cli, 'event_msg', { type: 'task_complete' });
+  await expect(page.getByRole('button', { name: 'Fix CLI: Idle', exact: true })).toBeVisible();
+});
+
+test('pin, project sort, and hidden sessions survive restart; restore returns a pinned session to the top', async ({ lights }) => {
+  await lights.expand();
+  let page = lights.page;
+  const titles = page => page.getByRole('list', { name: 'Sessions', exact: true }).getByRole('listitem');
+  await expect(titles(page)).toHaveText([/Build API/, /Review release/, /Fix CLI/]);
+  await page.getByRole('button', { name: 'Pin Review release', exact: true }).click();
+  await expect(titles(page).first()).toContainText('Review release');
+  await page.getByRole('button', { name: 'Group by project', exact: true }).click();
+  await expect(titles(page)).toHaveText([/Review release/, /Build API/, /Fix CLI/]);
+  await page.getByRole('button', { name: 'Hide Review release', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Review release: Idle', exact: true })).toHaveCount(0);
+  await lights.restart();
+  await lights.expand();
+  page = lights.page;
+  await expect(page.getByRole('button', { name: 'Group by project', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(titles(page)).toHaveText([/Build API/, /Fix CLI/]);
+  await page.getByRole('button', { name: '1 session hidden', exact: true }).click();
+  await page.getByRole('button', { name: 'Restore Review release', exact: true }).click();
+  await expect(titles(page).first()).toContainText('Review release');
+  await expect(page.getByRole('button', { name: 'Unpin Review release', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Unpin Review release', exact: true }).click();
+  await expect(titles(page)).toHaveText([/Build API/, /Fix CLI/, /Review release/]);
+  await page.getByRole('button', { name: 'Sort by latest activity', exact: true }).click();
+  await expect(titles(page)).toHaveText([/Build API/, /Review release/, /Fix CLI/]);
+  await page.getByRole('button', { name: 'Hide Build API', exact: true }).click();
+  await page.getByRole('button', { name: 'Hide Fix CLI', exact: true }).click();
+  const hidden = page.getByRole('button', { name: '2 sessions hidden', exact: true });
+  if (await hidden.getAttribute('aria-expanded') === 'false') await hidden.click();
+  await page.getByRole('button', { name: 'Restore all', exact: true }).click();
+  await expect(titles(page)).toHaveText([/Build API/, /Review release/, /Fix CLI/]);
+  await lights.restart();
+  await lights.expand();
+  await expect(titles(lights.page)).toHaveText([/Build API/, /Review release/, /Fix CLI/]);
+  await expect(lights.page.getByRole('button', { name: 'Sort by latest activity', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('theme and adapter switches persist; the empty panel can restore a source', async ({ lights }) => {
+  await lights.expand();
+  let page = lights.page;
+  await page.getByRole('button', { name: 'Pin Review release', exact: true }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('radio', { name: 'Dark', exact: true }).check();
+  await expect.poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(true);
+  await page.getByRole('switch', { name: 'Codex', exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
+  await expect(page.getByRole('listitem')).toHaveText([/Fix CLI/]);
+  await expect(page.getByRole('region', { name: 'Usage limits', exact: true })).toBeHidden();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('switch', { name: 'Codex CLI', exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
+  await expect(page.getByText('All adapters are hidden.', { exact: true })).toBeVisible();
+  await lights.restart();
+  page = lights.page;
+  await page.getByRole('button', { name: 'All adapters are hidden. Open Settings.', exact: true }).click();
+  await expect(page.getByRole('radio', { name: 'Dark', exact: true })).toBeChecked();
+  await expect.poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(true);
+  await expect(page.getByRole('switch', { name: 'Codex', exact: true })).not.toBeChecked();
+  await expect(page.getByRole('switch', { name: 'Codex CLI', exact: true })).not.toBeChecked();
+  await page.getByRole('switch', { name: 'Codex', exact: true }).check();
+  await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
+  await expect(page.getByRole('listitem')).toHaveText([/Review release/, /Build API/]);
+  await expect(page.getByRole('button', { name: 'Unpin Review release', exact: true })).toBeVisible();
+  await expect(page.getByText('Unavailable', { exact: true })).toHaveCount(2);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('switch', { name: 'Codex CLI', exact: true }).check();
+  await page.getByRole('radio', { name: 'Light', exact: true }).check();
+  await expect.poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: light)').matches)).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('listitem')).toHaveCount(3);
+  await lights.restart();
+  await lights.expand();
+  page = lights.page;
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('radio', { name: 'Light', exact: true })).toBeChecked();
+  await expect.poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: light)').matches)).toBe(true);
+  await expect(page.getByRole('switch', { name: 'Codex', exact: true })).toBeChecked();
+  await expect(page.getByRole('switch', { name: 'Codex CLI', exact: true })).toBeChecked();
+});
+
+test('opening a desktop chat hands off its link; launch failures appear and the panel recovers', async ({ lights }) => {
+  await lights.expand();
+  const page = lights.page;
+  await page.getByRole('button', { name: 'Build API: Working', exact: true }).click();
+  await expect.poll(() => lights.openedChats()).toEqual([`codex://threads/${lights.ids.desktop}`]);
+  await lights.setOpenFailure(true);
+  await page.getByRole('button', { name: 'Review release: Idle', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Cannot open Codex. Check that the desktop app is installed.');
+  await lights.setOpenFailure(false);
+  await page.getByRole('button', { name: 'Review release: Idle', exact: true }).click();
+  await expect.poll(() => lights.openedChats()).toEqual([
+    `codex://threads/${lights.ids.desktop}`, `codex://threads/${lights.ids.review}`,
+  ]);
+  await expect(page.getByRole('alert')).toBeHidden();
+  await page.getByRole('button', { name: 'Fix CLI: Idle', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('The session workspace is unavailable.');
+  await page.getByRole('button', { name: 'Group by project', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeHidden();
+  await expect(page.getByRole('listitem')).toHaveText([/Build API/, /Fix CLI/, /Review release/]);
+});
