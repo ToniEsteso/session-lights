@@ -173,8 +173,8 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const rows = Math.max(1, Math.min(sessions.length, 14));
   const groupHeight = expanded ? sessionSections(view).filter(section => section.title).length * 24 : 0;
   const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
-  const overhead = expanded ? 104 : limits ? 62 : 51;
-  const minimum = expanded ? (view.sources.length ? 128 : 184) : 41;
+  const overhead = expanded ? 104 : limits ? 28 : 17;
+  const minimum = expanded ? (view.sources.length ? 128 : 184) : 17;
   const contentHeight = panelView === 'settings' ? 260 + monitor.adapters.length * 32 : Math.max(minimum,
     rows * (expanded ? 40 : 24) + groupHeight + overhead + limits * (expanded ? 36 : 24));
   const height = Math.round(Math.min(area.height - 24, scale * contentHeight));

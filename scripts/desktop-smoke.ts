@@ -139,7 +139,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     const spacing = await js(`(() => {
       const panel = document.querySelector('#panel').getBoundingClientRect();
       const dots = [...document.querySelectorAll('.dot')].map(dot => dot.getBoundingClientRect());
-      const lastGauge = document.querySelector('footer .gear svg').getBoundingClientRect();
+      const lastGauge = document.querySelector('.usage-row:last-child .usage-gauge svg').getBoundingClientRect();
       const style = getComputedStyle(document.querySelector('#panel'));
       return { top: dots[0].top - panel.top, bottom: panel.bottom - lastGauge.bottom,
         right: panel.right, viewport: innerWidth, radiusTop: style.borderTopRightRadius, radiusBottom: style.borderBottomRightRadius };
@@ -153,7 +153,10 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
       assert.ok(Math.abs(bounds.x + bounds.width - display.x - display.width) <= 1, 'The native panel has a gap at the screen edge.');
     };
     checkScreenEdge();
-    await js("document.querySelector('footer [data-settings]').click()");
+    assert.equal(await js("document.querySelector('footer [data-settings]') === null && getComputedStyle(document.querySelector('header [data-settings]')).display === 'none' && getComputedStyle(document.querySelector('footer')).display === 'none'"), true);
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
+    await wait("document.querySelector('#panel').classList.contains('expanded')");
+    await js("document.querySelector('header [data-settings]').click()");
     await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
     assert.equal(BrowserWindow.getAllWindows().length, 2, 'Settings must share the panel window.');
     checkScreenEdge();
@@ -174,7 +177,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
     await wait("!document.querySelector('#panel').classList.contains('expanded')");
     assert.equal(await js("[...document.querySelectorAll('.dot')].every(dot => dot.textContent === '' && dot.getBoundingClientRect().width <= 10.5)"), true);
-    assert.equal(await js("document.querySelector('.grip') === null && getComputedStyle(document.querySelector('footer')).display === 'flex' && document.querySelector('#expand') === null"), true);
+    assert.equal(await js("document.querySelector('.grip') === null && getComputedStyle(document.querySelector('footer')).display === 'none' && document.querySelector('#expand') === null"), true);
     const usageLayout = await js(`(() => {
       const section = document.querySelector('#usage');
       const lastSession = document.querySelector('.session:last-child').getBoundingClientRect();
@@ -194,7 +197,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
     win.webContents.sendInputEvent({ type: 'mouseMove', x: 0, y: 0 });
     win.webContents.sendInputEvent({ type: 'mouseMove', x: 16, y: 10, globalX: win.getBounds().x + 16, globalY: win.getBounds().y + 10 });
     await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
-    win.webContents.sendInputEvent({ type: 'mouseMove', x: 0, y: 10, globalX: win.getBounds().x, globalY: win.getBounds().y + 10 });
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: -1, y: 10, globalX: win.getBounds().x - 1, globalY: win.getBounds().y + 10 });
     await wait("!document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing') && innerWidth === " + nativeWidth);
     win.webContents.sendInputEvent({ type: 'mouseMove', x: 16, y: 10, globalX: win.getBounds().x + 16, globalY: win.getBounds().y + 10 });
     await wait("document.querySelector('#panel').classList.contains('expanded') && !document.body.classList.contains('resizing')");
@@ -712,7 +715,7 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
       await wait("document.querySelector('#panel').classList.contains('expanded')");
     }
     assert.deepEqual(errors, [], 'Renderer errors after system text changes.');
-    report.checks.push('system text changes update the panel automatically', 'large system text fits long lists and controls up to 225 percent', 'hover cards follow system text size', 'no text selector or saved text override', 'compact panel stays narrow at every text size', 'compact gear opens Settings in the same panel', 'development updates are disabled', 'Escape returns from Settings to threads');
+    report.checks.push('system text changes update the panel automatically', 'large system text fits long lists and controls up to 225 percent', 'hover cards follow system text size', 'no text selector or saved text override', 'compact panel stays narrow at every text size', 'compact panel has no Settings gear or footer; expanded gear opens Settings in the same panel', 'development updates are disabled', 'Escape returns from Settings to threads');
     report.checks.push(...await checkThemes({ win, tooltipWin, testDir, refresh }));
     assert.deepEqual(errors, [], 'Renderer errors after theme changes.');
     // Catch hidden-session rows leaking from a hidden adapter or lost session choices when it returns.
@@ -786,7 +789,9 @@ async function run({ app, win, tooltipWin, refresh, refreshUsage, showPanel, tes
       secondary: { usedPercent: 16, windowDurationMins: 10080, resetsAt: Math.floor(Date.now() / 1000) + 345600 }
     } } } };
     await fs.writeFile(path.join(testDir, 'usage.json'), JSON.stringify(hiddenUsage)); await refreshUsage();
-    await js("document.querySelector('footer [data-settings]').click()");
+    await js('window.sessionLights.action({ type: "expand", reducedMotion: true })');
+    await wait("document.querySelector('#panel').classList.contains('expanded')");
+    await js("document.querySelector('header [data-settings]').click()");
     await waitSettings("!document.querySelector('#settings-view').hidden && window.sessionLights.read().then(value => !value.motion)");
     await toggleAdapter('codex');
     await wait("document.querySelectorAll('.session').length === 7 && document.querySelector('[data-provider=codex][data-limit=fiveHour] .usage-value').textContent === '60% left'");
