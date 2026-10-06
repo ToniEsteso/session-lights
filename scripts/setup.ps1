@@ -58,7 +58,14 @@ try {
         Push-Location $root
         try {
             if ($Run) { & $pnpm start @AppArgs }
-            else { & $pnpm install --frozen-lockfile }
+            else {
+                & $pnpm install --frozen-lockfile
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Dependency installation failed (exit $LASTEXITCODE). Check the output above."
+                }
+                # Electron 44 installs its runtime through this explicit command.
+                & $pnpm exec install-electron
+            }
             if ($LASTEXITCODE -ne 0) {
                 throw "Project command failed (exit $LASTEXITCODE). Check the output above."
             }

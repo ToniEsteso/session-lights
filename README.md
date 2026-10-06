@@ -25,9 +25,11 @@ Install Node.js 22.12 or later and pnpm 12.9.1. In this folder, run:
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm exec install-electron
 pnpm start
 ```
 
+`pnpm exec install-electron` installs the pinned Electron runtime, using its cache when available.
 `pnpm start` builds the TypeScript code before starting Electron.
 Source launches use a profile under `.tmp/dev-profile` in each checkout, so worktrees can run independently.
 Use `pnpm run demo` to see all five colors with sample sessions.
