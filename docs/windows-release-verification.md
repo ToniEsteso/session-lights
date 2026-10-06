@@ -20,11 +20,14 @@ This report covers the unsigned Windows candidate with manual GitHub downloads. 
 | Installer replacement and restart | Passed. Reinstalling the same candidate and restarting preserves the selected Dark theme. |
 | Uninstall | Passed. Removes the test executable and app registration. The isolated preferences remain. |
 | Release workflow | YAML parses. Unsigned Windows is the default. It runs feature checks, writes SHA256SUMS.txt, and prepares a draft release with release notes. Remote execution is not yet verified. |
-| Public download | Blocked. The repository is private. No release is published. GitHub CLI and the available browser are not signed in. |
+| Draft release upload | Passed. The private GitHub draft contains the final installer and SHA256SUMS.txt. GitHub's installer digest matches the local SHA-256. |
+| Public download | Pending owner approval. The repository is private and the release remains a draft. |
 
 Installer: Session-Lights-0.1.0-x64-Setup.exe, 100145594 bytes.
 
 SHA-256: `6f36d474ad74b5c7b8e80a3f4577a57c3d06b063bc9d23c617fea6a368761eaf`.
+
+[Draft release](https://github.com/ToniEsteso/session-lights/releases/tag/untagged-219b6f178e6ccb292fe4). It targets the preparation branch. Git's existing GitHub sign-in was used for the CLI in the upload process only; no credential was saved in source or evidence. Looking up the draft by tag returned 404 because its tag is not yet published. The authenticated release list confirmed the draft and both assets.
 
 ## Evidence and limits
 
