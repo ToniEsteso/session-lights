@@ -149,12 +149,14 @@ function showTooltip(event: IpcMainEvent, input: unknown) {
   const value = parseTooltipTarget(input);
   if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) return;
   if (!value) { hideTooltip(); return; }
-  if (!win.isVisible() || panelDrag || panelResize || !Number.isFinite(value.y) || !tooltipData(value)) return;
+  const data = tooltipData(value);
+  if (!win.isVisible() || panelDrag || panelResize || !Number.isFinite(value.y) || !data) return;
   tooltipTarget = value;
   const bounds = win.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
   const scale = systemTextScale;
-  const width = Math.round(Math.min(280 * scale, area.width - 16)), height = Math.round(Math.min(188 * scale, area.height - 16));
+  const cardHeight = data.kind === 'session' && data.model ? 228 : 188;
+  const width = Math.round(Math.min(280 * scale, area.width - 16)), height = Math.round(Math.min(cardHeight * scale, area.height - 16));
   tooltipWin.setBounds({ x: Math.round(Math.max(area.x + 8, bounds.x - width - 8)),
     y: Math.round(Math.max(area.y + 8, Math.min(bounds.y + value.y - 18, area.y + area.height - height - 8))), width, height });
   updateTooltip(); tooltipWin.showInactive(); tooltipWin.setAlwaysOnTop(true, panelLevel);

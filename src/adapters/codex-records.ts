@@ -10,12 +10,12 @@ import type { RecordedTurn, TurnSignal } from '../core.js';
 import { isRecord, hasErrorCode } from '../shared/validation.js';
 
 export interface CodexRecordsOptions { home?: string; root?: string; now?: () => number }
-interface RolloutTurn extends RecordedTurn { waiting?: NonNullable<TurnSignal['waiting']>; turnId?: string; statusAt: number }
+interface RolloutTurn extends RecordedTurn { waiting?: NonNullable<TurnSignal['waiting']>; turnId?: string; statusAt: number; model?: string }
 interface HistoryTurn { status: string; turnId?: string }
 interface Tail { text: string; modifiedAt: number; size: number }
 interface CachedRollout { turn: RolloutTurn; modifiedAt: number; size: number }
 interface ProjectCatalog { byId: Map<string, { id: string; name: string }>; roots: { id: string; path: string }[] }
-interface ThreadRow { id: string; title: string; cwd: string; source: string; rollout_path: string; updated_at: number; name?: string; originator?: string; updated_at_ms?: number; project_id?: string }
+interface ThreadRow { id: string; title: string; cwd: string; source: string; rollout_path: string; updated_at: number; name?: string; originator?: string; updated_at_ms?: number; project_id?: string; model?: string }
 function parseThread(value: unknown): ThreadRow | undefined {
   if (!isRecord(value) || typeof value.id !== 'string' ||
       typeof value.source !== 'string' || typeof value.updated_at !== 'number' ||
@@ -23,6 +23,7 @@ function parseThread(value: unknown): ThreadRow | undefined {
       (value.updated_at_ms != null && (typeof value.updated_at_ms !== 'number' || !Number.isFinite(value.updated_at_ms) || value.updated_at_ms < 0 || value.updated_at_ms > 8.64e15))) return;
   const row: ThreadRow = { id: value.id, title: typeof value.title === 'string' ? value.title : '', cwd: typeof value.cwd === 'string' ? value.cwd : '', source: value.source, rollout_path: typeof value.rollout_path === 'string' ? value.rollout_path : '', updated_at: value.updated_at };
   if (typeof value.name === 'string') row.name = value.name;
+  if (typeof value.model === 'string' && value.model.trim()) row.model = value.model.trim();
   if (typeof value.originator === 'string') row.originator = value.originator;
   if (typeof value.updated_at_ms === 'number') row.updated_at_ms = value.updated_at_ms;
   if (typeof value.project_id === 'string' || typeof value.project_id === 'number') row.project_id = String(value.project_id);
@@ -133,12 +134,14 @@ class CodexRecords {
     // Keep only the parsed turn. Saved chat text is not needed between reads.
     const data = await tail(file);
     let status: string | undefined, turnId: string | undefined, statusAt = 0, lastUserAt = 0, lastProgressAt = 0;
+    let model: string | undefined;
     const requests = new Map<string, { at: number; kind: 'approval' | 'question' }>();
     for (const line of data.text.split('\n')) {
       let record: unknown;
       try { record = JSON.parse(line); } catch { continue; } // A live writer can leave a partial line.
       if (!isRecord(record)) continue;
       const payload = isRecord(record.payload) ? record.payload : {};
+      if (record.type === 'turn_context' && typeof payload.model === 'string' && payload.model.trim()) model = payload.model.trim();
       const at = Date.parse(typeof record.timestamp === 'string' ? record.timestamp : '') || 0;
       if (record.type === 'event_msg') {
         if (['task_started', 'task_complete', 'turn_aborted'].includes(typeof payload.type === 'string' ? payload.type : '')) {
@@ -162,7 +165,7 @@ class CodexRecords {
       }
     }
     const waiting = [...requests.values()].sort((a, b) => b.at - a.at)[0];
-    const turn = { ...(waiting ? { waiting } : {}), status, ...(turnId ? { turnId } : {}), statusAt, lastUserAt, lastProgressAt, updatedAt: data.modifiedAt };
+    const turn = { ...(waiting ? { waiting } : {}), status, ...(turnId ? { turnId } : {}), statusAt, lastUserAt, lastProgressAt, updatedAt: data.modifiedAt, ...(model ? { model } : {}) };
     this.rolloutCache.set(file, { turn, size: data.size, modifiedAt: data.modifiedAt });
     return turn;
   }
@@ -176,7 +179,7 @@ class CodexRecords {
     const state = readDatabase(stateFile, db => {
       const columns = new Set(db.prepare('PRAGMA table_info(threads)').all().map(c => c.name));
       if (!['id', 'title', 'cwd', 'source', 'rollout_path', 'updated_at', 'archived'].every(c => columns.has(c))) throw Error('Unsupported Codex database.');
-      const extras = ['name', 'originator', 'updated_at_ms', 'project_id'].filter(c => columns.has(c));
+      const extras = ['name', 'originator', 'updated_at_ms', 'project_id', 'model'].filter(c => columns.has(c));
       const values = db.prepare(`SELECT id, title, cwd, source, rollout_path, updated_at${extras.map(c => `, ${c}`).join('')} FROM threads WHERE archived = 0`).all();
       const rows = values.flatMap(value => { const row = parseThread(value); return row ? [row] : []; });
       return { rows, invalidRows: values.length - rows.length, projects: readProjectCatalog(db) };
@@ -244,8 +247,9 @@ class CodexRecords {
       const project = codexProject?.name || (isCodexScratchWorkspace(cwd) ? 'No workspace' : path.basename(cwd.replaceAll('\\', '/')) || cwd);
       const localProjectId = row.project_id == null ? undefined : String(row.project_id);
       const projectId = localProjectId ? `codex:${localProjectId}` : undefined;
+      const model = row.model || recorded?.model;
       sessions.push({ id: row.id, title: title.replace(/\s+/g, ' ').trim().slice(0, 160),
-        source: cli ? 'CLI' : 'Desktop', project, ...(projectId ? { projectId } : {}), workspace: cwd, updatedAt, ...state });
+        source: cli ? 'CLI' : 'Desktop', ...(model ? { model } : {}), project, ...(projectId ? { projectId } : {}), workspace: cwd, updatedAt, ...state });
     }
     // Release cached logs and rollouts which are no longer used.
     const activeRollouts = new Set(selected.map(row => row.rollout_path));

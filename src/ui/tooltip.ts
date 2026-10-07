@@ -6,6 +6,8 @@ function render(value: TooltipData) {
   current = value;
   const text = panelText;
   $('#meter').hidden = value.kind !== 'usage';
+  $('#model').hidden = value.kind !== 'session' || !value.model;
+  $('#model').textContent = value.kind === 'session' && value.model ? `Model: ${value.model}` : '';
   if (value.kind === 'session') {
     $('#meta').textContent = [text.provider(value), value.project].filter(Boolean).join(' · ');
     $('#title').textContent = value.title;

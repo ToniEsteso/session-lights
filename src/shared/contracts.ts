@@ -17,6 +17,8 @@ export interface AdapterSession {
   title: string;
   /** Optional interface label within the provider, such as CLI or Desktop. */
   source?: string;
+  /** Model saved for this session. Omit when the records do not identify one. */
+  model?: string;
   state: SessionState;
   detail: string;
   /** Last recorded session activity in epoch milliseconds, not the adapter read time.

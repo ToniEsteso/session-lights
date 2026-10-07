@@ -4,6 +4,10 @@ Run `pnpm run test:e2e` (or `pnpm test`). The command builds the app, then uses
 Playwright to start Electron. No separate browser install is needed. On a Linux
 host without a display, use `xvfb-run -a pnpm run test:e2e`.
 
+Video scenarios need Playwright's FFmpeg runtime. If it is missing, run
+`pnpm exec playwright install ffmpeg` once. The fixture resolves the project's
+pinned Electron executable directly, including with pnpm's shared dependency store.
+
 There are no unit tests. Keep this suite small. Add a scenario only to protect a
 main use case or a reported defect. Follow the feature rules in `AGENTS.md`.
 
@@ -38,6 +42,8 @@ record format of an installed Claude Code version.
 All assertions use displayed text, accessible controls, native theme media, or
 the outgoing URL at the OS boundary. They do not inspect source text or private
 application state. The code structure can change while these results stay valid.
+
+The session-model scenario checks model labels from the Codex database, older Codex turn records, and Claude assistant records through the running panel. It checks model changes, sessions with no model data, ignored subagent and synthetic records, full names in hover cards, record removal, recovery, and restart. The model records are synthetic; they do not prove future provider record compatibility.
 
 ## Isolation and limits
 

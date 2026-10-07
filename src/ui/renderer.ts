@@ -204,15 +204,22 @@ function renderNow(value: PanelPayload) {
       button.dataset.key = session.key; button.dataset.action = 'session';
       const activityAge = age(session.updatedAt);
       button.setAttribute('aria-label', `${session.title}: ${labels[session.state]}`);
-      button.setAttribute('aria-description', [panelText.provider(session), session.workspace || session.project, session.detail,
+      button.setAttribute('aria-description', [panelText.provider(session), session.model && `Model: ${session.model}`, session.workspace || session.project, session.detail,
         `Last activity: ${activityAge}`].filter(Boolean).join('. '));
       const dot = document.createElement('span'); dot.className = `dot ${session.state}`;
       dot.setAttribute('aria-hidden', 'true');
       const text = document.createElement('span'); text.className = 'wide session-text';
       const title = document.createElement('span'); title.className = 'session-title'; title.textContent = session.title;
       const detail = document.createElement('span'); detail.className = 'session-detail';
+      detail.classList.toggle('has-model', Boolean(session.model));
       const project = document.createElement('span'); project.className = 'session-project'; project.textContent = session.project;
-      const meta = document.createElement('span'); meta.className = 'session-meta'; meta.textContent = `· ${panelText.provider(session)} · ${labels[session.state]}`;
+      const meta = document.createElement('span'); meta.className = 'session-meta';
+      const provider = document.createElement('span'); provider.className = 'session-provider'; provider.textContent = `· ${panelText.provider(session)}`;
+      meta.append(provider);
+      if (session.model) {
+        const model = document.createElement('span'); model.className = 'session-model'; model.textContent = `· ${session.model}`;
+        meta.append(model);
+      }
       detail.append(project, meta);
       const activity = document.createElement('time'); activity.className = 'wide session-activity';
       const timestamp = session.updatedAt > 0 ? new Date(session.updatedAt).toJSON() : null;

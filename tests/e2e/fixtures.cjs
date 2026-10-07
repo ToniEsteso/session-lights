@@ -106,7 +106,7 @@ const test = base.extend({
       delete env.ELECTRON_RUN_AS_NODE;
       const start = async () => {
         launch += 1;
-        app = await _electron.launch({ args: [bootstrap, ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], env,
+        app = await _electron.launch({ executablePath: require('electron'), args: [bootstrap, ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], env,
           colorScheme: null,
           ...(testInfo.file.endsWith('claude-code.spec.cjs') || testInfo.file.endsWith('providers.spec.cjs') ||
             testInfo.title.startsWith('opening a desktop chat') ? {
@@ -134,7 +134,8 @@ const test = base.extend({
       };
       await start();
       await use({
-        get page() { return panel; }, ids,
+        get page() { return panel; },
+        get tooltip() { return app.windows().find(page => page.url().endsWith('/tooltip.html')); }, ids,
         async expand() {
           await panel.getByRole('list', { name: 'Sessions', exact: true }).hover();
           await expect(panel.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
@@ -155,6 +156,13 @@ const test = base.extend({
           await fs.appendFile(path.join(codexRoot, `${id}.jsonl`), `${JSON.stringify({
             timestamp: new Date().toISOString(), type, payload,
           })}\n`);
+        },
+        async databaseModel(id, model) {
+          const db = new DatabaseSync(path.join(codexRoot, 'state_5.sqlite'));
+          try {
+            if (!db.prepare('PRAGMA table_info(threads)').all().some(column => column.name === 'model')) db.exec('ALTER TABLE threads ADD COLUMN model TEXT');
+            db.prepare('UPDATE threads SET model = ? WHERE id = ?').run(model, id);
+          } finally { db.close(); }
         },
         async desktopQuestion() {
           const at = new Date();

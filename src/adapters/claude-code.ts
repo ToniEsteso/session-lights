@@ -42,6 +42,7 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
     const last = entries(tail.subarray(0, tailRead.bytesRead), offset > 0);
     if (first.some(entry => entry.isSidechain === true)) return;
     let customTitle = '', aiTitle = '', summary = '', prompt = '', workspace = '';
+    let model: string | undefined;
     let state: SessionState = 'unknown';
     let detail = 'The transcript does not confirm a turn state.';
     let updatedAt = 0;
@@ -51,6 +52,10 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
     for (const entry of [...first, ...last]) {
       if (entry.isSidechain === true || (typeof entry.sessionId === 'string' && entry.sessionId !== id)) continue;
       if (typeof entry.cwd === 'string') workspace = entry.cwd;
+      if (entry.type === 'assistant' && entry.isApiErrorMessage !== true && isRecord(entry.message) &&
+          typeof entry.message.model === 'string' && entry.message.model.trim() && !entry.message.model.trim().startsWith('<')) {
+        model = entry.message.model.trim();
+      }
       if (entry.type === 'custom-title' && typeof entry.customTitle === 'string') customTitle = entry.customTitle;
       if (entry.type === 'ai-title' && typeof entry.aiTitle === 'string') aiTitle = entry.aiTitle;
       if (entry.type === 'summary' && typeof entry.summary === 'string') summary = entry.summary;
@@ -114,7 +119,7 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
       state = 'unknown'; detail = 'No recent activity. The turn may still be running.';
     }
     // mtime is a recorded file activity time, never the poll time.
-    return { id, title: title || `Claude Code ${id.slice(0, 8)}`, workspace,
+    return { id, title: title || `Claude Code ${id.slice(0, 8)}`, workspace, ...(model ? { model } : {}),
       state, detail, updatedAt: epochMilliseconds(updatedAt || stat.mtimeMs) };
   } finally { await handle.close(); }
 }
