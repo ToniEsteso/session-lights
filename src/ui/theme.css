@@ -15,7 +15,7 @@
   --focus: #805600;
   --status-idle: #326b1f;
   --status-waiting: #805600;
-  --status-working: #405a73;
+  --status-working: #166773;
   --status-error: #b22925;
   --status-unknown: #5b6570;
 }
@@ -36,7 +36,7 @@
     --focus: #ffd45e;
     --status-idle: #8cce6b;
     --status-waiting: #ffd45e;
-    --status-working: #f5f5ef;
+    --status-working: #69d5dc;
     --status-error: #ff807c;
     --status-unknown: #a1abb5;
   }

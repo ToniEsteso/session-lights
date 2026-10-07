@@ -210,6 +210,8 @@ function renderNow(value: PanelPayload) {
         `Last activity: ${activityAge}`].filter(Boolean).join('. '));
       const dot = document.createElement('span'); dot.className = `dot ${session.state}`;
       dot.setAttribute('aria-hidden', 'true');
+      // Keep the orbit in phase when a monitor update rebuilds the row.
+      if (session.state === 'working') dot.style.setProperty('--orbit-phase', `${-(Number(document.timeline.currentTime) % 1200)}ms`);
       const text = document.createElement('span'); text.className = 'wide session-text';
       const title = document.createElement('span'); title.className = 'session-title'; title.textContent = session.title;
       const detail = document.createElement('span'); detail.className = 'session-detail';
