@@ -13,7 +13,7 @@ export const panelText = {
   countdown(resetsAt: UnixSeconds | undefined) {
     if (resetsAt === undefined || !Number.isFinite(resetsAt)) return 'Reset time unavailable';
     const minutes = Math.ceil((resetsAt * 1000 - Date.now()) / 60000);
-    if (minutes <= 0) return 'Reset passed · waiting for a new reading';
+    if (minutes <= 0) return 'Updating…';
     const days = Math.floor(minutes / 1440), hours = Math.floor(minutes % 1440 / 60), rest = minutes % 60;
     return `Resets in ${[days && `${days}d`, hours && `${hours}h`, (!days || !hours) && rest && `${rest}m`].filter(Boolean).join(' ')}`;
   },

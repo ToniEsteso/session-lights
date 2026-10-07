@@ -43,7 +43,7 @@ All assertions use displayed text, accessible controls, native theme media, or
 the outgoing URL at the OS boundary. They do not inspect source text or private
 application state. The code structure can change while these results stay valid.
 
-The session-model scenario checks model labels from the Codex database, older Codex turn records, and Claude assistant records through the running panel. It checks model changes, sessions with no model data, ignored subagent and synthetic records, full names in hover cards, record removal, recovery, and restart. The model records are synthetic; they do not prove future provider record compatibility.
+The session-model scenario checks compact Activity and Project rows, provider details in hover cards, concise settings labels, and model updates from the Codex database, older Codex turn records, and Claude assistant records. It checks sessions with no model data, ignored subagent and synthetic records, full names in hover cards and screen-reader descriptions, record removal, recovery, and restart. The model records are synthetic; they do not prove future provider record compatibility.
 
 ## Isolation and limits
 

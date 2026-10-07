@@ -103,10 +103,13 @@ function updateTrayMenu() {
   const openSettings = () => {
     actionQueue = actionQueue.then(() => showSettings()).catch(console.error);
   };
+  const updateItem = ['disabled', 'idle', 'no-feed', 'current'].includes(updates.state.kind) ? [] : [
+    { label: updateView(updates.state).label, click: openSettings },
+  ];
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Show panel', click: showPanel },
     { label: 'Settings', click: openSettings },
-    { label: updateView(updates.state).label, click: openSettings },
+    ...updateItem,
     { label: 'Move to this screen', click: () => {
       actionQueue = actionQueue.then(async () => {
         await preferences.save({ ...preferences.value, displayId: screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id, y: null }); showPanel();
@@ -133,11 +136,11 @@ function tooltipData(target: TooltipTarget | undefined): TooltipData | undefined
     const first = sessions[0];
     if (first) return { kind: 'health', title: first.projectGroup,
       meta: [...new Set(sessions.map(session => session.provider))].join(' · '),
-      detail: first.workspace || (first.projectId ? `Project ID: ${first.projectId}` : 'No working path was supplied.') };
+      detail: first.workspace || (first.projectId ? `Project ID: ${first.projectId}` : 'Path unavailable') };
   }
   if (target?.kind === 'empty') return view.sources.length ?
     { kind: 'health', title: 'No local sessions', detail: view.sources.map(source => source.health).join(' ') } :
-    { kind: 'health', title: 'All adapters are hidden', detail: 'Open Settings to show an adapter. Monitoring continues.' };
+    { kind: 'health', title: 'All adapters are hidden', detail: '' };
 }
 function updateTooltip() {
   if (!tooltipTarget || !tooltipWin || tooltipWin.isDestroyed()) return;
@@ -171,7 +174,7 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const view = payload();
   const sessions = view.showHidden ? [...view.sessions, ...view.hiddenSessions] : view.sessions;
   const rows = Math.max(1, Math.min(sessions.length, 14));
-  const groupHeight = expanded ? sessionSections(view).filter(section => section.title).length * 24 : 0;
+  const groupHeight = expanded ? sessionSections(view).reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 1 : section.title ? 24 : 0), 0) : 0;
   const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
   const overhead = expanded ? 104 : limits ? 28 : 17;
   const minimum = expanded ? (view.sources.length ? 128 : 184) : 17;

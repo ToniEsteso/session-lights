@@ -12,11 +12,11 @@ class DemoAdapter implements SessionAdapter {
   }
   async read(): Promise<SessionReading> {
     return { health: 'Preview data.', sessions: ([
-      { id: '1', title: 'Fix the sign-in form', project: 'website', state: 'waiting', detail: 'Approval requested.' },
-      { id: '2', title: 'Build the API', project: 'service', state: 'working', detail: 'The turn is in progress.' },
-      { id: '3', title: 'Review the tests', project: 'tools', state: 'idle', detail: 'The last turn finished.' },
-      { id: '4', title: 'Update the app', project: 'desktop', state: 'error', detail: 'The last turn failed.' },
-      { id: '5', title: 'Check a long task', project: 'research', state: 'unknown', detail: 'No recent activity.' }
+      { id: '1', title: 'Fix the sign-in form', project: 'website', state: 'waiting', detail: 'Approval needed' },
+      { id: '2', title: 'Build the API', project: 'service', state: 'working', detail: '' },
+      { id: '3', title: 'Review the tests', project: 'tools', state: 'idle', detail: '' },
+      { id: '4', title: 'Update the app', project: 'desktop', state: 'error', detail: '' },
+      { id: '5', title: 'Check a long task', project: 'research', state: 'unknown', detail: 'No recent activity' }
     ] satisfies Omit<SessionReading['sessions'][number], 'updatedAt'>[]).map((session, index) => ({
       ...session, updatedAt: epochMilliseconds(this.startedAt - index * 180_000)
     })) };

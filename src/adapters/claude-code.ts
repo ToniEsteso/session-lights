@@ -85,11 +85,11 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
               if (block.type === 'tool_result' && typeof block.tool_use_id === 'string') questions.delete(block.tool_use_id);
             }
             state = questions.size ? 'waiting' : 'working';
-            detail = questions.size ? 'Claude Code has a question.' : 'The last recorded turn is in progress.';
+            detail = questions.size ? 'Answer needed' : '';
           }
         } else if (entry.isApiErrorMessage === true) {
           stateAt = Number.isFinite(timestamp) ? timestamp : 0;
-          questions.clear(); state = 'error'; detail = 'The last recorded request failed.';
+          questions.clear(); state = 'error'; detail = '';
         } else {
           stateAt = Number.isFinite(timestamp) ? timestamp : 0;
           for (const block of blocks) {
@@ -97,18 +97,18 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
           }
           const stop = entry.message.stop_reason;
           if (stop === 'end_turn' || stop === 'stop_sequence' || stop === 'max_tokens') {
-            questions.clear(); state = 'idle'; detail = 'The last turn finished.';
+            questions.clear(); state = 'idle'; detail = '';
           } else if (questions.size) {
-            state = 'waiting'; detail = 'Claude Code has a question.';
+            state = 'waiting'; detail = 'Answer needed';
           } else if (stop === 'tool_use' || blocks.some(block => block.type === 'tool_use' || block.type === 'thinking')) {
-            state = 'working'; detail = 'The last recorded turn is in progress.';
+            state = 'working'; detail = '';
           } else {
             state = 'unknown'; detail = 'The transcript does not confirm that the turn finished.';
           }
         }
       } else if (entry.type === 'system' && entry.subtype === 'turn_duration') {
         stateAt = Number.isFinite(timestamp) ? timestamp : 0;
-        questions.clear(); state = 'idle'; detail = 'The last turn finished.';
+        questions.clear(); state = 'idle'; detail = '';
       } else if (entry.type === 'progress' && Number.isFinite(timestamp)) {
         stateAt = timestamp;
       }
@@ -116,7 +116,7 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
     const title = (customTitle || aiTitle || summary || prompt).replace(/\s+/g, ' ').trim().slice(0, 200);
     if (!title && !hasMessage) return;
     if ((state === 'working' || state === 'waiting') && (!stateAt || Date.now() - stateAt >= ACTIVE_AGE)) {
-      state = 'unknown'; detail = 'No recent activity. The turn may still be running.';
+      state = 'unknown'; detail = 'No recent activity';
     }
     // mtime is a recorded file activity time, never the poll time.
     return { id, title: title || `Claude Code ${id.slice(0, 8)}`, workspace, ...(model ? { model } : {}),
@@ -197,7 +197,7 @@ export class ClaudeCodeAdapter implements SessionAdapter {
         } catch { unreadable++; }
       }
     }
-    return { sessions: [...sessions.values()], health: `${sessions.size} local Claude Code sessions. Last recorded state only. Approval prompts and usage limits are unavailable.${unreadable ? ` Cannot read ${unreadable} records or folders.` : ''}` };
+    return { sessions: [...sessions.values()], health: `State uses the last recorded event. Approval prompts and usage limits are unavailable.${unreadable ? ` Cannot read ${unreadable} records or folders.` : ''}` };
   }
   async open(id: string) {
     if (!UUID.test(id)) throw Error('Invalid Claude Code session ID.');

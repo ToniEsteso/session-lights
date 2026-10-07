@@ -10,10 +10,14 @@ test('live local records update desktop and CLI states, including missing data a
 
   await lights.desktopQuestion();
   await expect(page.getByRole('button', { name: 'Build API: Needs you', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Build API: Needs you', exact: true }).hover();
+  await expect(lights.tooltip.locator('#detail')).toHaveText('Answer needed');
   await lights.record(lights.ids.desktop, 'event_msg', { type: 'user_message', message: 'Continue' });
   await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeVisible();
+  await expect(lights.tooltip.locator('#detail')).toBeHidden();
   await lights.record(lights.ids.desktop, 'event_msg', { type: 'task_complete', error: 'Build failed' });
   await expect(page.getByRole('button', { name: 'Build API: Failed', exact: true })).toBeVisible();
+  await expect(lights.tooltip.locator('#detail')).toBeHidden();
   await lights.record(lights.ids.desktop, 'event_msg', { type: 'task_started' });
   await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeVisible();
   await lights.record(lights.ids.desktop, 'event_msg', { type: 'task_complete' });
@@ -78,6 +82,8 @@ test('theme and adapter switches persist; the empty panel can restore a source',
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
   await expect(page.getByRole('listitem')).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Usage limits', exact: true })).toBeHidden();
+  await page.getByRole('button', { name: 'No sessions. Show session list.', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('switch', { name: 'Claude', exact: true }).uncheck();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();

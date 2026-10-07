@@ -94,16 +94,16 @@ function visibleSessions(sessions: Session[], preferences: PanelPreferences, now
 }
 
 function resolveState({ status, updatedAt, waiting, lastUserAt = 0, lastProgressAt = 0 }: Omit<RecordedTurn, 'lastUserAt' | 'lastProgressAt'> & Partial<TurnSignal>, now: number): { state: SessionState; detail: string } {
-  if (status === 'failed') return { state: 'error', detail: 'The last turn failed.' };
-  if (status === 'completed') return { state: 'idle', detail: 'The last turn finished.' };
+  if (status === 'failed') return { state: 'error', detail: '' };
+  if (status === 'completed') return { state: 'idle', detail: '' };
   if (status === 'interrupted') return { state: 'idle', detail: 'The last turn stopped.' };
   if (waiting && waiting.at > lastUserAt && waiting.at > lastProgressAt && now - waiting.at < DAY) {
-    return { state: 'waiting', detail: waiting.kind === 'approval' ? 'Codex requested approval.' : 'Codex has a question.' };
+    return { state: 'waiting', detail: waiting.kind === 'approval' ? 'Approval needed' : 'Answer needed' };
   }
   if (status === 'inProgress' && now - updatedAt < 15 * 60_000) {
-    return { state: 'working', detail: 'The last recorded turn is in progress.' };
+    return { state: 'working', detail: '' };
   }
-  if (status === 'inProgress') return { state: 'unknown', detail: 'No recent activity. The turn may still be running.' };
+  if (status === 'inProgress') return { state: 'unknown', detail: 'No recent activity' };
   return { state: 'unknown', detail: 'No supported turn state was found.' };
 }
 

@@ -18,7 +18,7 @@ export function updateView(state: UpdateState): { label: string; detail: string;
     case 'idle': return { label: 'Check for updates', detail: '', command: 'check', badge: false };
     case 'no-feed': return { label: 'Check for updates', detail: 'No public update feed is available.', command: 'check', badge: false };
     case 'checking': return { label: 'Checking…', detail: '', command: null, badge: false };
-    case 'current': return { label: 'Up to date', detail: 'Check again', command: 'check', badge: false };
+    case 'current': return { label: 'Up to date', detail: '', command: 'check', badge: false };
     case 'available': return { label: 'Download update', detail: `Version ${state.version}`, command: 'download', badge: true };
     case 'downloading': return { label: `Downloading · ${Math.round(state.percent)}%`, detail: `Version ${state.version}`, command: null, badge: true };
     case 'ready': return { label: 'Restart to update', detail: `Version ${state.version}`, command: 'install', badge: true };

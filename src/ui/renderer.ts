@@ -183,13 +183,15 @@ function renderNow(value: PanelPayload) {
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement.dataset : undefined;
   const fragment = document.createDocumentFragment();
   for (const section of sections) {
-    if (expanded && section.title) {
+    if (expanded && (section.title || (section.kind === 'sessions' && section.divider))) {
       const heading = document.createElement('div');
       heading.className = section.kind === 'project' ? 'wide project-heading' : `wide section-heading ${section.kind}-heading`;
       if (section.kind === 'project') heading.dataset.projectKey = section.projectKey;
       heading.setAttribute('role', 'presentation');
-      const name = document.createElement('span'); name.className = 'project-name'; name.textContent = section.title;
-      heading.append(name);
+      if (section.title) {
+        const name = document.createElement('span'); name.className = 'project-name'; name.textContent = section.title;
+        heading.append(name);
+      }
       if (section.kind === 'hidden') {
         const restoreAll = document.createElement('button'); restoreAll.className = 'restore-all';
         restoreAll.textContent = 'Restore all'; restoreAll.dataset.action = 'restore-all';
@@ -211,16 +213,12 @@ function renderNow(value: PanelPayload) {
       const text = document.createElement('span'); text.className = 'wide session-text';
       const title = document.createElement('span'); title.className = 'session-title'; title.textContent = session.title;
       const detail = document.createElement('span'); detail.className = 'session-detail';
-      detail.classList.toggle('has-model', Boolean(session.model));
-      const project = document.createElement('span'); project.className = 'session-project'; project.textContent = session.project;
-      const meta = document.createElement('span'); meta.className = 'session-meta';
-      const provider = document.createElement('span'); provider.className = 'session-provider'; provider.textContent = `· ${panelText.provider(session)}`;
-      meta.append(provider);
-      if (session.model) {
-        const model = document.createElement('span'); model.className = 'session-model'; model.textContent = `· ${session.model}`;
-        meta.append(model);
+      const showProject = value.preferences.sortOrder !== 'project' || section.kind !== 'project' || session.project !== section.title;
+      detail.hidden = !showProject;
+      if (showProject) {
+        const project = document.createElement('span'); project.className = 'session-project'; project.textContent = session.project;
+        detail.append(project);
       }
-      detail.append(project, meta);
       const activity = document.createElement('time'); activity.className = 'wide session-activity';
       const timestamp = session.updatedAt > 0 ? new Date(session.updatedAt).toJSON() : null;
       activity.textContent = timestamp ? activityAge : '–';
@@ -288,7 +286,7 @@ function renderNow(value: PanelPayload) {
         { transform: 'translate(0, 0)' }], timing));
     }
     const usageHeight = value.usage.reduce((sum, source) => sum + source.windows.length * (expanded ? 36 : 24), 0);
-    const groupHeight = expanded ? sections.filter(section => section.title).length * 24 : 0;
+    const groupHeight = expanded ? sections.reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 1 : section.title ? 24 : 0), 0) : 0;
     const scale = expanded ? value.textScale : 1;
     const listHeight = Math.min(sessions.length * (expanded ? 40 : 24) + groupHeight, Math.max(0, value.motion.height / scale - (expanded ? 104 : 62) - usageHeight));
     effects.push($('#sessions').animate([{ height: `${previousList.height}px`, transform: `translateY(${listOffset}px)` },

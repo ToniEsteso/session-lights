@@ -235,7 +235,7 @@ class CodexRecords {
         else if (history?.status !== recorded.status) conflict = true;
       }
       if (history && ['completed', 'interrupted', 'failed'].includes(history.status) && recorded && signal.lastUserAt > recorded.statusAt) conflict = true;
-      const state: ReturnType<typeof resolveState> = conflict ? { state: 'unknown', detail: 'Turn records conflict; current state cannot be confirmed.' } : !recorded ? { state: 'unknown', detail: 'The session record cannot be read.' } : resolveState({
+      const state: ReturnType<typeof resolveState> = conflict ? { state: 'unknown', detail: 'Conflicting records' } : !recorded ? { state: 'unknown', detail: 'Cannot read session' } : resolveState({
         ...recorded, ...signal, status, updatedAt,
         lastUserAt: Math.max(recorded.lastUserAt || 0, signal.lastUserAt || 0),
         // CLI requests clear by call ID. Desktop questions stay open during tool work.
@@ -255,7 +255,7 @@ class CodexRecords {
     const activeRollouts = new Set(selected.map(row => row.rollout_path));
     for (const file of this.rolloutCache.keys()) if (!activeRollouts.has(file)) this.rolloutCache.delete(file);
     for (const [file, value] of this.fileCache) if (now - value.modifiedAt > 2 * 86_400_000) this.fileCache.delete(file);
-    return { sessions, health: 'Reading local Codex desktop and CLI session records. State is based on the last recorded event. CLI approval prompts without recorded requests cannot be detected.' +
+    return { sessions, health: 'CLI approval prompts without recorded requests cannot be detected.' +
       (logData.found ? '' : ' Desktop logs are missing; desktop approval and question detection is limited.') +
       historyHealth + (invalidRows ? ' Some session rows have invalid timestamps and were skipped.' : '') };
   }

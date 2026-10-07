@@ -7,13 +7,13 @@ function render(value: TooltipData) {
   const text = panelText;
   $('#meter').hidden = value.kind !== 'usage';
   $('#model').hidden = value.kind !== 'session' || !value.model;
-  $('#model').textContent = value.kind === 'session' && value.model ? `Model: ${value.model}` : '';
+  $('#model').textContent = value.kind === 'session' && value.model ? value.model : '';
   if (value.kind === 'session') {
     $('#meta').textContent = [text.provider(value), value.project].filter(Boolean).join(' · ');
     $('#title').textContent = value.title;
     $('#status').textContent = text.labels[value.state];
     $('#detail').textContent = value.detail;
-    $('#time').textContent = `Last recorded activity: ${text.age(value.updatedAt)}`;
+    $('#time').textContent = value.updatedAt > 0 ? `Active ${text.age(value.updatedAt)}` : 'Time unavailable';
     $('#card').style.setProperty('--accent', `var(--status-${value.state})`);
   } else if (value.kind === 'usage') {
     const available = text.available(value);
@@ -26,10 +26,14 @@ function render(value: TooltipData) {
     $('#meter span').style.width = `${available ? value.remainingPercent : 0}%`;
     $('#card').style.setProperty('--accent', !available ? 'var(--status-unknown)' : value.remainingPercent <= 5 ? 'var(--status-error)' : value.remainingPercent <= 20 ? 'var(--status-waiting)' : 'var(--status-idle)');
   } else {
-    $('#meta').textContent = value.meta || 'Sources'; $('#title').textContent = value.title;
+    $('#meta').textContent = value.meta || ''; $('#title').textContent = value.title;
     $('#status').textContent = ''; $('#detail').textContent = value.detail; $('#time').textContent = '';
     $('#card').style.setProperty('--accent', 'var(--status-unknown)');
   }
+  $('#meta').hidden = !$('#meta').textContent;
+  $('#status').hidden = !$('#status').textContent;
+  $('#detail').hidden = !$('#detail').textContent;
+  $('#time').hidden = !$('#time').textContent;
 }
 window.tooltip.subscribe(value => {
   document.body.style.zoom = String(value.textScale);

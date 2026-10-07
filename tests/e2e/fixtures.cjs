@@ -17,6 +17,8 @@ const test = base.extend({
   lights: async ({}, use, testInfo) => {
     await fs.mkdir(path.join(project, '.tmp'), { recursive: true });
     const root = await fs.mkdtemp(path.join(project, '.tmp', 'e2e-'));
+    const tempDir = path.join(root, 'temp');
+    await fs.mkdir(tempDir);
     const appRoot = path.join(root, 'app');
     const codexRoot = path.join(root, 'codex-home');
     const claudeRoot = path.join(root, 'claude-home');
@@ -95,20 +97,30 @@ const test = base.extend({
         };
         require('./build/src/main.js');
       `);
-      const env = { ...process.env, CODEX_HOME: codexRoot,
+      const systemRoot = process.env.SystemRoot || process.env.windir;
+      const env = {
+        CODEX_HOME: codexRoot,
         CLAUDE_CONFIG_DIR: claudeRoot,
         HOME: root, USERPROFILE: root, APPDATA: path.join(root, 'roaming'),
-        LOCALAPPDATA: path.join(root, 'local'),
+        LOCALAPPDATA: path.join(root, 'local'), TEMP: tempDir, TMP: tempDir, TMPDIR: tempDir,
         // Exercise the real unavailable-runtime path. Never use an account.
         SESSION_LIGHTS_CODEX_BINARY: path.join(root, 'absent-runtime'),
         SESSION_LIGHTS_CLAUDE_BINARY: path.join(root, 'absent-claude.exe'),
       };
-      delete env.ELECTRON_RUN_AS_NODE;
+      for (const name of ['SystemRoot', 'windir', 'SystemDrive', 'DISPLAY', 'WAYLAND_DISPLAY',
+        'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS', 'XDG_RUNTIME_DIR', 'XDG_SESSION_TYPE', 'LANG', 'LC_ALL']) {
+        if (process.env[name]) env[name] = process.env[name];
+      }
+      const runtimePath = [systemRoot && path.join(systemRoot, 'System32'), path.dirname(process.execPath),
+        path.dirname(require('electron'))].filter(Boolean);
+      env.PATH = runtimePath.join(path.delimiter);
+      if (systemRoot) env.ComSpec = path.join(systemRoot, 'System32', 'cmd.exe');
       const start = async () => {
         launch += 1;
         app = await _electron.launch({ executablePath: require('electron'), args: [bootstrap, ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], env,
           colorScheme: null,
           ...(testInfo.file.endsWith('claude-code.spec.cjs') || testInfo.file.endsWith('providers.spec.cjs') ||
+            testInfo.file.endsWith('session-model.spec.cjs') ||
             testInfo.title.startsWith('opening a desktop chat') ? {
             recordVideo: { dir: testInfo.outputPath('video'), size: { width: 600, height: 800 } },
           } : {}),
@@ -130,6 +142,15 @@ const test = base.extend({
         await panel.mouse.move(-20, -20);
         // An empty panel has no visible list. Wait for its main surface instead.
         await expect(panel.getByRole('main', { name: 'Session Lights', exact: true })).toBeVisible();
+        // The renderer can load before Electron shows its native window. Hover
+        // IPC ignores input until that window is visible.
+        const nativePanel = await app.browserWindow(panel);
+        try {
+          await expect.poll(() => nativePanel.evaluate(window => window.isVisible()),
+            { message: 'Electron must show its thread panel before hover input' }).toBe(true);
+        } finally {
+          await nativePanel.dispose();
+        }
         return panel;
       };
       await start();

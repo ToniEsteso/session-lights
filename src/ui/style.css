@@ -39,13 +39,8 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 .idle { color: var(--status-idle); } .waiting { color: var(--status-waiting); } .working { color: var(--status-working); } .error { color: var(--status-error); } .unknown { color: var(--status-unknown); }
 .session-text { min-width: 0; flex: 1; }
 .session-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
-.session-detail { display: flex; gap: 6px; color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-detail { display: block; color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .session-project { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.session-meta { color: var(--muted); display: flex; gap: 6px; min-width: 0; flex-shrink: 0; }
-.session-detail.has-model .session-project { max-width: 24%; flex-shrink: 2; }
-.session-detail.has-model .session-meta { flex-shrink: 1; }
-.session-provider { flex-shrink: 0; }
-.session-model { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .session-activity { flex-shrink: 0; min-width: 44px; text-align: right; white-space: nowrap; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .panel.expanded .project-heading { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 6px; font-size: 10px; color: var(--muted); border-top: 1px solid var(--border-soft); }
 .project-heading > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -102,6 +97,7 @@ footer { display: flex; align-items: center; justify-content: center; min-height
 .panel.expanded .section-heading { display: flex; align-items: center; justify-content: space-between; height: 24px; padding: 0 6px; font-size: 10px; color: var(--muted); }
 .panel.expanded .bookmarked-heading { color: var(--muted); }
 .sessions-heading, .hidden-heading { border-top: 1px solid var(--border-soft); }
+.panel.expanded .sessions-heading { height: 0; padding: 0; }
 .pin, .hide-session { flex-shrink: 0; width: 24px; height: 28px; border-radius: 3px; }
 .hide-session { place-items: center; padding: 0; color: var(--muted); }
 .expanded .hide-session { display: grid; }
