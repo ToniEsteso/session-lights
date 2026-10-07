@@ -1,6 +1,6 @@
 :root { font: 12px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: var(--text); }
 * { box-sizing: border-box; }
-body { margin: 0; background: transparent; overflow: hidden; }
+body { position: relative; width: 100vw; height: 100vh; margin: 0; background: transparent; overflow: hidden; }
 button { font: inherit; border: 0; color: inherit; background: none; cursor: pointer; }
 .sort-tools { flex-shrink: 0; gap: 14px; }
 .panel.expanded .sort-tools { display: flex; }
@@ -10,14 +10,13 @@ button { font: inherit; border: 0; color: inherit; background: none; cursor: poi
 .sort-tools button:hover { color: var(--text); }
 button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: 3px; }
 [hidden] { display: none !important; }
-.panel { position: relative; width: 100%; max-height: 100vh; display: flex; flex-direction: column; padding: 3px; border: 1px solid var(--border); border-right: 0; border-radius: 6px 0 0 6px; background: var(--panel); }
+.panel { position: absolute; top: 0; right: 0; width: 100%; max-height: 100vh; display: flex; flex-direction: column; padding: 3px; border: 1px solid var(--border); border-right: 0; border-radius: 6px 0 0 6px; background: var(--panel); }
 .threads-view { display: flex; flex-direction: column; min-height: 0; }
 .wide { display: none; }
-.panel:not(.expanded) { width: 26px; margin-left: auto; padding: 8px 4px 8px 3px; }
-body.resizing .panel { overflow: hidden; transition: padding 280ms cubic-bezier(.333, 1, .667, 1), border-radius 280ms cubic-bezier(.333, 1, .667, 1); }
-body.resizing .panel:not(.expanded) { width: calc(100% - var(--compact-inset, 0px)); }
-body.resizing .session, body.resizing .session-button { transition: height 280ms cubic-bezier(.333, 1, .667, 1); }
-body.resizing #sessions { flex-shrink: 0; overflow: visible; clip-path: inset(0 -100vw); scrollbar-width: none; }
+.panel:not(.expanded) { width: 26px; padding: 8px 4px 8px 3px; }
+body.resizing .panel { overflow: hidden; transition: padding 280ms cubic-bezier(.2,.8,.2,1), border-radius 280ms cubic-bezier(.2,.8,.2,1); }
+
+body.resizing #sessions { flex-shrink: 0; scrollbar-width: none; }
 .panel:not(.expanded) header { position: absolute; top: 0; left: 0; right: 0; height: 8px; }
 .expanded { border-radius: 6px 0 0 6px; padding: 10px; zoom: var(--text-scale, 1); max-height: calc(100vh / var(--text-scale, 1)); }
 .expanded .wide { display: block; }
@@ -28,7 +27,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 .panel:not(.expanded) #sessions { scrollbar-width: none; }
 .session { height: 24px; display: flex; align-items: center; }
 .session-button { height: 24px; width: 100%; display: flex; align-items: center; gap: 9px; border-radius: 3px; padding: 6px; text-align: left; min-width: 0; }
-.expanded .session, .expanded .session-button { height: auto; min-height: 44px; }
+.expanded .session, .expanded .session-button { height: 44px; }
 .panel:not(.expanded) .session-button { justify-content: center; padding: 0; gap: 0; }
 .dot { width: 10px; height: 10px; flex-shrink: 0; border-radius: 50%; display: block; }
 .dot.idle { background: var(--status-idle); }

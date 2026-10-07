@@ -16,6 +16,12 @@ let motionId: number | undefined;
 let collapseTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingRender: PanelPayload | undefined;
 let effects: Animation[] = [];
+type PanelRect = { width: number; height: number };
+let pendingPanelRect: PanelRect | undefined;
+function panelRect(): PanelRect {
+  const rect = $('#panel').getBoundingClientRect();
+  return { width: rect.width, height: rect.height };
+}
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 function renderUsage(value: PanelPayload) {
   const fragment = document.createDocumentFragment();
@@ -69,14 +75,17 @@ function panelIsExpanded() {
 }
 function render(value: PanelPayload) {
   if (collapseTimer && value.motion?.id === motionId) { pendingRender = value; return; }
-  // The final update contains fresh data. Keep the moving DOM stable until then.
+  // Ignore monitor updates until the active surface animation has finished.
   if (value.motion && value.motion.id === motionId && snapshot?.motion?.id === motionId) return;
-  if (value.motion?.id !== motionId) {
+  const motionChanged = value.motion?.id !== motionId;
+  const previousPanel = motionChanged && snapshot ? panelRect() : undefined;
+  if (motionChanged) {
     clearTimeout(collapseTimer); collapseTimer = undefined; pendingRender = undefined;
     effects.forEach(effect => effect.cancel()); effects = [];
     motionId = value.motion?.id;
     if (value.motion?.delay && snapshot?.expanded && !value.expanded) {
       pendingRender = value;
+      pendingPanelRect = previousPanel;
       document.body.classList.add('resizing');
       for (const element of document.querySelectorAll('.wide')) {
         effects.push(element.animate([{ opacity: 1 }, { opacity: 0 }], { duration: value.motion.delay, fill: 'forwards' }));
@@ -84,21 +93,20 @@ function render(value: PanelPayload) {
       collapseTimer = setTimeout(() => {
         collapseTimer = undefined;
         const next = pendingRender; pendingRender = undefined;
-        if (next) renderNow(next);
+        const from = pendingPanelRect; pendingPanelRect = undefined;
+        if (next) renderNow(next, from);
       }, value.motion.delay);
       return;
     }
   }
-  renderNow(value);
+  pendingPanelRect = undefined;
+  renderNow(value, previousPanel);
 }
-function renderNow(value: PanelPayload) {
+function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   if (requestedExpanded === value.expanded) requestedExpanded = undefined;
   const viewChanged = snapshot !== undefined && snapshot.view !== value.view;
   if (viewChanged && snapshot?.view === 'threads') threadsScrollTop = $('#sessions').scrollTop;
-  const changing = snapshot && snapshot.expanded !== value.expanded;
-  const previousList = changing ? $('#sessions').getBoundingClientRect() : null;
-  const previousDots = new Map(changing ? [...document.querySelectorAll<HTMLButtonElement>('.session-button')].map(button =>
-    [button.dataset.key, $('.dot', button).getBoundingClientRect()]) : []);
+  const changing = snapshot && (snapshot.expanded !== value.expanded || snapshot.view !== value.view);
   const openingHidden = value.showHidden && !snapshot?.showHidden;
   snapshot = value;
   const update = updateView(value.update);
@@ -236,24 +244,24 @@ function renderNow(value: PanelPayload) {
   }
   if (focused?.action === 'restore-all') (document.querySelector<HTMLButtonElement>('.restore-all') ?? document.querySelector<HTMLButtonElement>('.session-button'))?.focus({ preventScroll: true });
   if (openingHidden) document.querySelector('.hidden-heading')?.scrollIntoView({ block: 'start' });
-  if (changing && previousList && value.motion && value.view === 'threads') {
-    const timing = { duration: value.motion.duration, easing: 'cubic-bezier(.333, 1, .667, 1)' };
-    const listOffset = previousList.top - $('#sessions').getBoundingClientRect().top;
-    for (const button of document.querySelectorAll<HTMLButtonElement>('.session-button')) {
-      const before = previousDots.get(button.dataset.key);
-      const dot = $('.dot', button);
-      const after = dot.getBoundingClientRect();
-      if (before) effects.push(dot.animate([{ transform: `translate(${before.x - after.x}px, ${before.y - after.y - listOffset}px)` },
-        { transform: 'translate(0, 0)' }], timing));
-    }
-    const usageHeight = value.usage.reduce((sum, source) => sum + source.windows.length * (expanded ? 36 : 24), 0);
-    const scale = expanded ? value.textScale : 1;
-    const listHeight = Math.min($('#sessions').scrollHeight, Math.max(0, value.motion.height / scale - (expanded ? 104 : 62) - usageHeight));
-    effects.push($('#sessions').animate([{ height: `${previousList.height}px`, transform: `translateY(${listOffset}px)` },
-      { height: `${listHeight}px`, transform: 'translateY(0)' }], { ...timing, fill: 'both' }));
-    for (const element of document.querySelectorAll(expanded ? '.wide' : '.usage-gauge')) {
-      effects.push(element.animate([{ opacity: 0, transform: 'translateX(6px)' }, { opacity: 1, transform: 'translateX(0)' }],
-        { ...timing, delay: expanded ? 80 : 0, duration: expanded ? timing.duration - 80 : timing.duration, fill: 'backwards' }));
+  if (changing && previousPanel && value.motion) {
+    const targetPanel = panelRect();
+    const panel = $('#panel');
+    const easing = 'cubic-bezier(.2,.8,.2,1)';
+    const animation = panel.animate([
+      { width: String(previousPanel.width) + 'px', height: String(previousPanel.height) + 'px' },
+      { width: String(targetPanel.width) + 'px', height: String(targetPanel.height) + 'px' },
+    ], { duration: value.motion.duration, easing, fill: 'both' });
+    effects.push(animation);
+    const id = value.motion.id;
+    void animation.finished.then(() => {
+      if (motionId === id) window.sessionLights.finishMotion(id);
+    }).catch(() => {});
+    if (value.view === 'threads') {
+      for (const element of document.querySelectorAll(expanded ? '.wide' : '.usage-gauge')) {
+        effects.push(element.animate([{ opacity: 0, transform: 'translateX(6px)' }, { opacity: 1, transform: 'translateX(0)' }],
+          { duration: value.motion.duration, easing, delay: expanded ? 80 : 0, fill: 'backwards' }));
+      }
     }
   }
 }

@@ -79,7 +79,7 @@ export interface MonitorSnapshot {
   sessions: Session[];
   sources: { id: string; name: string; health: string }[];
 }
-export interface PanelMotion { id: number; duration: number; delay: number; height: number }
+export interface PanelMotion { id: number; duration: number; delay: number }
 export interface PanelPayload extends MonitorSnapshot {
   expanded: boolean;
   view: 'threads' | 'settings';
@@ -109,6 +109,7 @@ export type PanelAction =
 export interface SessionLightsBridge {
   read(): Promise<PanelPayload>;
   action(value: PanelAction): Promise<void>;
+  finishMotion(id: number): void;
   subscribe(callback: (value: PanelPayload) => void): () => void;
 }
 export interface SettingsPayload {

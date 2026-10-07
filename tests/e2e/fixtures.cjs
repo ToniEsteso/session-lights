@@ -115,12 +115,18 @@ const test = base.extend({
         path.dirname(require('electron'))].filter(Boolean);
       env.PATH = runtimePath.join(path.delimiter);
       if (systemRoot) env.ComSpec = path.join(systemRoot, 'System32', 'cmd.exe');
+      const panelBounds = async () => panel.evaluate(() => {
+        const rect = document.querySelector('#panel').getBoundingClientRect();
+        return { x: window.screenX, y: window.screenY, width: window.outerWidth, height: window.outerHeight,
+          surface: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } };
+      });
       const start = async () => {
         launch += 1;
         app = await _electron.launch({ executablePath: require('electron'), args: [bootstrap, ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], env,
           colorScheme: null,
           ...(testInfo.file.endsWith('claude-code.spec.cjs') || testInfo.file.endsWith('providers.spec.cjs') ||
             testInfo.file.endsWith('session-model.spec.cjs') ||
+            testInfo.title.startsWith('hover resize keeps the panel anchored') ||
             testInfo.title.startsWith('opening a desktop chat') ? {
             recordVideo: { dir: testInfo.outputPath('video'), size: { width: 600, height: 800 } },
           } : {}),
@@ -162,6 +168,19 @@ const test = base.extend({
         async expand() {
           await panel.getByRole('list', { name: 'Sessions', exact: true }).hover();
           await expect(panel.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
+        },
+        async setReducedMotion(reduce) {
+          await panel.emulateMedia({ colorScheme: null, reducedMotion: reduce ? 'reduce' : 'no-preference' });
+        },
+        panelBounds,
+        async samplePanelBounds(duration) {
+          const samples = [];
+          const started = Date.now();
+          while (Date.now() - started < duration) {
+            samples.push(await panelBounds());
+            await new Promise(resolve => setTimeout(resolve, 12));
+          }
+          return samples;
         },
         async restart() { await stop(); await start(); },
         async restartWithPreferences(value) {

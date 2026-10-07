@@ -37,7 +37,6 @@ let quitting = false;
 let actionQueue = Promise.resolve();
 let panelDrag: { displayId: number; startY: number; pointerY: number; y: number } | undefined;
 let panelResize: PanelMotion | undefined;
-let resizeTimer: NodeJS.Timeout | undefined;
 let resizeId = 0;
 let usageTimer: NodeJS.Timeout | undefined;
 let usage: ProviderUsage[] = [];
@@ -113,9 +112,11 @@ function updateTrayMenu() {
     } },
   ]));
 }
-function stopResize() { clearTimeout(resizeTimer); resizeTimer = undefined; panelResize = undefined; }
+function stopResize() { panelResize = undefined; }
 function positionPanel({ animate = false, reducedMotion = false } = {}) {
   if (!win || win.isDestroyed() || (panelResize && !animate)) return;
+  const current = win.getBounds();
+  const visible = win.isVisible();
   const display = panelDisplay();
   const area = display.workArea;
   const scale = expanded ? systemTextScale : 1;
@@ -130,27 +131,17 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const contentHeight = panelView === 'settings' ? 260 + monitor.adapters.length * 32 : Math.max(minimum,
     rows * (expanded ? 44 : 24) + groupHeight + overhead + limits * (expanded ? 36 : 24));
   const height = Math.round(Math.min(area.height - 24, scale * contentHeight));
-  const y = Math.round(Math.max(area.y + 12, Math.min(panelDrag?.y ?? preferences.value.y ?? area.y + (area.height - height) / 2, area.y + area.height - height - 12)));
+  const defaultY = visible ? current.y : area.y + (area.height - height) / 2;
+  const preferredY = panelDrag?.y ?? preferences.value.y ?? defaultY;
+  const y = Math.round(Math.max(area.y + 12, Math.min(preferredY, area.y + area.height - height - 12)));
   const bounds = { x: display.bounds.x + display.bounds.width - width, y, width, height };
-  const current = win.getBounds();
   stopResize();
-  if (animate && !reducedMotion && win.isVisible()) {
-    const motion = panelResize = { id: ++resizeId, duration: 280, delay: expanded ? 0 : 70, height: bounds.height };
-    const started = performance.now() + motion.delay;
-    const edge = bounds.x + bounds.width;
-    const step = () => {
-      if (quitting || win.isDestroyed() || panelResize !== motion) return;
-      const frameStarted = performance.now();
-      const progress = Math.max(0, Math.min(1, (performance.now() - started) / motion.duration));
-      const eased = 1 - (1 - progress) ** 3;
-      const width = Math.round(current.width + (bounds.width - current.width) * eased);
-      win.setBounds({ x: edge - width, width,
-        y: Math.round(current.y + (bounds.y - current.y) * eased),
-        height: Math.round(current.height + (bounds.height - current.height) * eased) });
-      if (progress < 1) resizeTimer = setTimeout(step, Math.max(1, 16 - (performance.now() - frameStarted)));
-      else { stopResize(); positionPanel(); notify(); }
-    };
-    resizeTimer = setTimeout(step, motion.delay || 16);
+  if (animate && !reducedMotion && visible) {
+    panelResize = { id: ++resizeId, duration: 280, delay: expanded ? 0 : 70 };
+    // Keep the visible panel still. The renderer animates its surface inside these bounds.
+    // On collapse, keep the larger native window until the surface reaches the compact edge.
+    if (expanded) win.setBounds(bounds);
+    win.setAlwaysOnTop(true, panelLevel);
     return;
   }
   if ((['x', 'y', 'width', 'height'] satisfies (keyof Rectangle)[]).some(key => Math.abs(bounds[key] - current[key]) > 1)) win.setBounds(bounds);
@@ -267,6 +258,13 @@ async function main() {
     const result = actionQueue.then(() => action(event, value));
     actionQueue = result.catch(() => {});
     return result;
+  });
+  ipcMain.on('panel:motion-finished', (event, id: unknown) => {
+    if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame ||
+        !Number.isSafeInteger(id) || panelResize?.id !== id) return;
+    stopResize();
+    positionPanel();
+    notify();
   });
   const checkSettingsSender = (event: IpcMainInvokeEvent) => {
     if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw Error('Unknown sender.');
