@@ -44,23 +44,22 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 - Choose System, Light, or Dark in Theme. System is the default and follows device theme changes. The choice applies at once and stays after app restarts. Use Tab to reach the theme choices and arrow keys to change the choice.
 - A yellow badge on the gear marks an available update. Downloads and restarts require a click. Installed releases check at startup and every six hours.
 
-- Text follows system display scaling. On Windows, it also follows **Settings → Accessibility → Text size** automatically, including changes while the app is running. The expanded panel and hover cards grow with the text; the compact bar keeps its width. The app checks the Windows text setting every ten seconds. macOS uses system display scaling; a separate accessibility text size reader is not implemented.
-- Hover over a dot for a small detail card beside the panel. It shows the chat name, project, state, model when available, and age of the last recorded activity. It does not change the dot or take keyboard focus.
+- Text follows system display scaling. On Windows, it also follows **Settings → Accessibility → Text size** automatically, including changes while the app is running. The expanded panel grows with the text; the compact bar keeps its width. The app checks the Windows text setting every ten seconds. macOS uses system display scaling; a separate accessibility text size reader is not implemented.
 - Hover over the compact panel to show session names. The panel closes when the pointer leaves. Press Escape to close it with the keyboard.
 - The panel opens and closes with a short slide and fade. Its right edge stays fixed. The system's reduced-motion setting skips the animation.
 - Click a name in the expanded panel to open a desktop chat or resume a CLI session.
 - Pin a session with the bookmark icon. A filled yellow bookmark marks a pinned session. Pinned sessions stay in a separate section at the top in both sort modes. Pins survive app restarts.
 - All adapters appear by default. In Settings, use the adapter switches to hide or show an adapter and its sessions and usage. Changes apply at once and stay saved after a restart. Hidden adapters continue monitoring; their session data and pins stay intact. If all adapters are hidden, use Open Settings in the panel to show one again.
-- The Codex switch controls both desktop and CLI sessions and their account usage. Hover cards and screen readers identify Codex Desktop or Codex CLI. Older CLI pins and hidden sessions move to the shared Codex identity. The combined switch starts hidden only if both old Codex switches were hidden.
+- The Codex switch controls both desktop and CLI sessions and their account usage. Rows and screen readers identify Codex Desktop or Codex CLI. Older CLI pins and hidden sessions move to the shared Codex identity. The combined switch starts hidden only if both old Codex switches were hidden.
 - All saved, unarchived desktop and CLI sessions from visible adapters appear unless you hide them.
-- Each expanded row shows the chat title and latest activity age. Activity sort shows the project below the title. Project sort groups chats by project and omits a repeated project name from the row. Hover over a chat for its provider, model, state, and details. Screen readers also get the provider and model. Codex uses its saved project name when a session maps to one. Otherwise, the row uses its workspace folder or `No workspace`. Projects without saved sessions do not appear. Long project names are shortened to fit. Hover over a project group heading for the full path or project ID.
+- Each expanded row shows the chat title and latest activity age. Activity rows also show the adapter and model when available. Project view groups sessions by project, shows the adapter and model on each row, and omits a project name repeated by its heading. Long model names wrap within the row. Screen readers also get the adapter, model, state, and details. Tooltips are not used. Codex uses its saved project name when a session maps to one. Otherwise, the row uses its workspace folder or `No workspace`. Projects without saved sessions do not appear. Long project names are shortened to fit.
 - The right side of each expanded row shows the age of its last recorded activity, such as `just now`, `5m ago`, or `2h ago`. The age updates while the panel is open. A dash means the activity time is unavailable.
 - Use the two buttons at the top to sort by latest activity or project. The selected button has an underline. The choice is saved and also sets compact light order. Project headings appear only in the expanded list.
 - Pinned sessions come first and follow latest activity. In project mode, the other sessions appear below them in project groups.
 - Click the crossed-eye button to hide a session from the list and compact lights. Click `X sessions hidden` at the bottom to show hidden sessions. Use `Restore` for one session or `Restore all` for all of them. Hidden sessions stay hidden after app restarts. Restoring a pinned session puts it back at the top.
 - Below a thin divider, the compact panel shows two small gauges: 5-hour above weekly. Their arc and pointer show the amount left.
 - Gauges and usage percentages are green above 20% remaining, yellow above 5% up to 20%, and red at 5% or less. Unavailable limits show a gray gauge with no pointer.
-- The expanded panel shows usage bars, percentages, and reset countdowns. Hover over a gauge or row for a detail card with its provider, scope, amount left, countdown, exact reset time, and reading age.
+- The expanded panel shows usage bars, percentages, and reset countdowns.
 - Click the tray icon to hide or show the panel. Quit is in Settings.
 - Drag the blank top area to move the panel up or down. The panel follows the pointer and saves its position when you release it.
 - Use the tray menu to open Settings or move the panel to the screen under the pointer.
@@ -99,7 +98,7 @@ For CLI sessions, the adapter detects recorded `request_user_input` and `request
 The CLI does not record every shell or file approval prompt in its session history. Those prompts cannot produce a reliable yellow light.
 Only local sessions with local records are supported. Remote/cloud sessions are not included.
 The adapter reads the last 512 KiB of each record or log file. Older pending notifications or input requests outside that range can be missed.
-If the turn history database cannot be read, the adapter uses session records and reports the limit in its status tooltip. Conflicting records show Unknown until the current turn can be confirmed. Invalid timestamp rows are skipped without hiding healthy chats.
+If the turn history database cannot be read, the adapter uses session records. Conflicting records show Unknown until the current turn can be confirmed. Invalid timestamp rows are skipped without hiding healthy chats.
 macOS window behavior and its default log path need validation on a Mac.
 
 Codex documents runtime states in its [app-server protocol](https://learn.chatgpt.com/docs/app-server).
@@ -121,7 +120,7 @@ An adapter has `id`, `name`, and an async `read()` method. The method returns:
 
 ```ts
 {
-  health: 'Source status shown in the panel',
+  health: 'Source status for diagnostics',
   sessions: [{
     id: 'provider-local-id', title: 'Session name', project: 'Project', workspace: 'Full path',
     state: 'idle', detail: 'Why this state applies', updatedAt: epochMilliseconds(1791187200000)
@@ -139,10 +138,10 @@ The panel uses the same five states for all sources. Project fields have these m
 Without an ID, the same full path groups chats across providers. Windows paths ignore letter case, slash direction, and trailing slashes.
 Other paths keep their case. Path matching does not resolve symlinks or treat different worktrees as the same folder.
 Equal display names at different full paths stay separate. A display name without a path or ID stays within its provider.
-The panel shows `No workspace` when an adapter has no name, path, or ID. Codex also uses it for its dated scratch folders. It gives the same label on each account and computer. The full local path still keeps separate workspaces in separate groups and appears in the detail card. An adapter can use `projectId` to group one project across different paths.
+The panel shows `No workspace` when an adapter has no name, path, or ID. Codex also uses it for its dated scratch folders. It gives the same label on each account and computer. The full local path still keeps separate workspaces in separate groups and appears in the session description for screen readers. An adapter can use `projectId` to group one project across different paths.
 If only a path is available, its last folder name supplies the label. If only an ID is available, the ID supplies the label.
 Each group uses one shared label so adapter aliases do not split the group.
-`updatedAt` is required. Supply the last recorded session activity as epoch milliseconds with `epochMilliseconds()`. Keep this time unchanged between reads until the session has new activity. Do not use the adapter read time. Use `epochMilliseconds(0)` when the time is unavailable. The panel uses this field for activity sorting, the age on the right side of each row, and session tooltips.
+`updatedAt` is required. Supply the last recorded session activity as epoch milliseconds with `epochMilliseconds()`. Keep this time unchanged between reads until the session has new activity. Do not use the adapter read time. Use `epochMilliseconds(0)` when the time is unavailable. The panel uses this field for activity sorting and the age on the right side of each row.
 
 Add an optional `open(id, openExternal)` method to open a chat. The adapter validates its own identifiers and links.
 Use the supplied `openExternal(url)` function for an OS link, or handle opening within the adapter.
@@ -168,7 +167,7 @@ this.usage = {
 
 Limit IDs are unique within each provider. Labels and limits belong to the adapter. `remainingPercent` is a number from 0 to 100.
 `resetsAt` is an optional Unix time in seconds. `updatedAt` uses milliseconds. A limit without a reset time can still show its amount left.
-The shared UI handles colors, countdowns, tooltips, and missing data. It has no Codex-specific limit names.
+The shared UI handles colors, countdowns, and missing data. It has no Codex-specific limit names.
 The monitor refreshes usage once a minute. Usage failures do not hide other providers' limits or stop session reads.
 Add an optional `close()` method to release child processes or other resources when the app quits.
 Codex runtime discovery, authentication requests, limit selection, labels, scope, and chat links all stay in its adapter files.

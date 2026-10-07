@@ -11,13 +11,13 @@ test('live local records update desktop and CLI states, including missing data a
   await lights.desktopQuestion();
   await expect(page.getByRole('button', { name: 'Build API: Needs you', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Build API: Needs you', exact: true }).hover();
-  await expect(lights.tooltip.locator('#detail')).toHaveText('Answer needed');
+  await expect(page.getByRole('button', { name: 'Build API: Needs you', exact: true })).toHaveAttribute('aria-description', /Answer needed/);
   await lights.record(lights.ids.desktop, 'event_msg', { type: 'user_message', message: 'Continue' });
   await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeVisible();
-  await expect(lights.tooltip.locator('#detail')).toBeHidden();
+  await lights.expectNoTooltips();
   await lights.record(lights.ids.desktop, 'event_msg', { type: 'task_complete', error: 'Build failed' });
   await expect(page.getByRole('button', { name: 'Build API: Failed', exact: true })).toBeVisible();
-  await expect(lights.tooltip.locator('#detail')).toBeHidden();
+  await lights.expectNoTooltips();
   await lights.record(lights.ids.desktop, 'event_msg', { type: 'task_started' });
   await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeVisible();
   await lights.record(lights.ids.desktop, 'event_msg', { type: 'task_complete' });

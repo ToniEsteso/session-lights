@@ -22,7 +22,7 @@ export interface AdapterSession {
   state: SessionState;
   detail: string;
   /** Last recorded session activity in epoch milliseconds, not the adapter read time.
-   * Use 0 when unavailable. Drives activity sorting, row ages, and session tooltips. */
+   * Use 0 when unavailable. Drives activity sorting and row ages. */
   updatedAt: EpochMilliseconds;
   project?: string;
   workspace?: string;
@@ -106,21 +106,9 @@ export type PanelAction =
   | { type: 'restore-all' }
   | { type: 'open'; key: string }
   | { type: 'move'; phase: 'start' | 'update' | 'end'; screenY: number };
-export type TooltipTarget = (
-  | { kind: 'session'; key: string }
-  | { kind: 'project'; key: string }
-  | { kind: 'usage'; providerId: string; id: string }
-  | { kind: 'empty' }
-) & { y: number };
-export type TooltipData =
-  | ({ kind: 'session' } & Session)
-  | ({ kind: 'usage'; provider: string; scope: string | undefined; message: string | undefined;
-       updatedAt: EpochMilliseconds | null } & UsageWindow)
-  | { kind: 'health'; title: string; detail: string; meta?: string };
 export interface SessionLightsBridge {
   read(): Promise<PanelPayload>;
   action(value: PanelAction): Promise<void>;
-  tooltip(value: TooltipTarget | null): void;
   subscribe(callback: (value: PanelPayload) => void): () => void;
 }
 export interface SettingsPayload {
@@ -140,5 +128,3 @@ export interface SettingsBridge {
   action(value: SettingsAction): Promise<void>;
   subscribe(callback: (value: SettingsPayload) => void): () => void;
 }
-export interface TooltipPayload { data: TooltipData; textScale: number }
-export interface TooltipBridge { subscribe(callback: (value: TooltipPayload) => void): () => void }

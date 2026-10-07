@@ -1,6 +1,6 @@
-import type { IpcMainEvent, IpcMainInvokeEvent, Rectangle } from 'electron';
-import type { MonitorSnapshot, ProviderUsage, PanelMotion, PanelPayload, TooltipTarget, TooltipData, SettingsPayload } from './shared/contracts.js';
-import { parseAction, parseTooltipTarget, parseSettingsAction, errorMessage, hasErrorCode } from './shared/validation.js';
+import type { IpcMainInvokeEvent, Rectangle } from 'electron';
+import type { MonitorSnapshot, ProviderUsage, PanelMotion, PanelPayload, SettingsPayload } from './shared/contracts.js';
+import { parseAction, parseSettingsAction, errorMessage, hasErrorCode } from './shared/validation.js';
 import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, nativeTheme, autoUpdater } from 'electron';
 import * as path from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -41,8 +41,6 @@ let resizeTimer: NodeJS.Timeout | undefined;
 let resizeId = 0;
 let usageTimer: NodeJS.Timeout | undefined;
 let usage: ProviderUsage[] = [];
-let tooltipWin: BrowserWindow;
-let tooltipTarget: TooltipTarget | undefined;
 let updates: Updates;
 let systemTextScale = 1;
 let lastTextScaleRead = 0;
@@ -61,7 +59,7 @@ async function refreshTextScale(force = false) {
   const scale = await readSystemTextScale();
   if (scale !== systemTextScale) {
     systemTextScale = scale;
-    hideTooltip(); stopResize(); positionPanel(); notify();
+    stopResize(); positionPanel(); notify();
   }
 }
 
@@ -84,7 +82,6 @@ function notify() {
     win.webContents.send('sessions:update', payload());
     win.webContents.send('settings:update', settingsPayload());
   }
-  updateTooltip();
 }
 function settingsPayload(): SettingsPayload {
   return { version: app.getVersion(), update: updates.state, theme: preferences.value.theme, textScale: systemTextScale,
@@ -92,7 +89,6 @@ function settingsPayload(): SettingsPayload {
       visible: !preferences.value.hiddenAdapters.includes(adapter.id) })) };
 }
 async function showSettings(reducedMotion = false) {
-  hideTooltip();
   expanded = true;
   panelView = 'settings';
   positionPanel({ animate: true, reducedMotion }); notify();
@@ -117,53 +113,6 @@ function updateTrayMenu() {
     } },
   ]));
 }
-function hideTooltip() { tooltipTarget = undefined; tooltipWin?.hide(); }
-function tooltipData(target: TooltipTarget | undefined): TooltipData | undefined {
-  if (panelView === 'settings') return;
-  const view = payload();
-  if (target?.kind === 'session') {
-    const session = [...view.sessions, ...(view.showHidden ? view.hiddenSessions : [])].find(session => session.key === target.key);
-    return session && { kind: 'session', ...session };
-  }
-  if (target?.kind === 'usage') {
-    const source = view.usage.find(source => source.providerId === target.providerId);
-    const limit = source?.windows.find(limit => limit.id === target.id);
-    return source && limit && { kind: 'usage', ...limit, provider: source.provider, scope: source.scope,
-      message: source.message, updatedAt: source.updatedAt };
-  }
-  if (target?.kind === 'project') {
-    const sessions = view.sessions.filter(session => session.projectKey === target.key);
-    const first = sessions[0];
-    if (first) return { kind: 'health', title: first.projectGroup,
-      meta: [...new Set(sessions.map(session => session.provider))].join(' · '),
-      detail: first.workspace || (first.projectId ? `Project ID: ${first.projectId}` : 'Path unavailable') };
-  }
-  if (target?.kind === 'empty') return view.sources.length ?
-    { kind: 'health', title: 'No local sessions', detail: view.sources.map(source => source.health).join(' ') } :
-    { kind: 'health', title: 'All adapters are hidden', detail: '' };
-}
-function updateTooltip() {
-  if (!tooltipTarget || !tooltipWin || tooltipWin.isDestroyed()) return;
-  const data = tooltipData(tooltipTarget);
-  if (!data) { hideTooltip(); return; }
-  tooltipWin.webContents.send('tooltip:update', { data, textScale: systemTextScale });
-}
-function showTooltip(event: IpcMainEvent, input: unknown) {
-  const value = parseTooltipTarget(input);
-  if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) return;
-  if (!value) { hideTooltip(); return; }
-  const data = tooltipData(value);
-  if (!win.isVisible() || panelDrag || panelResize || !Number.isFinite(value.y) || !data) return;
-  tooltipTarget = value;
-  const bounds = win.getBounds();
-  const area = screen.getDisplayMatching(bounds).workArea;
-  const scale = systemTextScale;
-  const cardHeight = data.kind === 'session' && data.model ? 228 : 188;
-  const width = Math.round(Math.min(280 * scale, area.width - 16)), height = Math.round(Math.min(cardHeight * scale, area.height - 16));
-  tooltipWin.setBounds({ x: Math.round(Math.max(area.x + 8, bounds.x - width - 8)),
-    y: Math.round(Math.max(area.y + 8, Math.min(bounds.y + value.y - 18, area.y + area.height - height - 8))), width, height });
-  updateTooltip(); tooltipWin.showInactive(); tooltipWin.setAlwaysOnTop(true, panelLevel);
-}
 function stopResize() { clearTimeout(resizeTimer); resizeTimer = undefined; panelResize = undefined; }
 function positionPanel({ animate = false, reducedMotion = false } = {}) {
   if (!win || win.isDestroyed() || (panelResize && !animate)) return;
@@ -174,12 +123,12 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const view = payload();
   const sessions = view.showHidden ? [...view.sessions, ...view.hiddenSessions] : view.sessions;
   const rows = Math.max(1, Math.min(sessions.length, 14));
-  const groupHeight = expanded ? sessionSections(view).reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 1 : section.title ? 24 : 0), 0) : 0;
+  const groupHeight = expanded ? sessionSections(view).reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 1 : section.title ? (section.kind === 'project' ? 20 : 24) : 0), 0) : 0;
   const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
   const overhead = expanded ? 104 : limits ? 28 : 17;
   const minimum = expanded ? (view.sources.length ? 128 : 184) : 17;
   const contentHeight = panelView === 'settings' ? 260 + monitor.adapters.length * 32 : Math.max(minimum,
-    rows * (expanded ? 40 : 24) + groupHeight + overhead + limits * (expanded ? 36 : 24));
+    rows * (expanded ? 44 : 24) + groupHeight + overhead + limits * (expanded ? 36 : 24));
   const height = Math.round(Math.min(area.height - 24, scale * contentHeight));
   const y = Math.round(Math.max(area.y + 12, Math.min(panelDrag?.y ?? preferences.value.y ?? area.y + (area.height - height) / 2, area.y + area.height - height - 12)));
   const bounds = { x: display.bounds.x + display.bounds.width - width, y, width, height };
@@ -223,7 +172,6 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
   const value = parseAction(input);
   if (!value) return;
   const prefs = preferences.value;
-  hideTooltip();
   switch (value?.type) {
     case 'settings': await showSettings(value.reducedMotion === true); return;
     case 'sort':
@@ -310,7 +258,6 @@ async function main() {
   }
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => event.preventDefault());
-  win.on('hide', hideTooltip); win.on('blur', hideTooltip);
   win.on('close', event => { if (!quitting) { event.preventDefault(); win.hide(); } });
   ipcMain.handle('sessions:read', event => {
     if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw Error('Unknown sender.');
@@ -321,7 +268,6 @@ async function main() {
     actionQueue = result.catch(() => {});
     return result;
   });
-  ipcMain.on('panel:tooltip', showTooltip);
   const checkSettingsSender = (event: IpcMainInvokeEvent) => {
     if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw Error('Unknown sender.');
   };
@@ -340,7 +286,7 @@ async function main() {
         const hiddenAdapters = preferences.value.hiddenAdapters.filter(id => id !== value.id);
         if (!value.visible) hiddenAdapters.push(value.id);
         await preferences.save({ ...preferences.value, hiddenAdapters });
-        hideTooltip(); stopResize(); positionPanel(); notify(); return;
+        stopResize(); positionPanel(); notify(); return;
       }
       case 'close': panelView = 'threads'; stopResize(); positionPanel(); notify(); return;
       case 'quit': app.quit(); return;
@@ -355,15 +301,6 @@ async function main() {
     return result;
   });
   await refresh();
-  tooltipWin = new BrowserWindow({ width: 280, height: 188, show: false, frame: false, transparent: true,
-    focusable: false, resizable: false, skipTaskbar: true, alwaysOnTop: true, hasShadow: false,
-    webPreferences: { preload: path.join(__dirname, 'tooltip-preload.js'), nodeIntegration: false,
-      contextIsolation: true, sandbox: true, backgroundThrottling: false } });
-  tooltipWin.setIgnoreMouseEvents(true);
-  tooltipWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  tooltipWin.webContents.on('will-navigate', event => event.preventDefault());
-  if (process.platform === 'darwin') tooltipWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  await tooltipWin.loadFile(path.join(__dirname, 'ui', 'tooltip.html'));
   await win.loadFile(path.join(__dirname, 'ui', 'index.html'));
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect x="6" y="1" width="12" height="22" rx="6" fill="#25292d"/><circle cx="12" cy="6" r="3" fill="#8cce6b"/><circle cx="12" cy="12" r="3" fill="#ffd45e"/><circle cx="12" cy="18" r="3" fill="#f5f5ef"/></svg>';
   const icon = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
@@ -374,7 +311,6 @@ async function main() {
     image.src = ${JSON.stringify(icon.isEmpty() ? `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}` : icon.toDataURL())}; })`);
   if (typeof image !== 'string') throw Error('Cannot render the tray icon.');
   tray = new Tray(nativeImage.createFromDataURL(image));
-  tray.setToolTip('Session Lights');
   updateTrayMenu(); tray.on('click', () => win.isVisible() ? win.hide() : showPanel());
   showPanel();
   console.log(`Session Lights is running. Local sessions: ${snapshot.sessions.length}. Panel above other windows: ${win.isAlwaysOnTop()}.`);
@@ -389,7 +325,7 @@ async function main() {
     if (!quitting) timer = setTimeout(poll, 2000);
   };
   timer = setTimeout(poll, 2000);
-  const displayChanged = () => { hideTooltip(); stopResize(); positionPanel(); notify(); };
+  const displayChanged = () => { stopResize(); positionPanel(); notify(); };
   screen.on('display-removed', displayChanged); screen.on('display-metrics-changed', displayChanged);
   app.on('activate', showPanel);
 }
@@ -415,6 +351,6 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', () => { if (win) showPanel(); });
   // Native updates can close windows before the normal before-quit event.
   autoUpdater.on('before-quit-for-update', () => { quitting = true; });
-  app.on('before-quit', () => { quitting = true; updates?.close(); stopResize(); hideTooltip(); clearTimeout(timer); clearTimeout(usageTimer); monitor?.close(); tray?.destroy(); });
+  app.on('before-quit', () => { quitting = true; updates?.close(); stopResize(); clearTimeout(timer); clearTimeout(usageTimer); monitor?.close(); tray?.destroy(); });
   app.whenReady().then(main).catch(error => { console.error(error); app.exit(1); });
 }

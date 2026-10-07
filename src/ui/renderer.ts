@@ -1,4 +1,4 @@
-import type { PanelPayload, PanelAction, TooltipTarget } from '../shared/contracts.js';
+import type { PanelPayload, PanelAction } from '../shared/contracts.js';
 import { panelText } from './text.js';
 import { sessionSections } from '../shared/session-sections.js';
 import { updateView } from '../shared/updates.js';
@@ -17,51 +17,11 @@ let collapseTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingRender: PanelPayload | undefined;
 let effects: Animation[] = [];
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-let tooltipTimer: ReturnType<typeof setTimeout> | undefined;
-let tooltipElement: HTMLElement | undefined;
-const tooltipSelector = '.session-button, .usage-row, .project-heading, #empty, #empty-settings';
-
-function hideTooltip() {
-  clearTimeout(tooltipTimer); tooltipTimer = undefined; tooltipElement = undefined;
-  window.sessionLights.tooltip(null);
-}
-function showTooltip(element: HTMLElement) {
-  if (element === tooltipElement || dragging || snapshot?.motion) return;
-  hideTooltip(); tooltipElement = element;
-  tooltipTimer = setTimeout(() => {
-    if (!element.isConnected) return;
-    const y = element.getBoundingClientRect().top;
-    let target: TooltipTarget;
-    if (element.classList.contains('session-button') && element.dataset.key) target = { kind: 'session', key: element.dataset.key, y };
-    else if (element.classList.contains('usage-row') && element.dataset.provider && element.dataset.limit) target = { kind: 'usage', providerId: element.dataset.provider, id: element.dataset.limit, y };
-    else if (element.classList.contains('project-heading') && element.dataset.projectKey) target = { kind: 'project', key: element.dataset.projectKey, y };
-    else target = { kind: 'empty', y };
-    window.sessionLights.tooltip(target);
-  }, 220);
-}
-document.addEventListener('pointerover', event => {
-  const element = event.target instanceof Element ? event.target.closest<HTMLElement>(tooltipSelector) : null;
-  if (element) showTooltip(element); else hideTooltip();
-});
-document.addEventListener('pointerout', event => {
-  const element = event.target instanceof Element ? event.target.closest<HTMLElement>(tooltipSelector) : null;
-  if (element && !(event.relatedTarget instanceof Node && element.contains(event.relatedTarget))) hideTooltip();
-});
-document.documentElement.addEventListener('pointerleave', hideTooltip);
-document.addEventListener('focusin', event => {
-  const element = event.target instanceof Element ? event.target.closest<HTMLElement>(tooltipSelector) : null;
-  if (element) showTooltip(element); else hideTooltip();
-});
-window.addEventListener('blur', hideTooltip);
-document.addEventListener('pointerdown', hideTooltip);
-$('#sessions').addEventListener('scroll', hideTooltip);
-
 function renderUsage(value: PanelPayload) {
   const fragment = document.createDocumentFragment();
   const multiple = (value.usage || []).filter(source => source.windows.length).length > 1;
   for (const source of value.usage || []) for (const limit of source.windows) {
     const row = usageRow();
-    row.dataset.limit = limit.id; row.dataset.provider = source.providerId;
     $('.usage-label', row).textContent = [multiple && source.provider, limit.label || limit.id].filter(Boolean).join(' · ');
     const label = `${source.provider} · ${limit.title || limit.label || limit.id}`;
     const track = $('.usage-track', row);
@@ -89,7 +49,6 @@ function renderUsage(value: PanelPayload) {
 }
 
 async function act(value: PanelAction) {
-  hideTooltip();
   try {
     await window.sessionLights.action(value.type === 'expand' || value.type === 'set-expanded' || value.type === 'settings'
       ? { ...value, reducedMotion: reducedMotion.matches } : value);
@@ -145,7 +104,6 @@ function renderNow(value: PanelPayload) {
   const update = updateView(value.update);
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-settings]')) {
     button.setAttribute('aria-label', update.badge ? 'Settings. Update available.' : 'Settings');
-    button.title = update.badge ? update.label : 'Settings';
     $('.update-badge', button).hidden = !update.badge;
   }
   // Do not rebuild focused buttons during the two-second update.
@@ -171,7 +129,6 @@ function renderNow(value: PanelPayload) {
   hiddenToggle.hidden = value.hiddenSessions.length === 0;
   hiddenToggle.textContent = `${value.hiddenSessions.length} ${value.hiddenSessions.length === 1 ? 'session' : 'sessions'} hidden`;
   hiddenToggle.setAttribute('aria-expanded', String(value.showHidden));
-  hiddenToggle.title = value.showHidden ? 'Close hidden sessions' : 'Show hidden sessions';
   $('#threads-view > footer').hidden = expanded && value.hiddenSessions.length === 0;
   $('#adapters-hidden').hidden = !allHidden;
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-sort]')) {
@@ -179,14 +136,12 @@ function renderNow(value: PanelPayload) {
   }
   renderUsage(value);
   const sections = sessionSections(value);
-  const sessions = sections.flatMap(section => section.sessions);
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement.dataset : undefined;
   const fragment = document.createDocumentFragment();
   for (const section of sections) {
     if (expanded && (section.title || (section.kind === 'sessions' && section.divider))) {
       const heading = document.createElement('div');
       heading.className = section.kind === 'project' ? 'wide project-heading' : `wide section-heading ${section.kind}-heading`;
-      if (section.kind === 'project') heading.dataset.projectKey = section.projectKey;
       heading.setAttribute('role', 'presentation');
       if (section.title) {
         const name = document.createElement('span'); name.className = 'project-name'; name.textContent = section.title;
@@ -215,7 +170,7 @@ function renderNow(value: PanelPayload) {
       const text = document.createElement('span'); text.className = 'wide session-text';
       const title = document.createElement('span'); title.className = 'session-title'; title.textContent = session.title;
       const detail = document.createElement('span'); detail.className = 'session-detail';
-      const showProject = value.preferences.sortOrder !== 'project' || section.kind !== 'project' || session.project !== section.title;
+      const showProject = value.preferences.sortOrder === 'project' && (section.kind !== 'project' || session.project !== section.title);
       detail.hidden = !showProject;
       if (showProject) {
         const project = document.createElement('span'); project.className = 'session-project'; project.textContent = session.project;
@@ -226,7 +181,14 @@ function renderNow(value: PanelPayload) {
       activity.textContent = timestamp ? activityAge : '–';
       activity.setAttribute('aria-label', `Last activity: ${timestamp ? activityAge : 'Time unavailable'}`);
       if (timestamp) activity.dateTime = timestamp;
-      text.append(title, detail); button.append(dot, text, activity);
+      const metadata = document.createElement('span'); metadata.className = 'session-meta';
+      const provider = document.createElement('span'); provider.className = 'session-provider'; provider.textContent = panelText.provider(session);
+      metadata.append(provider);
+      if (session.model) {
+        const model = document.createElement('span'); model.className = 'session-model'; model.textContent = session.model;
+        metadata.append(' · ', model);
+      }
+      text.append(title, detail, metadata); button.append(dot, text, activity);
       button.addEventListener('click', () => act(panelIsExpanded() ? { type: 'open', key: session.key } : { type: 'set-expanded', expanded: true }));
       const pin = document.createElement('button'); pin.className = 'wide pin'; pin.dataset.key = session.key; pin.dataset.action = 'pin';
       const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -235,14 +197,12 @@ function renderNow(value: PanelPayload) {
       bookmark.setAttribute('d', 'M4.5 2.5h7a1 1 0 0 1 1 1v10l-4.5-3-4.5 3v-10a1 1 0 0 1 1-1z');
       icon.append(bookmark); pin.append(icon);
       const pinned = value.preferences.pinned.includes(session.key);
-      pin.title = pinned ? 'Unpin session' : 'Pin session';
       pin.setAttribute('aria-label', `${pinned ? 'Unpin' : 'Pin'} ${session.title}`); pin.setAttribute('aria-pressed', String(pinned));
       pin.addEventListener('click', () => act({ type: 'pin', key: session.key }));
       const visibility = document.createElement('button');
       const hidden = section.kind === 'hidden';
       visibility.className = hidden ? 'wide restore-session' : 'wide hide-session';
       visibility.dataset.key = session.key; visibility.dataset.action = hidden ? 'restore-session' : 'hide-session';
-      visibility.title = hidden ? 'Restore session' : 'Hide session';
       visibility.setAttribute('aria-label', `${hidden ? 'Restore' : 'Hide'} ${session.title}`);
       if (hidden) visibility.textContent = 'Restore';
       else {
@@ -260,7 +220,6 @@ function renderNow(value: PanelPayload) {
   }
   $('#sessions').replaceChildren(fragment);
   if (viewChanged) {
-    hideTooltip();
     if (value.view === 'settings') {
       $('.settings-content').scrollTop = 0;
       $('#settings-back').focus({ preventScroll: true });
@@ -288,9 +247,8 @@ function renderNow(value: PanelPayload) {
         { transform: 'translate(0, 0)' }], timing));
     }
     const usageHeight = value.usage.reduce((sum, source) => sum + source.windows.length * (expanded ? 36 : 24), 0);
-    const groupHeight = expanded ? sections.reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 1 : section.title ? 24 : 0), 0) : 0;
     const scale = expanded ? value.textScale : 1;
-    const listHeight = Math.min(sessions.length * (expanded ? 40 : 24) + groupHeight, Math.max(0, value.motion.height / scale - (expanded ? 104 : 62) - usageHeight));
+    const listHeight = Math.min($('#sessions').scrollHeight, Math.max(0, value.motion.height / scale - (expanded ? 104 : 62) - usageHeight));
     effects.push($('#sessions').animate([{ height: `${previousList.height}px`, transform: `translateY(${listOffset}px)` },
       { height: `${listHeight}px`, transform: 'translateY(0)' }], { ...timing, fill: 'both' }));
     for (const element of document.querySelectorAll(expanded ? '.wide' : '.usage-gauge')) {
@@ -346,7 +304,6 @@ function finishDrag(event: PointerEvent) {
 }
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') {
-    hideTooltip();
     if (snapshot?.view === 'settings') {
       event.preventDefault(); closeSettings(); return;
     }

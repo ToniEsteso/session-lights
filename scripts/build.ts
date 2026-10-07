@@ -10,10 +10,10 @@ async function main(): Promise<void> {
   for (const entry of await readdir(path.join(root, 'src', 'ui'))) {
     if (/\.(html|css)$/.test(entry)) await cp(path.join(root, 'src', 'ui', entry), path.join(ui, entry));
   }
-  await build({ entryPoints: ['renderer', 'tooltip'].map(name => path.join(root, 'src', 'ui', `${name}.ts`)),
+  await build({ entryPoints: ['renderer'].map(name => path.join(root, 'src', 'ui', `${name}.ts`)),
     outdir: ui, bundle: true, platform: 'browser', format: 'iife', target: 'es2022', sourcemap: true });
   // Sandboxed Electron preloads can require Electron, but cannot load local modules.
-  await build({ entryPoints: ['preload', 'tooltip-preload'].map(name => path.join(root, 'src', `${name}.ts`)),
+  await build({ entryPoints: ['preload'].map(name => path.join(root, 'src', `${name}.ts`)),
     outdir: output, bundle: true, platform: 'node', format: 'cjs', external: ['electron'], target: 'node22', sourcemap: true });
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

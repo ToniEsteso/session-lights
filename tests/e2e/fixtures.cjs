@@ -142,8 +142,7 @@ const test = base.extend({
         await panel.mouse.move(-20, -20);
         // An empty panel has no visible list. Wait for its main surface instead.
         await expect(panel.getByRole('main', { name: 'Session Lights', exact: true })).toBeVisible();
-        // The renderer can load before Electron shows its native window. Hover
-        // IPC ignores input until that window is visible.
+        // Wait for the native panel before pointer input expands it.
         const nativePanel = await app.browserWindow(panel);
         try {
           await expect.poll(() => nativePanel.evaluate(window => window.isVisible()),
@@ -156,7 +155,10 @@ const test = base.extend({
       await start();
       await use({
         get page() { return panel; },
-        get tooltip() { return app.windows().find(page => page.url().endsWith('/tooltip.html')); }, ids,
+        ids,
+        async expectNoTooltips() {
+          for (const window of app.windows()) await expect(window.getByRole('tooltip')).toBeHidden();
+        },
         async expand() {
           await panel.getByRole('list', { name: 'Sessions', exact: true }).hover();
           await expect(panel.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
