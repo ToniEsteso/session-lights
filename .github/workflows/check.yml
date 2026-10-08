@@ -2,9 +2,13 @@ name: Check
 on: [push, pull_request]
 permissions:
   contents: read
+env:
+  # The global virtual store fails on Windows runners, where the store lands on another drive.
+  pnpm_config_virtual_store_type: project
 jobs:
   check:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         node: ['22.12.0', '24']

@@ -16,6 +16,9 @@ on:
         type: boolean
 permissions:
   contents: read
+env:
+  # The global virtual store fails on Windows runners, where the store lands on another drive.
+  pnpm_config_virtual_store_type: project
 jobs:
   build:
     strategy:
