@@ -1,4 +1,5 @@
 import type { PanelAction, SettingsAction } from './contracts.js';
+import { PANEL_EDGES } from './contracts.js';
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -25,8 +26,9 @@ export function parseAction(value: unknown): PanelAction | undefined {
       return;
     case 'move':
       if ((value.phase === 'start' || value.phase === 'update' || value.phase === 'end') &&
+          typeof value.screenX === 'number' && Number.isFinite(value.screenX) &&
           typeof value.screenY === 'number' && Number.isFinite(value.screenY)) {
-        return { type: 'move', phase: value.phase, screenY: value.screenY };
+        return { type: 'move', phase: value.phase, screenX: value.screenX, screenY: value.screenY };
       }
       return;
     case 'show-hidden': case 'restore-all': return { type: value.type };
@@ -39,6 +41,10 @@ export function parseSettingsAction(value: unknown): SettingsAction | undefined 
     case 'theme':
       if (value.theme === 'system' || value.theme === 'light' || value.theme === 'dark') return { type: 'theme', theme: value.theme };
       return;
+    case 'edge': {
+      const edge = PANEL_EDGES.find(edge => edge === value.edge);
+      return edge && { type: 'edge', edge };
+    }
     case 'adapter':
       if (typeof value.id === 'string' && typeof value.visible === 'boolean') return { type: 'adapter', id: value.id, visible: value.visible };
       return;

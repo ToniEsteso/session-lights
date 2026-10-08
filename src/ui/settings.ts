@@ -1,4 +1,5 @@
 import type { SettingsAction, SettingsPayload } from '../shared/contracts.js';
+import { PANEL_EDGES } from '../shared/contracts.js';
 import { updateView } from '../shared/updates.js';
 import { element as $ } from './dom.js';
 import { errorMessage } from '../shared/validation.js';
@@ -7,6 +8,7 @@ const switches = new Map<string, HTMLInputElement>();
 function render(value: SettingsPayload) {
   snapshot = value;
   for (const input of document.querySelectorAll<HTMLInputElement>('input[name=theme]')) input.checked = input.value === value.theme;
+  for (const input of document.querySelectorAll<HTMLInputElement>('input[name=edge]')) input.checked = input.value === value.edge;
   document.body.style.setProperty('--text-scale', String(value.textScale));
   for (const adapter of value.adapters) {
     let input = switches.get(adapter.id);
@@ -49,6 +51,12 @@ async function act(value: SettingsAction) {
 for (const input of document.querySelectorAll<HTMLInputElement>('input[name=theme]')) {
   input.addEventListener('change', () => {
     if (input.checked && (input.value === 'system' || input.value === 'light' || input.value === 'dark')) void act({ type: 'theme', theme: input.value });
+  });
+}
+for (const input of document.querySelectorAll<HTMLInputElement>('input[name=edge]')) {
+  input.addEventListener('change', () => {
+    const edge = PANEL_EDGES.find(edge => edge === input.value);
+    if (input.checked && edge) void act({ type: 'edge', edge });
   });
 }
 $('#update').addEventListener('click', () => {

@@ -18,7 +18,7 @@ These are ideas, not implemented features.
 
 ## Daily use
 
-- Remember a separate position for each monitor. Allow either screen edge. Check monitor removal and changes in display scale.
+- Remember a separate position for each monitor. Check monitor removal and changes in display scale.
 - Use a stable install folder before adding start at sign-in. Portable builds currently get a new folder on each build.
 - Add a small settings view for startup, source selection, colors, alerts, and motion. Avoid extra controls in compact mode.
 - Check tooltip placement, dragging, Spaces, full-screen apps, usage reads, and packaging on a Mac before a release.

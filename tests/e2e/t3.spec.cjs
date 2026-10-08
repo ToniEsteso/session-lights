@@ -9,8 +9,8 @@ test('threads that T3 Code started appear without any T3 data and open in T3 Cod
   await lights.expand();
   const page = lights.page;
   const codex = page.getByRole('button', { name: 'Plan the release: Working', exact: true });
-  await expect(codex.getByText('Codex T3 Code', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Write the changelog: Working', exact: true }).getByText('Claude SDK', { exact: true })).toBeVisible();
+  await expect(codex).toHaveAttribute('title', /Codex T3 Code/);
+  await expect(page.getByRole('button', { name: 'Write the changelog: Working', exact: true })).toHaveAttribute('title', /Claude SDK/);
   // The thread runs in T3. A Codex desktop link or a terminal would open the wrong program.
   await codex.click();
   await expect.poll(() => lights.openedChats()).toEqual(['t3code://app/']);
@@ -33,7 +33,7 @@ test('a Claude thread opens in T3 Code only when T3 lists it', async ({ lights }
   await lights.t3Database([{ provider: 'claudeAgent', sessionId: claudeT3, title: 'Write the changelog', project: 'atlas',
     projectRoot: require('node:path').join(require('node:os').tmpdir(), 'atlas') }]);
   const thread = page.getByRole('button', { name: /^Write the changelog: / });
-  await expect(thread.getByText('Claude T3 Code', { exact: true })).toBeVisible();
+  await expect(thread).toHaveAttribute('title', /Claude T3 Code/);
   await thread.click();
   await expect.poll(() => lights.openedChats()).toEqual(['t3code://app/']);
 });

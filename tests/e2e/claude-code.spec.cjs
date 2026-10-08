@@ -132,7 +132,7 @@ test('a running Claude process reports approval waits; a dead process does not k
   const page = lights.page;
   const row = state => page.getByRole('button', { name: `Run the migration: ${state}`, exact: true });
   await expect(row('Working')).toBeVisible();
-  await expect(row('Working').getByText('Claude CLI', { exact: true })).toBeVisible();
+  await expect(row('Working')).toHaveAttribute('title', /Claude CLI/);
   // The permission dialog is not in the transcript. Only the process status shows it.
   await lights.claudeProcess(process.pid, 'waiting', 'dialog open');
   await expect(row('Needs you')).toBeVisible();

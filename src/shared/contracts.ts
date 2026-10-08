@@ -67,14 +67,20 @@ export interface SessionAdapter {
   close?(): void;
 }
 export type ThemeChoice = 'system' | 'light' | 'dark';
+export const PANEL_EDGES = ['right', 'left', 'top', 'bottom'] as const;
+/** Screen edge that holds the panel. Left and right edges show a vertical bar. */
+export type PanelEdge = typeof PANEL_EDGES[number];
 export interface PanelPreferences {
   theme: ThemeChoice;
-  showAll: boolean;
   pinned: string[];
   hidden: string[];
   hiddenAdapters: string[];
   displayId: number | null;
+  edge: PanelEdge;
+  /** Saved position along a left or right edge. */
   y: number | null;
+  /** Saved position along a top or bottom edge. */
+  x: number | null;
   sortOrder: SortOrder;
 }
 export interface MonitorSnapshot {
@@ -107,7 +113,7 @@ export type PanelAction =
   | { type: 'show-hidden' }
   | { type: 'restore-all' }
   | { type: 'open'; key: string }
-  | { type: 'move'; phase: 'start' | 'update' | 'end'; screenY: number };
+  | { type: 'move'; phase: 'start' | 'update' | 'end'; screenX: number; screenY: number };
 export interface SessionLightsBridge {
   read(): Promise<PanelPayload>;
   action(value: PanelAction): Promise<void>;
@@ -116,6 +122,7 @@ export interface SessionLightsBridge {
 }
 export interface SettingsPayload {
   theme: ThemeChoice;
+  edge: PanelEdge;
   version: string;
   update: UpdateState;
   adapters: { id: string; name: string; visible: boolean }[];
@@ -123,6 +130,7 @@ export interface SettingsPayload {
 }
 export type SettingsAction =
   | { type: 'theme'; theme: ThemeChoice }
+  | { type: 'edge'; edge: PanelEdge }
   | { type: 'adapter'; id: string; visible: boolean }
   | { type: 'update'; command: UpdateCommand }
   | { type: 'close' | 'quit' };

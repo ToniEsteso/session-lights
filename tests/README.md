@@ -13,17 +13,21 @@ main use case or a reported defect. Follow the feature rules in `AGENTS.md`.
 
 ## Scenarios
 
-The UX scenarios check search by title, project, source, and saved model;
-keyboard search with Enter and arrow keys; a panel that stays open when a search
-shortens the list below the pointer;
-keyboard clearing and focus; compact lights during search; live attention
-membership and visible state text; and Undo with pin persistence. A real
+The UX scenarios check the 24-hour list limit with pinned and newly active old
+threads; waiting and failed sessions above newer activity, with visible state
+text and recovery; arrow keys and Enter in the list; and Undo with pin persistence. A real
 preference write failure must leave the session visible without Undo feedback.
 The scenarios use the running Electron app and isolated local records.
 The layout scenario starts with three Codex sessions, then adds a Claude session
 through a local transcript. At standard desktop text size, all four session
 buttons and all four account limit bars (Codex and Claude) must fit in the native panel. It detects a
 window that stays too short and clips the last row behind the usage section.
+
+The edge scenario selects Left, Top, and Bottom in Settings > Position, restarts, and then selects Right.
+For each edge, the closed bar and the open panel must touch that edge of the screen work area.
+On the top and bottom edges, the closed bar must be wider than it is tall. It detects a panel that
+stays on the old edge, a bar that keeps the vertical shape, a bar that misses the edge because of the
+native minimum window height, and an edge choice that is not saved.
 
 The provider scenarios require exactly two switches: Codex and Claude. Hiding
 Codex must hide desktop sessions, CLI sessions, and Codex usage together, while Claude
