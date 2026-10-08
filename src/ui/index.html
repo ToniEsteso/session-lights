@@ -13,25 +13,25 @@
   <main id="panel" class="panel" data-view="threads" aria-label="Session Lights">
     <section id="threads-view" class="threads-view" aria-label="Threads">
     <header id="handle" class="panel-handle">
-      <div class="wide panel-brand"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="10" width="4" height="10" rx="2"/><rect x="10" y="4" width="4" height="16" rx="2"/><rect x="17" y="7" width="4" height="13" rx="2"/></svg><div><h1>Session Lights</h1><p>Local session monitor</p></div></div>
+      <div class="wide session-filters" role="group" aria-label="Filter sessions">
+        <button data-filter="all" aria-pressed="true">All <span id="all-count" class="count">0</span></button>
+        <button data-filter="attention" aria-pressed="false">Attention <span id="attention-count" class="count">0</span></button>
+      </div>
       <span id="demo-label" class="wide demo-label" hidden>Demo</span>
+      <div class="wide sort-tools" role="group" aria-label="Sort chats">
+        <button data-sort="activity" aria-label="Sort by latest activity" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg></button>
+        <button data-sort="project" aria-label="Group by project" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg></button>
+      </div>
       <button class="wide gear" data-settings aria-label="Settings" aria-controls="settings-view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.6 2.1-1.8 1-2.1-.5-2.5 4.3 1.5 1.6v2.1l-1.5 1.5L5 19.4l2.1-.5 1.8 1 .6 2.1h5l.6-2.1 1.8-1 2.1.5 2.5-4.3-1.5-1.5v-2.1l1.5-1.6L19 5.6l-2.1.5-1.8-1-.6-2.1z"/><circle cx="12" cy="12.5" r="3.2"/></svg><span class="update-badge" hidden></span></button>
     </header>
-    <div class="wide session-tools">
-      <label class="search-field"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4"/><path d="m9.5 9.5 4 4"/></svg><input id="session-search" type="search" aria-label="Search sessions" placeholder="Find a session…" autocomplete="off"><kbd id="search-shortcut" aria-hidden="true">Ctrl F</kbd><button id="clear-search" aria-label="Clear search" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg></button></label>
-      <div class="session-filters" role="group" aria-label="Filter sessions">
-        <button data-filter="all" aria-pressed="true">All</button>
-        <button data-filter="attention" aria-pressed="false">Needs attention <span id="attention-count">0</span></button>
-      </div>
-    </div>
-    <div class="wide list-toolbar"><p id="session-summary" class="session-summary" role="status"></p><div class="sort-tools" role="group" aria-label="Sort chats"><button data-sort="activity" aria-label="Sort by latest activity" aria-pressed="true">Activity</button><button data-sort="project" aria-label="Group by project" aria-pressed="false">Project</button></div></div>
-    <section id="no-matches" class="wide empty-state" hidden><strong id="no-matches-title">No matching sessions</strong><p id="no-matches-detail"></p><button id="reset-filters">Show all sessions</button></section>
+    <label class="wide search-field"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4"/><path d="m9.5 9.5 4 4"/></svg><input id="session-search" type="search" aria-label="Search sessions" placeholder="Search" autocomplete="off" spellcheck="false"><kbd id="search-shortcut" aria-hidden="true">Ctrl F</kbd><button id="clear-search" aria-label="Clear search" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button></label>
+    <section id="no-matches" class="wide empty-state" hidden><strong id="no-matches-title">No matching sessions</strong><button id="reset-filters">Show all sessions</button></section>
     <div id="sessions" role="list" aria-label="Sessions"></div>
-    <button id="empty" aria-label="No sessions. Show session list." hidden><span class="empty-dot" aria-hidden="true"></span><span class="wide">No local sessions.</span></button>
-    <p id="empty-help" class="wide empty-help" hidden></p>
-    <section id="adapters-hidden" aria-label="All adapters are hidden" hidden>
-      <p class="wide">All adapters are hidden.</p>
-      <button id="empty-settings" aria-label="All adapters are hidden. Open Settings." aria-controls="settings-view"><span class="compact empty-dot" aria-hidden="true"></span><span class="wide">Open Settings</span></button>
+    <button id="empty" aria-label="No sessions. Show session list." hidden><span class="empty-dot" aria-hidden="true"></span><span class="wide">No sessions</span></button>
+    <p id="empty-help" class="wide empty-help" hidden>Sessions from enabled sources appear here.</p>
+    <section id="adapters-hidden" aria-label="All sources are hidden" hidden>
+      <p class="wide">All sources are hidden.</p>
+      <button id="empty-settings" aria-label="All sources are hidden. Open Settings." aria-controls="settings-view"><span class="compact empty-dot" aria-hidden="true"></span><span class="wide">Open Settings</span></button>
     </section>
     <div id="hide-feedback" class="wide hide-feedback" hidden><span id="hide-message" role="status"></span><button id="undo-hide">Undo</button></div>
     <section id="usage" aria-label="Usage limits" hidden></section>
@@ -60,22 +60,15 @@
             <label><input type="radio" name="theme" value="light"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3"/><path d="M10 2v2m0 12v2M2 10h2m12 0h2M4.3 4.3l1.4 1.4m8.6 8.6 1.4 1.4M4.3 15.7l1.4-1.4m8.6-8.6 1.4-1.4"/></svg>Light</label>
             <label><input type="radio" name="theme" value="dark"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 12A7 7 0 0 1 8 3.5 7 7 0 1 0 16.5 12Z"/></svg>Dark</label>
           </div>
-          <p class="settings-help">System follows your device theme.</p>
         </fieldset>
         <fieldset>
-          <legend>Show</legend>
+          <legend>Sources</legend>
           <div id="adapters"></div>
-          <p class="settings-help">Hidden sources keep monitoring. Your sessions and pins stay saved.</p>
         </fieldset>
-        <details class="settings-guide">
-          <summary>Session states<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m5 6 3 3 3-3"/></svg></summary>
-          <dl><div><dt class="waiting">Needs you</dt><dd>Answer or approval needed.</dd></div><div><dt class="working">Working</dt><dd>A turn is in progress.</dd></div><div><dt class="idle">Idle</dt><dd>The last turn finished or stopped.</dd></div><div><dt class="error">Failed</dt><dd>The last turn failed.</dd></div><div><dt class="unknown">Unknown</dt><dd>Data is missing or too old.</dd></div></dl>
-          <p class="settings-help">States come from local records. They may be delayed.</p>
-        </details>
         <section class="settings-updates" aria-label="App updates"><h2>Updates</h2>
         <progress id="progress" max="100" aria-label="Update download" hidden></progress>
         <button id="update" disabled>Check for updates</button>
-        <p id="update-detail" class="settings-help" hidden></p>
+        <p id="update-detail" hidden></p>
         </section>
         <p id="settings-error" role="alert" hidden></p>
       </div>

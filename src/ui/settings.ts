@@ -32,7 +32,7 @@ function render(value: SettingsPayload) {
   button.classList.toggle('available', view.badge);
   button.setAttribute('aria-description', view.detail);
   $('#update-detail').textContent = view.detail;
-  $('#update-detail').hidden = !view.detail;
+  $('#update-detail').hidden = !view.detail || value.update.kind === 'disabled';
   const progress = $('#progress');
   if (progress instanceof HTMLProgressElement) {
     progress.hidden = value.update.kind !== 'downloading';

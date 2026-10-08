@@ -87,10 +87,10 @@ test('theme and adapter switches persist; the empty panel can restore a source',
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('switch', { name: 'Claude', exact: true }).uncheck();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
-  await expect(page.getByText('All adapters are hidden.', { exact: true })).toBeVisible();
+  await expect(page.getByText('All sources are hidden.', { exact: true })).toBeVisible();
   await lights.restart();
   page = lights.page;
-  await page.getByRole('button', { name: 'All adapters are hidden. Open Settings.', exact: true }).click();
+  await page.getByRole('button', { name: 'All sources are hidden. Open Settings.', exact: true }).click();
   await expect(page.getByRole('radio', { name: 'Dark', exact: true })).toBeChecked();
   await expect.poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(true);
   await expect(page.getByRole('switch', { name: 'Codex', exact: true })).not.toBeChecked();

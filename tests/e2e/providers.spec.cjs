@@ -54,10 +54,10 @@ test('old CLI pins and hidden sessions migrate; the combined switch stays saved 
   await page.getByRole('switch', { name: 'Codex', exact: true }).uncheck();
   await page.getByRole('switch', { name: 'Claude', exact: true }).uncheck();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
-  await expect(page.getByText('All adapters are hidden.', { exact: true })).toBeVisible();
+  await expect(page.getByText('All sources are hidden.', { exact: true })).toBeVisible();
   await lights.restart();
   page = lights.page;
-  await page.getByRole('button', { name: 'All adapters are hidden. Open Settings.', exact: true }).click();
+  await page.getByRole('button', { name: 'All sources are hidden. Open Settings.', exact: true }).click();
   await expect(page.getByRole('switch', { name: 'Codex', exact: true })).not.toBeChecked();
   await page.getByRole('switch', { name: 'Codex', exact: true }).check();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();

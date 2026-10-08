@@ -65,23 +65,23 @@ test('search finds sessions by title, project, source, and saved model; clear re
 test('attention filter follows live waiting, failure, and recovery with visible state labels', async ({ lights }) => {
   await lights.expand();
   const page = lights.page;
-  const attention = page.getByRole('button', { name: /^Needs attention / });
+  const attention = page.getByRole('button', { name: /^Attention / });
   await attention.click();
   await expect(page.getByText('No sessions need attention', { exact: true })).toBeVisible();
   await lights.desktopQuestion();
   const waiting = page.getByRole('button', { name: 'Build API: Needs you', exact: true });
   await expect(page.getByRole('listitem')).toHaveText([/Build API/]);
   await expect(waiting.getByText('Needs you', { exact: true })).toBeVisible();
-  await expect(attention).toHaveText('Needs attention 1');
+  await expect(attention).toHaveText('Attention 1');
   await lights.record(lights.ids.cli, 'event_msg', { type: 'task_complete', error: 'Request failed' });
   const failed = page.getByRole('button', { name: 'Fix CLI: Failed', exact: true });
   await expect(failed.getByText('Failed', { exact: true })).toBeVisible();
-  await expect(attention).toHaveText('Needs attention 2');
+  await expect(attention).toHaveText('Attention 2');
   await expect(page.getByRole('listitem')).toHaveCount(2);
   await lights.record(lights.ids.desktop, 'event_msg', { type: 'task_complete' });
   await lights.record(lights.ids.cli, 'event_msg', { type: 'task_started' });
   await expect(page.getByRole('listitem')).toHaveCount(0);
-  await expect(attention).toHaveText('Needs attention 0');
+  await expect(attention).toHaveText('Attention 0');
   await page.getByRole('button', { name: 'Show all sessions', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Build API: Idle', exact: true }).getByText('Idle', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Fix CLI: Working', exact: true }).getByText('Working', { exact: true })).toBeVisible();
@@ -116,4 +116,49 @@ test('Undo restores a hidden pinned session and failed saves do not show success
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(page.getByRole('alert')).toBeHidden();
   await expect(page.getByRole('listitem').first()).toContainText('Review release');
+});
+
+// Start with three local sessions. Use only the keyboard: search, Enter, and arrow keys.
+// Detect an Enter that opens nothing or the wrong chat, and arrow keys that lose the list.
+test('keyboard search opens the top match with Enter and arrow keys move between sessions', async ({ lights }) => {
+  await lights.expand();
+  const page = lights.page;
+  const search = page.getByRole('searchbox', { name: 'Search sessions', exact: true });
+  await page.keyboard.press('ControlOrMeta+f');
+  await expect(search).toBeFocused();
+  await page.keyboard.type('review');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => lights.openedChats()).toEqual([`codex://threads/${lights.ids.review}`]);
+  await page.getByRole('button', { name: 'Clear search', exact: true }).click();
+  await expect(search).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('button', { name: 'Review release: Idle', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
+  await expect(search).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => lights.openedChats()).toEqual([
+    `codex://threads/${lights.ids.review}`, `codex://threads/${lights.ids.desktop}`,
+  ]);
+});
+
+// Defect: a search that shortens the list also shortened the panel. The panel edge
+// moved above a pointer resting on a lower row, and the panel closed while the user typed.
+// Start with three sessions, rest the pointer on the last row, then search for the first.
+test('the panel stays open when a search shortens the list below the pointer', async ({ lights }) => {
+  await lights.expand();
+  const page = lights.page;
+  const last = page.getByRole('button', { name: 'Fix CLI: Idle', exact: true });
+  // Rows are at least 52 px tall. Rest the pointer near the bottom of the last row.
+  await last.hover({ position: { x: 60, y: 46 } });
+  await page.keyboard.press('ControlOrMeta+f');
+  await page.keyboard.type('build');
+  await expect(page.getByRole('listitem')).toHaveText([/Build API/]);
+  // The hover close delay is 120 ms. Wait well past it before checking.
+  await page.waitForTimeout(600);
+  await expect(page.getByRole('button', { name: 'Settings', exact: true }), 'The panel must stay open while the user types').toBeVisible();
+  await expect(page.getByRole('searchbox', { name: 'Search sessions', exact: true })).toBeFocused();
 });

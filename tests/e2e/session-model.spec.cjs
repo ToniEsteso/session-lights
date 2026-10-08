@@ -1,6 +1,6 @@
 const { test, expect } = require('./fixtures.cjs');
 
-// Detect missing or stale visible adapter/model names, and clipped long names.
+// Detect missing or stale visible project, adapter, and model names, and clipped long names.
 // Start with local sessions, update real records, then group, hover, and restart.
 test('rows show adapters and saved models across updates and restart without tooltips', async ({ lights }, testInfo) => {
   await lights.expand();
@@ -8,7 +8,7 @@ test('rows show adapters and saved models across updates and restart without too
   const desktop = () => page.getByRole('button', { name: 'Build API: Working', exact: true });
   const cli = () => page.getByRole('button', { name: 'Fix CLI: Idle', exact: true });
   const review = () => page.getByRole('button', { name: 'Review release: Idle', exact: true });
-  await expect(review()).not.toContainText('website');
+  await expect(review().getByText('website', { exact: true })).toBeVisible();
   await expect(review().getByText('Codex Desktop', { exact: true })).toBeVisible();
   await expect(cli().getByText('Codex CLI', { exact: true })).toBeVisible();
   await expect(review()).toHaveAttribute('aria-description', /Codex Desktop/);
@@ -22,7 +22,7 @@ test('rows show adapters and saved models across updates and restart without too
   await page.getByRole('button', { name: 'Sort by latest activity', exact: true }).click();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('group', { name: 'Theme', exact: true })).toBeVisible();
-  await expect(page.getByRole('group', { name: 'Show', exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Sources', exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('settings-labels.png') });
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
   await lights.expand();

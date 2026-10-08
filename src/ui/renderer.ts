@@ -5,7 +5,7 @@ import { updateView } from '../shared/updates.js';
 import { element as $, svgElement, usageRow } from './dom.js';
 import { errorMessage } from '../shared/validation.js';
 import { closeSettings } from './settings.js';
-const { labels, available, countdown, age } = panelText;
+const { labels, available, countdown, until, age } = panelText;
 let snapshot: PanelPayload | undefined;
 let requestedExpanded: boolean | undefined;
 let renderSignature: string | undefined;
@@ -21,6 +21,8 @@ let effects: Animation[] = [];
 let search = '';
 let filter: 'all' | 'attention' = 'all';
 let undoSession: { key: string; title: string } | undefined;
+let filterHeight: number | undefined;
+let pendingLeave: { x: number; y: number } | undefined;
 function refreshList() {
   renderSignature = undefined;
   if (snapshot) renderNow(snapshot);
@@ -34,10 +36,6 @@ function panelRect(): PanelRect {
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 function renderUsage(value: PanelPayload) {
   const fragment = document.createDocumentFragment();
-  const heading = document.createElement('div'); heading.className = 'wide usage-heading';
-  const title = document.createElement('span'); title.textContent = 'Account limits';
-  const caption = document.createElement('span'); caption.textContent = 'Remaining';
-  heading.append(title, caption);
   const multiple = (value.usage || []).filter(source => source.windows.length).length > 1;
   for (const source of value.usage || []) for (const limit of source.windows) {
     const row = usageRow();
@@ -60,12 +58,13 @@ function renderUsage(value: PanelPayload) {
     gauge.setAttribute('aria-description', [source.scope, countdown(limit.resetsAt), source.message].filter(Boolean).join('. '));
     gauge.addEventListener('click', () => requestExpanded(true));
     const reset = $('.usage-reset', row);
-    reset.textContent = ready && limit.resetsAt ? countdown(limit.resetsAt) : '';
-    reset.hidden = !reset.textContent;
+    reset.textContent = ready ? until(limit.resetsAt) : '';
+    reset.setAttribute('aria-label', countdown(limit.resetsAt));
+    reset.hidden = !ready;
     fragment.append(row);
   }
   const hasUsage = fragment.childElementCount > 0;
-  $('#usage').replaceChildren(...(hasUsage ? [heading, fragment] : [])); $('#usage').hidden = !hasUsage;
+  $('#usage').replaceChildren(fragment); $('#usage').hidden = !hasUsage;
 }
 
 async function act(value: PanelAction) {
@@ -146,17 +145,22 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   document.body.classList.toggle('resizing', Boolean(value.motion));
   document.body.style.setProperty('--compact-inset', `${value.compactInset || 0}px`);
   $('#panel').classList.toggle('expanded', expanded);
+  if (pendingLeave) {
+    const point = pendingLeave; pendingLeave = undefined;
+    const rect = $('#panel').getBoundingClientRect(), x = point.x - window.screenX, y = point.y - window.screenY;
+    if (expanded && (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom)) scheduleClose();
+  }
   $('#panel').dataset.view = value.view;
   $('#threads-view').hidden = value.view !== 'threads';
   $('#settings-view').hidden = value.view !== 'settings';
   const allHidden = value.sources.length === 0;
   $('#empty').hidden = value.sessions.length > 0 || value.showHidden || allHidden;
-  $('#empty .wide').textContent = value.hiddenSessions.length ? 'All sessions are hidden.' : 'No local sessions.';
+  $('#empty .wide').textContent = value.hiddenSessions.length ? 'All sessions are hidden' : 'No sessions';
   $('#empty').setAttribute('aria-label', value.hiddenSessions.length ? 'All sessions are hidden. Show session list.' : 'No sessions. Show session list.');
-  $('#empty-help').hidden = $('#empty').hidden;
-  $('#empty-help').textContent = value.hiddenSessions.length ? 'Use the hidden sessions button below to restore a session.' : 'Start a session in an enabled source. Saved local sessions appear here automatically.';
+  $('#empty-help').hidden = $('#empty').hidden || value.hiddenSessions.length > 0;
   const attention = value.sessions.filter(session => session.state === 'waiting' || session.state === 'error').length;
   $('#attention-count').textContent = String(attention);
+  $('#all-count').textContent = String(value.sessions.length);
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-filter]')) button.setAttribute('aria-pressed', String(button.dataset.filter === filter));
   $('#clear-search').hidden = !search;
   $('#search-shortcut').hidden = Boolean(search);
@@ -168,18 +172,20 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   const visible = value.sessions.filter(matches);
   const hiddenMatches = value.showHidden ? value.hiddenSessions.filter(matches) : [];
   const filtering = Boolean(query) || filter !== 'all';
-  $('#session-summary').textContent = `${filtering ? `${visible.length} of ${value.sessions.length}` : value.sessions.length} ${value.sessions.length === 1 ? 'session' : 'sessions'}`;
-  $('#session-summary').setAttribute('aria-label', `${value.demo ? 'Sample data. ' : ''}${$('#session-summary').textContent}${attention ? `. ${attention} need attention` : ''}`);
+  // Keep the panel height while a filter is active. A shorter list would
+  // otherwise move the panel edge away from the pointer and close the panel.
+  if (!expanded || !filtering || value.view !== 'threads') { filterHeight = undefined; $('#panel').style.minHeight = ''; }
+  else if (filterHeight === undefined) { filterHeight = $('#panel').offsetHeight; $('#panel').style.minHeight = `${filterHeight}px`; }
   document.querySelector<HTMLButtonElement>('[data-filter="attention"]')?.classList.toggle('has-attention', attention > 0);
   $('#no-matches').hidden = !expanded || allHidden || !filtering || visible.length + hiddenMatches.length > 0 || value.sessions.length === 0;
   $('#no-matches-title').textContent = query ? 'No matching sessions' : 'No sessions need attention';
-  $('#no-matches-detail').textContent = query ? 'Try another title, project, source, model, or state.' : 'No visible sessions need an answer or have failed.';
   if (undoSession && !value.hiddenSessions.some(session => session.key === undoSession?.key)) undoSession = undefined;
   $('#hide-feedback').hidden = !undoSession;
   $('#hide-message').textContent = undoSession ? `Hidden: ${undoSession.title}` : '';
   const hiddenToggle = $('#hidden-sessions');
   hiddenToggle.hidden = value.hiddenSessions.length === 0;
-  hiddenToggle.textContent = `${value.hiddenSessions.length} ${value.hiddenSessions.length === 1 ? 'session' : 'sessions'} hidden`;
+  hiddenToggle.textContent = `${value.hiddenSessions.length} hidden`;
+  hiddenToggle.setAttribute('aria-label', `${value.hiddenSessions.length} ${value.hiddenSessions.length === 1 ? 'session' : 'sessions'} hidden`);
   hiddenToggle.setAttribute('aria-expanded', String(value.showHidden));
   $('#threads-view > footer').hidden = expanded && value.hiddenSessions.length === 0;
   $('#adapters-hidden').hidden = !allHidden;
@@ -223,37 +229,29 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
       if (session.state === 'working') dot.style.setProperty('--orbit-phase', `${-(Number(document.timeline.currentTime) % 1200)}ms`);
       const text = document.createElement('span'); text.className = 'wide session-text';
       const title = document.createElement('span'); title.className = 'session-title'; title.textContent = session.title;
-      const detail = document.createElement('span'); detail.className = 'session-detail';
-      const showProject = value.preferences.sortOrder === 'project' && (section.kind !== 'project' || session.project !== section.title);
-      detail.hidden = !showProject;
-      if (showProject) {
-        const project = document.createElement('span'); project.className = 'session-project'; project.textContent = session.project;
-        detail.append(project);
-      }
       const activity = document.createElement('time'); activity.className = 'wide session-activity';
       const timestamp = session.updatedAt > 0 ? new Date(session.updatedAt).toJSON() : null;
       activity.textContent = timestamp ? activityAge : '–';
       activity.setAttribute('aria-label', `Last activity: ${timestamp ? activityAge : 'Time unavailable'}`);
       if (timestamp) activity.dateTime = timestamp;
+      // One metadata line: state, then where and how the session runs.
+      // A project heading already names the project of its rows.
       const metadata = document.createElement('span'); metadata.className = 'session-meta';
-      const provider = document.createElement('span'); provider.className = 'session-provider'; provider.textContent = panelText.provider(session);
-      metadata.append(provider);
-      if (session.model) {
-        const model = document.createElement('span'); model.className = 'session-model'; model.textContent = session.model;
-        metadata.append(' · ', model);
-      }
-      const state = document.createElement('span'); state.className = `session-state ${session.state}`; state.textContent = labels[session.state];
-      const stateLine = document.createElement('span'); stateLine.className = 'session-state-line'; stateLine.append(state);
+      const part = (className: string, content: string) => {
+        const span = document.createElement('span'); span.className = className; span.textContent = content;
+        metadata.append(span);
+      };
+      part(`session-state ${session.state}`, labels[session.state]);
+      if (session.state === 'waiting' && session.detail) part('session-reason', session.detail);
+      if (session.project && (section.kind !== 'project' || session.project !== section.title)) part('session-project', session.project);
+      part('session-provider', panelText.provider(session));
+      if (session.model) part('session-model', session.model);
       const titleLine = document.createElement('span'); titleLine.className = 'session-title-line'; titleLine.append(title, activity);
-      if (session.state === 'waiting' && session.detail) {
-        const reason = document.createElement('span'); reason.className = 'session-reason'; reason.textContent = session.detail;
-        stateLine.append(reason);
-      }
-      text.append(titleLine, detail, metadata, stateLine); button.append(dot, text);
+      text.append(titleLine, metadata); button.append(dot, text);
       // Use the rendered state: a visible session name opens its chat even if
       // a native pointer event has queued a resize that has not painted yet.
       button.addEventListener('click', () => act(expanded ? { type: 'open', key: session.key } : { type: 'set-expanded', expanded: true }));
-      const pin = document.createElement('button'); pin.className = 'wide pin'; pin.dataset.key = session.key; pin.dataset.action = 'pin';
+      const pin = document.createElement('button'); pin.className = 'pin'; pin.dataset.key = session.key; pin.dataset.action = 'pin';
       const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       icon.setAttribute('viewBox', '0 0 16 16'); icon.setAttribute('aria-hidden', 'true');
       const bookmark = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -264,7 +262,7 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
       pin.addEventListener('click', () => act({ type: 'pin', key: session.key }));
       const visibility = document.createElement('button');
       const hidden = section.kind === 'hidden';
-      visibility.className = hidden ? 'wide restore-session' : 'wide hide-session';
+      visibility.className = hidden ? 'restore-session' : 'hide-session';
       visibility.dataset.key = session.key; visibility.dataset.action = hidden ? 'restore-session' : 'hide-session';
       visibility.setAttribute('aria-label', `${hidden ? 'Restore' : 'Hide'} ${session.title}`);
       if (hidden) visibility.textContent = 'Restore';
@@ -281,9 +279,10 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
           refreshList();
         }
       });
-      row.append(button);
-      if (!hidden) row.append(pin);
-      row.append(visibility); fragment.append(row);
+      const actions = document.createElement('span'); actions.className = 'session-actions';
+      if (!hidden) actions.append(pin);
+      actions.append(visibility);
+      row.append(button, actions); fragment.append(row);
     }
   }
   $('#sessions').replaceChildren(fragment);
@@ -328,6 +327,22 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
 $('#empty-settings').addEventListener('click', () => act({ type: 'settings' }));
 const searchInput = document.querySelector<HTMLInputElement>('#session-search');
 searchInput?.addEventListener('input', () => { search = searchInput.value; refreshList(); });
+const rowButtons = () => [...document.querySelectorAll<HTMLButtonElement>('#sessions .session-button')];
+// Enter opens the first result. Arrow keys move between rows; Arrow Up from the first row returns to search.
+searchInput?.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && search.trim()) { event.preventDefault(); rowButtons()[0]?.click(); }
+  if (event.key === 'ArrowDown') { event.preventDefault(); rowButtons()[0]?.focus(); }
+});
+$('#sessions').addEventListener('keydown', event => {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+  const rows = rowButtons();
+  const index = rows.findIndex(row => row === document.activeElement?.closest('.session')?.querySelector('.session-button'));
+  if (index < 0) return;
+  event.preventDefault();
+  const next = index + (event.key === 'ArrowDown' ? 1 : -1);
+  if (next < 0) searchInput?.focus();
+  else rows[Math.min(next, rows.length - 1)]?.focus();
+});
 $('#clear-search').addEventListener('click', () => {
   search = ''; if (searchInput) searchInput.value = '';
   refreshList(); searchInput?.focus();
@@ -350,14 +365,21 @@ $('#undo-hide').addEventListener('click', async () => {
 // Let a compact-button click finish before hover moves its target. The short
 // hover delay also keeps the panel closed when the pointer only crosses it.
 $('#panel').addEventListener('pointerenter', () => {
-  clearTimeout(hoverCloseTimer); hoverCloseTimer = undefined;
+  clearTimeout(hoverCloseTimer); hoverCloseTimer = undefined; pendingLeave = undefined;
   clearTimeout(expandTimer);
   expandTimer = setTimeout(() => { expandTimer = undefined; requestExpanded(true); }, 120);
 });
-$('#panel').addEventListener('pointerleave', () => {
-  clearTimeout(expandTimer); expandTimer = undefined;
+function scheduleClose() {
   clearTimeout(hoverCloseTimer);
   if (!dragging) hoverCloseTimer = setTimeout(() => { hoverCloseTimer = undefined; if (!dragging) requestExpanded(false); }, 120);
+}
+$('#panel').addEventListener('pointerleave', event => {
+  clearTimeout(expandTimer); expandTimer = undefined;
+  clearTimeout(hoverCloseTimer);
+  // The native window widens before the expanded layout paints. A leave from the
+  // compact surface at that moment is not always a real exit. Check it after the paint.
+  if (requestedExpanded === true && !panelIsExpanded()) { pendingLeave = { x: event.screenX, y: event.screenY }; return; }
+  scheduleClose();
 });
 $('#panel').addEventListener('pointerdown', () => {
   clearTimeout(hoverCloseTimer); hoverCloseTimer = undefined;

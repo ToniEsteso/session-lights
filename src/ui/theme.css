@@ -1,46 +1,48 @@
 /* Electron supplies the device theme and the saved theme choice. */
 :root {
   color-scheme: light;
-  --text: #25312c;
-  --muted: #66736d;
+  --text: #1c1e22;
+  --muted: #676c75;
+  --faint: #9a9ea6;
   --surface: #ffffff;
-  --panel: #fafcfb;
-  --surface-soft: #f1f5f3;
-  --hover: #edf2ef;
-  --selected: #e5ece7;
-  --border-soft: #e4eae6;
-  --border: #cad5cd;
-  --track: #e1e8e3;
-  --focus: #337957;
-  --status-idle: #337957;
-  --status-waiting: #926311;
-  --status-working: #3f73a5;
-  --status-error: #ba4b4b;
-  --status-unknown: #78847e;
-  --waiting-soft: #fbf5e8;
-  --error-soft: #faf0f0;
-  --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --panel: #f8f8f9;
+  --surface-soft: #efeff1;
+  --hover: #eeeef0;
+  --selected: #e4e5e8;
+  --border-soft: #e6e7ea;
+  --border: #d3d5da;
+  --track: #e2e3e7;
+  --focus: #2f6fd6;
+  --status-idle: #1e8449;
+  --status-waiting: #9a6100;
+  --status-working: #2f6fd6;
+  --status-error: #c53636;
+  --status-unknown: #767b84;
+  --waiting-soft: #fbf3e2;
+  --error-soft: #fbeceb;
+  --mono: 'Cascadia Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --text: #e8edf0;
-    --muted: #98a5af;
-    --surface: #1c232a;
-    --panel: #171d23;
-    --surface-soft: #1e262d;
-    --hover: #232d35;
-    --selected: #2b363e;
-    --border-soft: #2a333b;
-    --border: #3e4b54;
-    --track: #303c44;
-    --focus: #a3d9b2;
-    --status-idle: #99d1ad;
-    --status-waiting: #e9bf6d;
-    --status-working: #8ebde5;
-    --status-error: #ed9393;
-    --status-unknown: #92a0ab;
-    --waiting-soft: #2b2821;
-    --error-soft: #2c2327;
+    --text: #e7e8ea;
+    --muted: #8d919a;
+    --faint: #62666e;
+    --surface: #1a1b1e;
+    --panel: #121315;
+    --surface-soft: #1c1d20;
+    --hover: #1f2023;
+    --selected: #2a2b2f;
+    --border-soft: #232428;
+    --border: #34363b;
+    --track: #2a2c30;
+    --focus: #7aa7ff;
+    --status-idle: #5fcf8a;
+    --status-waiting: #f0b54a;
+    --status-working: #7aa7ff;
+    --status-error: #f47174;
+    --status-unknown: #80858e;
+    --waiting-soft: #221d14;
+    --error-soft: #241617;
   }
 }

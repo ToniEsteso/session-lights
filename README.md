@@ -40,10 +40,10 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 
 ## Use the panel
 
-- Search the expanded list by title, project, source, model, or state. Press Ctrl+F (Cmd+F on macOS) to focus search. Clear restores the list. Escape clears search and the attention filter before closing the panel. Search does not change compact lights or saved sort order.
-- Use Needs attention to show sessions that need an answer or approval, or whose last turn failed. Counts and results follow new local records. Each expanded row also shows its state as text.
+- Search the expanded list by title, project, source, model, or state. Press Ctrl+F (Cmd+F on macOS) to focus search. Press Enter to open the top match. Arrow keys move between sessions; Enter opens the focused session. Clear restores the list. While a search or filter is active, the panel keeps its height, so it does not close under the pointer. Escape clears search and the attention filter before closing the panel. Search does not change compact lights or saved sort order.
+- The header shows All and Attention with live counts. Attention shows sessions that need an answer or approval, or whose last turn failed. Each expanded row also shows its state as text.
 - After hiding a session, click Undo to restore it with its pin intact. Hidden sessions can still be restored from the footer after a restart.
-- Click the gear for theme, source switches, updates, and Quit. Settings replaces the session list in the same expanded sidebar. Click the back arrow or press Escape to return to the thread list. Its scroll position is kept. Open Session states for the color guide. Press Escape from the thread list to collapse the sidebar.
+- Click the gear for theme, source switches, updates, and Quit. Settings replaces the session list in the same expanded sidebar. Click the back arrow or press Escape to return to the thread list. Its scroll position is kept. Press Escape from the thread list to collapse the sidebar.
 - Choose System, Light, or Dark in Theme. System is the default and follows device theme changes. The choice applies at once and stays after app restarts. Use Tab to reach the theme choices and arrow keys to change the choice.
 - A yellow badge on the gear marks an available update. Downloads and restarts require a click. Installed releases check at startup and every six hours.
 
@@ -52,20 +52,20 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 - The panel opens and closes with a short slide and fade. Its right edge stays fixed. The system's reduced-motion setting skips the animation.
 - Click a name in the expanded panel to open a desktop chat or resume a CLI session.
 - Pin a session with the bookmark icon. A filled yellow bookmark marks a pinned session. Pinned sessions stay in a separate section at the top in both sort modes. Pins survive app restarts.
-- All adapters appear by default. In Settings, use the adapter switches to hide or show an adapter and its sessions and usage. Changes apply at once and stay saved after a restart. Hidden adapters continue monitoring; their session data and pins stay intact. If all adapters are hidden, use Open Settings in the panel to show one again.
+- All adapters appear by default. In Settings, use the adapter switches to hide or show an adapter and its sessions and usage. Changes apply at once and stay saved after a restart. Hidden adapters continue monitoring; their session data and pins stay intact. If all sources are hidden, use Open Settings in the panel to show one again.
 - The Codex switch controls both desktop and CLI sessions and their account usage. Rows and screen readers identify Codex Desktop or Codex CLI. Older CLI pins and hidden sessions move to the shared Codex identity. The combined switch starts hidden only if both old Codex switches were hidden.
 - All saved, unarchived desktop and CLI sessions from visible adapters appear unless you hide them.
-- Each expanded row shows the chat title and latest activity age. Activity rows also show the adapter and model when available. Project view groups sessions by project, shows the adapter and model on each row, and omits a project name repeated by its heading. Long model names wrap within the row. Screen readers also get the adapter, model, state, and details. Tooltips are not used. Codex uses its saved project name when a session maps to one. Otherwise, the row uses its workspace folder or `No workspace`. Projects without saved sessions do not appear. Long project names are shortened to fit.
-- The expanded view uses 14 px session titles and 11–12 px supporting text before system scaling. Activity times and model names use a fixed-width font. Pin and hide controls sit below the title. Rows grow for wrapped text. The expanded panel is 360 px wide before scaling; the compact bar keeps its width.
+- Each expanded row has two lines. The first shows the chat title and latest activity age. The second shows the state, the reason when a session needs you, the project, the adapter, and the model when available. Project view groups sessions by project and omits a project name repeated by its heading. Long model names wrap within the row. Screen readers also get the adapter, model, state, and details. Tooltips are not used. Codex uses its saved project name when a session maps to one. Otherwise, the row uses its workspace folder or `No workspace`. Projects without saved sessions do not appear. Long project names are shortened to fit.
+- The expanded view uses 14 px session titles and 11–12 px supporting text before system scaling. Activity times and model names use a fixed-width font. Pin and hide controls appear at the right of a row on hover or keyboard focus. Rows grow for wrapped text. The expanded panel is 360 px wide before scaling; the compact bar keeps its width.
 - The right side of each expanded row shows the age of its last recorded activity, such as `just now`, `5m ago`, or `2h ago`. The age updates while the panel is open. A dash means the activity time is unavailable.
-- Use Activity or Project above the list to sort by latest activity or project. The selected button has a filled background. The choice is saved and also sets compact light order. Project headings appear only in the expanded list.
+- Use the clock or folder button in the header to sort by latest activity or group by project. The selected button has a filled background. The choice is saved and also sets compact light order. Project headings appear only in the expanded list.
 - Pinned sessions come first and follow latest activity. In project mode, the other sessions appear below them in project groups.
-- Click the crossed-eye button to hide a session from the list and compact lights. Click `X sessions hidden` at the bottom to show hidden sessions. Use `Restore` for one session or `Restore all` for all of them. Hidden sessions stay hidden after app restarts. Restoring a pinned session puts it back at the top.
+- Click the crossed-eye button to hide a session from the list and compact lights. Click `X hidden` at the bottom to show hidden sessions. Use `Restore` for one session or `Restore all` for all of them. Hidden sessions stay hidden after app restarts. Restoring a pinned session puts it back at the top.
 - Below a thin divider, the compact panel shows two small gauges: 5-hour above weekly. Their arc and pointer show the amount left.
 - Gauges and usage percentages are green above 20% remaining, yellow above 5% up to 20%, and red at 5% or less. Unavailable limits show a gray gauge with no pointer.
-- The expanded panel shows usage bars, percentages, and reset countdowns.
+- The expanded panel shows one line per limit: name, bar, percentage left, and time until reset.
 - Click the tray icon to hide or show the panel. Quit is in Settings.
-- Drag the blank top area to move the panel up or down. The panel follows the pointer and saves its position when you release it.
+- Drag the blank area of the header to move the panel up or down. The panel follows the pointer and saves its position when you release it.
 - Use the tray menu to open Settings or move the panel to the screen under the pointer.
 
 Panel settings are stored in the operating system's app data folder for Session Lights.

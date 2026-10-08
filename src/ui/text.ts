@@ -10,12 +10,18 @@ export const panelText = {
     return typeof limit.remainingPercent === 'number' && Number.isFinite(limit.remainingPercent) && limit.remainingPercent >= 0 && limit.remainingPercent <= 100 &&
       (limit.resetsAt == null || (Number.isFinite(limit.resetsAt) && limit.resetsAt * 1000 > Date.now()));
   },
+  /** Time until a reset, such as `2h` or `4d 3h`. Empty when unknown or past. */
+  until(resetsAt: UnixSeconds | undefined) {
+    if (resetsAt === undefined || !Number.isFinite(resetsAt)) return '';
+    const minutes = Math.ceil((resetsAt * 1000 - Date.now()) / 60000);
+    if (minutes <= 0) return '';
+    const days = Math.floor(minutes / 1440), hours = Math.floor(minutes % 1440 / 60), rest = minutes % 60;
+    return [days && `${days}d`, hours && `${hours}h`, (!days || !hours) && rest && `${rest}m`].filter(Boolean).join(' ');
+  },
   countdown(resetsAt: UnixSeconds | undefined) {
     if (resetsAt === undefined || !Number.isFinite(resetsAt)) return 'Reset time unavailable';
-    const minutes = Math.ceil((resetsAt * 1000 - Date.now()) / 60000);
-    if (minutes <= 0) return 'Updating…';
-    const days = Math.floor(minutes / 1440), hours = Math.floor(minutes % 1440 / 60), rest = minutes % 60;
-    return `Resets in ${[days && `${days}d`, hours && `${hours}h`, (!days || !hours) && rest && `${rest}m`].filter(Boolean).join(' ')}`;
+    const left = panelText.until(resetsAt);
+    return left ? `Resets in ${left}` : 'Updating…';
   },
   age(at: EpochMilliseconds | null) {
     if (at === null || !Number.isFinite(at) || at <= 0) return 'Time unavailable';

@@ -124,10 +124,10 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const view = payload();
   const sessions = view.showHidden ? [...view.sessions, ...view.hiddenSessions] : view.sessions;
   const rows = Math.max(1, Math.min(sessions.length, 14));
-  const groupHeight = sessionSections(view).reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 13 : section.title ? (section.kind === 'project' ? 36 : 32) : 0), 0);
+  const groupHeight = sessionSections(view).reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 13 : section.title ? 30 : 0), 0);
   const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
-  const expandedContentHeight = Math.max(300, rows * 81 + groupHeight + 270 + limits * 54);
-  const contentHeight = panelView === 'settings' ? 560 + monitor.adapters.length * 36 : expanded ? expandedContentHeight :
+  const expandedContentHeight = Math.max(240, rows * 54 + groupHeight + 216 + limits * 24);
+  const contentHeight = panelView === 'settings' ? 400 + monitor.adapters.length * 40 : expanded ? expandedContentHeight :
     rows * 24 + (limits ? 28 : 17) + limits * 24;
   const height = Math.round(Math.min(area.height - 24, scale * contentHeight));
   // Leave room for the readable list before showing the compact bar. Opening

@@ -14,6 +14,8 @@ main use case or a reported defect. Follow the feature rules in `AGENTS.md`.
 ## Scenarios
 
 The UX scenarios check search by title, project, source, and saved model;
+keyboard search with Enter and arrow keys; a panel that stays open when a search
+shortens the list below the pointer;
 keyboard clearing and focus; compact lights during search; live attention
 membership and visible state text; and Undo with pin persistence. A real
 preference write failure must leave the session visible without Undo feedback.
