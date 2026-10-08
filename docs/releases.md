@@ -50,7 +50,7 @@ Local Windows installers can be unsigned for testing.
 
 ## Prepare a release
 
-Before distributing installers, review the release gates in [AUDIT.md](../AUDIT.md). The lazy-val notice in THIRD_PARTY_NOTICES.md uses the MIT terms and the author in the package metadata. Upstream has not confirmed it.
+Before distributing installers, resolve the release gates in [AUDIT.md](../AUDIT.md). Obtain the missing lazy-val notice, include it in the distribution, and confirm code and icon rights. The current notice file records this open requirement.
 
 1. Update the version in `package.json` with an appropriate version increment.
 2. Run `pnpm run check` and `pnpm run build`.
