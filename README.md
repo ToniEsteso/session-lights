@@ -203,6 +203,7 @@ The records benchmark measures three polls of 300 large saved sessions in an iso
 The test suite uses Playwright to run the real Electron app. It has no unit tests.
 It checks live session states, list controls, saved settings, and chat opening.
 Each test uses its own local records and app profile. Tests run one at a time.
+The tests need a real desktop session with a pointer, so GitHub Actions runs only the type check, build, and packaging. Run the tests on your own computer.
 See [test scenarios and limits](tests/README.md) and [AGENTS.md](AGENTS.md).
 Use `pnpm run demo` to inspect the panel with sample sessions.
 Run `pnpm run check:usage` to read the real account limits. This diagnostic prints the reading and does not verify the usage UI.
