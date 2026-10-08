@@ -2,10 +2,10 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { spawn } from 'node:child_process';
-import type { AdapterSession, SessionAdapter, SessionReading, SessionState, UsageDefinition, UsageReading } from '../shared/contracts.js';
+import type { AdapterSession, OpenExternal, SessionAdapter, SessionReading, SessionState, UsageDefinition, UsageReading } from '../shared/contracts.js';
 import { epochMilliseconds } from '../shared/time.js';
 import { readClaudeUsage } from './claude-usage.js';
-import { readT3, withT3 } from './t3.js';
+import { openT3, readT3, withT3, T3_SOURCE } from './t3.js';
 import { hasErrorCode, isRecord } from '../shared/validation.js';
 
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -276,10 +276,13 @@ export class ClaudeCodeAdapter implements SessionAdapter {
     })();
     return this.usagePending;
   }
-  async open(id: string) {
+  async open(id: string, openExternal: OpenExternal) {
     if (!UUID.test(id)) throw Error('Invalid Claude Code session ID.');
     const session = (await this.read()).sessions.find(session => session.id === id);
     if (!session) throw Error('The Claude Code session is no longer available.');
+    // T3 runs the thread. A terminal would start a second copy of it.
+    if (session.source === T3_SOURCE) return openT3(openExternal);
+    // Claude Desktop has no link that opens a session by ID. Other programs resume in a terminal.
     // Report a missing installation even when old records have no workspace.
     const binary = await findClaude();
     const workspace = session.workspace;

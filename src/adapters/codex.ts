@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import { CodexUsage } from './codex-usage.js';
 import { CodexRecords } from './codex-records.js';
 import { resumeCodexCli } from './codex-terminal.js';
+import { openT3, T3_SOURCE } from './t3.js';
 import { hasErrorCode } from '../shared/validation.js';
 import type { SessionAdapter, SessionReading, UsageDefinition, OpenExternal } from '../shared/contracts.js';
 import type { TurnSignal } from '../core.js';
@@ -62,8 +63,9 @@ class CodexAdapter implements SessionAdapter {
     if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) throw Error('Invalid Codex chat link.');
     const session = (await this.read()).sessions.find(session => session.id === id);
     if (!session) throw Error('The Codex session is no longer available.');
-    // T3 Code has no link that opens a thread. Resume it in a terminal, like a CLI thread.
-    if (session.source === 'CLI' || session.source === 'T3 Code') {
+    // Open each thread in the program that created it.
+    if (session.source === T3_SOURCE) return openT3(openExternal);
+    if (session.source === 'CLI') {
       await resumeCodexCli(id, session.workspace, this.records.root);
       return;
     }
