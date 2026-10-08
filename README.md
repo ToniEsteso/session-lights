@@ -22,7 +22,7 @@ Both providers show their 5-hour and weekly account limits.
 Download an installer from [GitHub Releases](https://github.com/ToniEsteso/session-lights/releases).
 See [installation and update help](docs/installation.md) for Windows and macOS instructions.
 The installer includes its runtime. Node.js and pnpm are required only for development.
-Release downloads become available after the repository is public and the first release is published.
+The first releases are unsigned. Windows can show an unknown-publisher warning, and unsigned builds do not update themselves. See [installation help](docs/installation.md).
 
 ## Run from source
 
@@ -203,6 +203,7 @@ The records benchmark measures three polls of 300 large saved sessions in an iso
 The test suite uses Playwright to run the real Electron app. It has no unit tests.
 It checks live session states, list controls, saved settings, and chat opening.
 Each test uses its own local records and app profile. Tests run one at a time.
+The tests need a real desktop session with a pointer, so GitHub Actions runs only the type check, build, and packaging. Run the tests on your own computer.
 See [test scenarios and limits](tests/README.md) and [AGENTS.md](AGENTS.md).
 Use `pnpm run demo` to inspect the panel with sample sessions.
 Run `pnpm run check:usage` to read the real account limits. This diagnostic prints the reading and does not verify the usage UI.

@@ -43,13 +43,14 @@ For Mac releases, also add:
 - `APPLE_APP_SPECIFIC_PASSWORD`: the notarization password.
 - `APPLE_TEAM_ID`: the Apple developer team.
 
-The release workflow requires a signing certificate. It fails if signing credentials are missing. Signing secrets are limited to their platform build step.
+The release workflow requires a signing certificate. It fails if signing credentials are missing.
+To release without a certificate, select **allow_unsigned** when you run the workflow. The Windows installer is then unsigned. The installed app turns updates off and tells the user to download new versions from GitHub Releases. Signing secrets are limited to their platform build step.
 Windows update checks require valid signatures on both the installed app and the download, with the same publisher subject. A failed verification blocks installation. A publisher subject change needs a manual install.
 Local Windows installers can be unsigned for testing.
 
 ## Prepare a release
 
-Before distributing installers, resolve the release gates in [AUDIT.md](../AUDIT.md). Obtain the missing lazy-val notice, include it in the distribution, and confirm code and icon rights. The current notice file records this open requirement.
+Before distributing installers, review the release gates in [AUDIT.md](../AUDIT.md). The lazy-val notice in THIRD_PARTY_NOTICES.md uses the MIT terms and the author in the package metadata. Upstream has not confirmed it.
 
 1. Update the version in `package.json` with an appropriate version increment.
 2. Run `pnpm run check` and `pnpm run build`.

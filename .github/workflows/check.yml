@@ -2,9 +2,13 @@ name: Check
 on: [push, pull_request]
 permissions:
   contents: read
+env:
+  # The global virtual store fails on Windows runners, where the store lands on another drive.
+  pnpm_config_virtual_store_type: project
 jobs:
   check:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         node: ['22.12.0', '24']
@@ -20,10 +24,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check
       - run: pnpm run build
-      - run: pnpm run test:e2e
-        if: runner.os != 'Linux'
-      - run: xvfb-run -a pnpm run test:e2e
-        if: runner.os == 'Linux'
+      # The end-to-end tests need a real desktop and pointer. Run pnpm run test:e2e locally.
       - run: pnpm run pack
         if: runner.os == 'Windows'
       - run: pnpm exec electron-builder --config electron-builder.json --mac --dir --config.mac.identity=- --config.mac.notarize=false --publish never

@@ -13,8 +13,9 @@ Live sessions require local Codex desktop records. The app reads usage limits au
 The panel starts after installation. Its tray icon can show or hide the panel.
 The app does not start automatically when you sign in to Windows.
 
-Local test installers can be unsigned. Windows can show an unknown-publisher warning for these builds.
-Public signed releases depend on the publisher's signing certificate.
+Releases without a signing certificate are unsigned. Windows SmartScreen can show an unknown-publisher warning. Choose **More info**, then **Run anyway**, if you trust the source.
+An unsigned build does not update itself. Settings shows **Updates unavailable**. Download each new version from the release downloads and run its installer over the old one.
+Signed releases update from inside the app.
 
 ## Install on macOS
 

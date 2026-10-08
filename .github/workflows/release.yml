@@ -6,12 +6,19 @@ on:
         description: Version tag to release, for example v0.2.0
         required: true
         type: string
+      allow_unsigned:
+        description: Build an unsigned Windows installer. Unsigned builds cannot update themselves.
+        default: false
+        type: boolean
       include_mac:
         description: Build signed and notarized Mac installers
         default: false
         type: boolean
 permissions:
   contents: read
+env:
+  # The global virtual store fails on Windows runners, where the store lands on another drive.
+  pnpm_config_virtual_store_type: project
 jobs:
   build:
     strategy:
@@ -51,11 +58,14 @@ jobs:
       - run: pnpm run build
         if: matrix.platform == 'win' || inputs.include_mac
       - name: Build signed Windows installer
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && !inputs.allow_unsigned
         env:
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: pnpm exec electron-builder --config electron-builder.json --win --x64 --config.forceCodeSigning=true --publish never
+      - name: Build unsigned Windows installer
+        if: matrix.platform == 'win' && inputs.allow_unsigned
+        run: pnpm exec electron-builder --config electron-builder.json --win --x64 --publish never
       - name: Build signed Mac installers
         if: matrix.platform == 'mac' && inputs.include_mac
         env:
