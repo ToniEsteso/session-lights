@@ -18,6 +18,7 @@
     "test:e2e": "pnpm run build && node --experimental-sqlite node_modules/@playwright/test/cli.js test",
     "check:usage": "pnpm run build && node build/scripts/usage-check.js",
     "pack": "pnpm run build && node build/scripts/pack.js",
+    "icons": "pnpm run build && node build/scripts/icons.js",
     "clean": "node -e \"const p = require('node:path'); const root = process.cwd(); const target = p.resolve(root, 'build'); if (p.dirname(target) !== root) throw Error('Invalid build path'); require('node:fs').rmSync(target, { recursive: true, force: true });\""
   },
   "devDependencies": {

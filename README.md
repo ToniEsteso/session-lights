@@ -1,3 +1,5 @@
+<img src="assets/icon.svg" width="88" alt="Session Lights logo: a strip of green, amber, and blue lights at the edge of an editor window">
+
 # Session Lights
 
 A small panel attached to the right edge of your screen. It stays above normal app windows.
@@ -11,7 +13,7 @@ Both providers show their 5-hour and weekly account limits.
 | --- | --- | --- |
 | Green | Idle | The last turn finished or stopped. |
 | Yellow | Needs you | A provider recorded an approval notification or an unanswered input request. |
-| White or blue-gray | Working | The last recorded turn is in progress. |
+| Blue ring | Working | The last recorded turn is in progress. |
 | Red | Failed | The last turn failed. |
 | Gray | Unknown | Data is missing, unsupported, or too old to confirm an active turn. |
 
@@ -39,6 +41,7 @@ Use `pnpm run demo` to see all five colors with sample sessions.
 Use `pnpm run pack` to build an installer for the current system.
 Windows builds produce a per-user NSIS installer. Mac builds produce a DMG and an update ZIP.
 Use `pnpm run pack --dir` for an unpacked development build.
+The app icon comes from `assets/icon.svg`. Small sizes, the tray, and Settings use `assets/icon-small.svg`. After you change either file, run `pnpm run icons` to write `assets/icon.png` and `assets/icon.ico`.
 See [build and release instructions](docs/releases.md) for signing, release setup, and verification.
 
 ## Use the panel

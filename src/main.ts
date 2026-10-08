@@ -3,7 +3,7 @@ import type { MonitorSnapshot, ProviderUsage, PanelMotion, PanelPayload, Setting
 import { parseAction, parseSettingsAction, errorMessage, hasErrorCode } from './shared/validation.js';
 import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, nativeTheme, autoUpdater } from 'electron';
 import * as path from 'node:path';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { SessionMonitor, visibleSessions } from './core.js';
 import { sessionSections } from './shared/session-sections.js';
 import { createAdapters } from './adapters/index.js';
@@ -302,15 +302,21 @@ async function main() {
   });
   await refresh();
   await win.loadFile(path.join(__dirname, 'ui', 'index.html'));
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect x="6" y="1" width="12" height="22" rx="6" fill="#25292d"/><circle cx="12" cy="6" r="3" fill="#8cce6b"/><circle cx="12" cy="12" r="3" fill="#ffd45e"/><circle cx="12" cy="18" r="3" fill="#f5f5ef"/></svg>';
-  const icon = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
-  // Electron's native tray needs a bitmap on Windows. Chromium renders the SVG first.
-  const image: unknown = await win.webContents.executeJavaScript(`new Promise(resolve => {
-    const image = new Image(); image.onload = () => { const c = document.createElement('canvas');
-    c.width = 24; c.height = 24; c.getContext('2d').drawImage(image, 0, 0); resolve(c.toDataURL()); };
-    image.src = ${JSON.stringify(icon.isEmpty() ? `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}` : icon.toDataURL())}; })`);
-  if (typeof image !== 'string') throw Error('Cannot render the tray icon.');
-  tray = new Tray(nativeImage.createFromDataURL(image));
+  // The tray uses the small app icon. The build copies it from assets/.
+  const svg = readFileSync(path.join(__dirname, 'ui', 'icon-small.svg'), 'utf8');
+  // Electron's native tray needs bitmaps on Windows. Chromium renders the SVG once per display scale.
+  const trayImage = nativeImage.createEmpty();
+  for (const scaleFactor of [1, 1.5, 2]) {
+    const size = 16 * scaleFactor;
+    const dataURL: unknown = await win.webContents.executeJavaScript(`new Promise(resolve => {
+      const image = new Image(); image.onload = () => { const c = document.createElement('canvas');
+      c.width = ${size}; c.height = ${size}; c.getContext('2d').drawImage(image, 0, 0, ${size}, ${size}); resolve(c.toDataURL()); };
+      image.src = ${JSON.stringify(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`)}; })`);
+    if (typeof dataURL !== 'string') throw Error('Cannot render the tray icon.');
+    trayImage.addRepresentation({ scaleFactor, dataURL });
+  }
+  tray = new Tray(trayImage);
+  tray.setToolTip('Session Lights');
   updateTrayMenu(); tray.on('click', () => win.isVisible() ? win.hide() : showPanel());
   showPanel();
   console.log(`Session Lights is running. Local sessions: ${snapshot.sessions.length}. Panel above other windows: ${win.isAlwaysOnTop()}.`);

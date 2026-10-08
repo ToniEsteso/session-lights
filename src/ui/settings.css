@@ -35,4 +35,6 @@
 #settings-footer { justify-content: space-between; margin: 0; padding-top: 8px; min-height: 36px; border-top: 1px solid var(--border-soft); }
 #quit { height: 28px; padding: 0 8px; color: var(--muted); border-radius: 6px; font-size: 12px; }
 #quit:hover { color: var(--status-error); background: var(--error-soft); }
-#version { color: var(--faint); font: 11px/1.5 var(--mono); padding-right: 4px; }
+.brand { display: flex; align-items: center; gap: 8px; margin: 0; padding-left: 2px; font-size: 12px; font-weight: 600; }
+.brand img { width: 18px; height: 18px; flex-shrink: 0; }
+#version { color: var(--faint); font: 400 11px/1.5 var(--mono); }

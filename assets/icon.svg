@@ -1,1 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect x="118" y="16" width="276" height="480" rx="138" fill="#25292d"/><circle cx="256" cy="120" r="58" fill="#8cce6b"/><circle cx="256" cy="256" r="58" fill="#ffd45e"/><circle cx="256" cy="392" r="58" fill="#f5f5ef"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2d3038"/><stop offset="1" stop-color="#15161a"/></linearGradient>
+    <clipPath id="edge"><rect x="100" y="100" width="824" height="824" rx="184"/></clipPath>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="184" fill="url(#tile)"/>
+  <g fill="#3b3f48">
+    <rect x="212" y="300" width="248" height="40" rx="20" fill="#4a4f5a"/>
+    <rect x="212" y="400" width="176" height="40" rx="20"/>
+    <rect x="252" y="500" width="196" height="40" rx="20"/>
+    <rect x="252" y="600" width="132" height="40" rx="20"/>
+    <rect x="212" y="700" width="200" height="40" rx="20"/>
+  </g>
+  <path clip-path="url(#edge)" d="M648 100h300v824H648a72 72 0 0 1-72-72V172a72 72 0 0 1 72-72z" fill="#0d0e11"/>
+  <rect x="102" y="102" width="820" height="820" rx="182" fill="none" stroke="#fff" stroke-opacity=".1" stroke-width="4"/>
+  <circle cx="750" cy="332" r="64" fill="#5fcf8a"/>
+  <circle cx="750" cy="512" r="98" fill="#f0b54a" fill-opacity=".22"/>
+  <circle cx="750" cy="512" r="64" fill="#f0b54a"/>
+  <circle cx="750" cy="692" r="54" fill="none" stroke="#7aa7ff" stroke-opacity=".28" stroke-width="20"/>
+  <path d="M750 638a54 54 0 1 1-54 54" fill="none" stroke="#7aa7ff" stroke-width="20" stroke-linecap="round"/>
+</svg>
