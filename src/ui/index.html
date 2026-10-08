@@ -19,12 +19,23 @@
       </div>
       <button class="wide gear" data-settings aria-label="Settings" aria-controls="settings-view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.6 2.1-1.8 1-2.1-.5-2.5 4.3 1.5 1.6v2.1l-1.5 1.5L5 19.4l2.1-.5 1.8 1 .6 2.1h5l.6-2.1 1.8-1 2.1.5 2.5-4.3-1.5-1.5v-2.1l1.5-1.6L19 5.6l-2.1.5-1.8-1-.6-2.1z"/><circle cx="12" cy="12.5" r="3.2"/></svg><span class="update-badge" hidden></span></button>
     </header>
+    <div class="wide session-tools">
+      <label class="search-field"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4"/><path d="m9.5 9.5 4 4"/></svg><input id="session-search" type="search" aria-label="Search sessions" placeholder="Search sessions" autocomplete="off"><button id="clear-search" aria-label="Clear search" hidden>Clear</button></label>
+      <div class="session-filters" role="group" aria-label="Filter sessions">
+        <button data-filter="all" aria-pressed="true">All</button>
+        <button data-filter="attention" aria-pressed="false">Needs attention <span id="attention-count">0</span></button>
+      </div>
+      <p id="session-summary" class="session-summary" role="status"></p>
+    </div>
+    <section id="no-matches" class="wide empty-state" hidden><strong id="no-matches-title">No matching sessions</strong><p id="no-matches-detail"></p><button id="reset-filters">Show all sessions</button></section>
     <div id="sessions" role="list" aria-label="Sessions"></div>
     <button id="empty" aria-label="No sessions. Show session list." hidden><span class="empty-dot" aria-hidden="true"></span><span class="wide">No local sessions.</span></button>
+    <p id="empty-help" class="wide empty-help" hidden></p>
     <section id="adapters-hidden" aria-label="All adapters are hidden" hidden>
       <p class="wide">All adapters are hidden.</p>
       <button id="empty-settings" aria-label="All adapters are hidden. Open Settings." aria-controls="settings-view"><span class="compact empty-dot" aria-hidden="true"></span><span class="wide">Open Settings</span></button>
     </section>
+    <div id="hide-feedback" class="wide hide-feedback" hidden><span id="hide-message" role="status"></span><button id="undo-hide">Undo</button></div>
     <section id="usage" aria-label="Usage limits" hidden></section>
     <template id="usage-template">
       <div class="usage-row">
@@ -51,13 +62,21 @@
             <label><input type="radio" name="theme" value="light">Light</label>
             <label><input type="radio" name="theme" value="dark">Dark</label>
           </div>
+          <p class="settings-help">System follows your device theme.</p>
         </fieldset>
         <fieldset>
           <legend>Show</legend>
           <div id="adapters"></div>
+          <p class="settings-help">Hidden sources keep monitoring. Your sessions and pins stay saved.</p>
         </fieldset>
+        <section class="settings-guide" aria-label="Session states">
+          <h2>Session states</h2>
+          <dl><div><dt class="waiting">Needs you</dt><dd>Answer or approval needed.</dd></div><div><dt class="working">Working</dt><dd>A turn is in progress.</dd></div><div><dt class="idle">Idle</dt><dd>The last turn finished or stopped.</dd></div><div><dt class="error">Failed</dt><dd>The last turn failed.</dd></div><div><dt class="unknown">Unknown</dt><dd>Data is missing or too old.</dd></div></dl>
+          <p class="settings-help">States come from local records. They may be delayed.</p>
+        </section>
         <progress id="progress" max="100" aria-label="Update download" hidden></progress>
         <button id="update" disabled>Check for updates</button>
+        <p id="update-detail" class="settings-help" hidden></p>
         <p id="settings-error" role="alert" hidden></p>
       </div>
       <footer id="settings-footer"><button id="quit">Quit</button><span id="version"></span></footer>

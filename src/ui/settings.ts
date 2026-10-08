@@ -31,6 +31,8 @@ function render(value: SettingsPayload) {
   if (button instanceof HTMLButtonElement) button.disabled = view.command === null;
   button.classList.toggle('available', view.badge);
   button.setAttribute('aria-description', view.detail);
+  $('#update-detail').textContent = view.detail;
+  $('#update-detail').hidden = !view.detail;
   const progress = $('#progress');
   if (progress instanceof HTMLProgressElement) {
     progress.hidden = value.update.kind !== 'downloading';

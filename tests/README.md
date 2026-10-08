@@ -13,6 +13,12 @@ main use case or a reported defect. Follow the feature rules in `AGENTS.md`.
 
 ## Scenarios
 
+The UX scenarios check search by title, project, source, and saved model;
+keyboard clearing and focus; compact lights during search; live attention
+membership and visible state text; and Undo with pin persistence. A real
+preference write failure must leave the session visible without Undo feedback.
+The scenarios use the running Electron app and isolated local records.
+
 The provider scenarios require exactly two switches: Codex and Claude. Hiding
 Codex must hide desktop sessions, CLI sessions, and usage together, while Claude
 stays visible. Each Codex row must still show its source.

@@ -120,18 +120,20 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const display = panelDisplay();
   const area = display.workArea;
   const scale = expanded ? systemTextScale : 1;
-  const width = expanded ? Math.round(Math.min(328 * scale, area.width)) : compactWidth;
+  const width = expanded ? Math.round(Math.min(420 * scale, area.width)) : compactWidth;
   const view = payload();
   const sessions = view.showHidden ? [...view.sessions, ...view.hiddenSessions] : view.sessions;
   const rows = Math.max(1, Math.min(sessions.length, 14));
-  const groupHeight = expanded ? sessionSections(view).reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 1 : section.title ? (section.kind === 'project' ? 20 : 24) : 0), 0) : 0;
+  const groupHeight = sessionSections(view).reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 1 : section.title ? (section.kind === 'project' ? 28 : 32) : 0), 0);
   const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
-  const overhead = expanded ? 104 : limits ? 28 : 17;
-  const minimum = expanded ? (view.sources.length ? 128 : 184) : 17;
-  const contentHeight = panelView === 'settings' ? 260 + monitor.adapters.length * 32 : Math.max(minimum,
-    rows * (expanded ? 44 : 24) + groupHeight + overhead + limits * (expanded ? 36 : 24));
+  const expandedContentHeight = Math.max(344, rows * 90 + groupHeight + 222 + limits * 52);
+  const contentHeight = panelView === 'settings' ? 640 + monitor.adapters.length * 44 : expanded ? expandedContentHeight :
+    rows * 24 + (limits ? 28 : 17) + limits * 24;
   const height = Math.round(Math.min(area.height - 24, scale * contentHeight));
-  const defaultY = visible ? current.y : area.y + (area.height - height) / 2;
+  // Leave room for the readable list before showing the compact bar. Opening
+  // the panel can then keep its top edge still on shorter displays.
+  const expandedHeight = Math.min(area.height - 24, systemTextScale * expandedContentHeight);
+  const defaultY = visible ? current.y : area.y + Math.min((area.height - height) / 2, area.height - expandedHeight - 12);
   const preferredY = panelDrag?.y ?? preferences.value.y ?? defaultY;
   const y = Math.round(Math.max(area.y + 12, Math.min(preferredY, area.y + area.height - height - 12)));
   const bounds = { x: display.bounds.x + display.bounds.width - width, y, width, height };

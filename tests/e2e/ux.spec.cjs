@@ -1,0 +1,101 @@
+const { test, expect } = require('./fixtures.cjs');
+
+// Start with three local sessions. Search by saved metadata, then clear the query.
+// Detect missing matches, lost keyboard focus, or a filter that hides compact lights.
+test('search finds sessions by title, project, source, and saved model; clear restores the list', async ({ lights }) => {
+  await lights.expand();
+  const page = lights.page;
+  const search = page.getByRole('searchbox', { name: 'Search sessions', exact: true });
+  const rows = page.getByRole('listitem');
+  await page.keyboard.press('ControlOrMeta+f');
+  await expect(search).toBeFocused();
+  await search.fill('review');
+  await expect(rows).toHaveText([/Review release/]);
+  await expect(search).toBeFocused();
+  await search.fill('WEBSITE');
+  await expect(rows).toHaveText([/Review release/]);
+  await search.fill('Codex CLI');
+  await expect(rows).toHaveText([/Fix CLI/]);
+  await lights.record(lights.ids.cli, 'turn_context', { model: 'gpt-6.1-sol' });
+  await search.fill('gpt-6.1-sol');
+  await expect(rows).toHaveText([/Fix CLI/]);
+  await expect(search).toBeFocused();
+  await search.fill('absent session');
+  await expect(rows).toHaveCount(0);
+  await expect(page.getByText('No matching sessions', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Show all sessions', exact: true }).click();
+  await expect(rows).toHaveText([/Fix CLI/, /Build API/, /Review release/]);
+  await expect(search).toHaveValue('');
+  await expect(search).toBeFocused();
+  await search.fill('review');
+  await page.keyboard.press('Escape');
+  await expect(search).toHaveValue('');
+  await expect(rows).toHaveCount(3);
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
+  await search.fill('review');
+  await page.mouse.move(-20, -20);
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeHidden();
+  await expect(rows).toHaveCount(3);
+  await lights.expand();
+  await expect(rows).toHaveText([/Review release/]);
+  await page.getByRole('button', { name: 'Clear search', exact: true }).click();
+  await expect(rows).toHaveCount(3);
+});
+
+// Start without waiting or failed turns. External local records change those states.
+// Detect incorrect attention membership, stale counts, or states communicated only by color.
+test('attention filter follows live waiting, failure, and recovery with visible state labels', async ({ lights }) => {
+  await lights.expand();
+  const page = lights.page;
+  const attention = page.getByRole('button', { name: /^Needs attention / });
+  await attention.click();
+  await expect(page.getByText('No sessions need attention', { exact: true })).toBeVisible();
+  await lights.desktopQuestion();
+  const waiting = page.getByRole('button', { name: 'Build API: Needs you', exact: true });
+  await expect(page.getByRole('listitem')).toHaveText([/Build API/]);
+  await expect(waiting.getByText('Needs you', { exact: true })).toBeVisible();
+  await expect(attention).toHaveText('Needs attention 1');
+  await lights.record(lights.ids.cli, 'event_msg', { type: 'task_complete', error: 'Request failed' });
+  const failed = page.getByRole('button', { name: 'Fix CLI: Failed', exact: true });
+  await expect(failed.getByText('Failed', { exact: true })).toBeVisible();
+  await expect(attention).toHaveText('Needs attention 2');
+  await expect(page.getByRole('listitem')).toHaveCount(2);
+  await lights.record(lights.ids.desktop, 'event_msg', { type: 'task_complete' });
+  await lights.record(lights.ids.cli, 'event_msg', { type: 'task_started' });
+  await expect(page.getByRole('listitem')).toHaveCount(0);
+  await expect(attention).toHaveText('Needs attention 0');
+  await page.getByRole('button', { name: 'Show all sessions', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Build API: Idle', exact: true }).getByText('Idle', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fix CLI: Working', exact: true }).getByText('Working', { exact: true })).toBeVisible();
+});
+
+// Start with a pinned session. Hide, undo, and restart with real saved preferences.
+// Detect lost pins, an undo that fails to restore, or success feedback after a failed save.
+test('Undo restores a hidden pinned session and failed saves do not show success feedback', async ({ lights }) => {
+  await lights.expand();
+  let page = lights.page;
+  await page.getByRole('button', { name: 'Pin Review release', exact: true }).click();
+  await page.getByRole('button', { name: 'Hide Review release', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Review release: Idle', exact: true })).toHaveCount(0);
+  await expect(page.getByText('Hidden: Review release', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.getByRole('listitem').first()).toContainText('Review release');
+  await expect(page.getByRole('button', { name: 'Review release: Idle', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Unpin Review release', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeHidden();
+  await lights.restart();
+  await lights.expand();
+  page = lights.page;
+  await expect(page.getByRole('listitem').first()).toContainText('Review release');
+  await lights.setPreferenceWriteFailure(true);
+  await page.getByRole('button', { name: 'Hide Review release', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Review release: Idle', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeHidden();
+  await lights.setPreferenceWriteFailure(false);
+  await page.getByRole('button', { name: 'Hide Review release', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeHidden();
+  await expect(page.getByRole('listitem').first()).toContainText('Review release');
+});

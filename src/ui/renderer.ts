@@ -16,6 +16,13 @@ let motionId: number | undefined;
 let collapseTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingRender: PanelPayload | undefined;
 let effects: Animation[] = [];
+let search = '';
+let filter: 'all' | 'attention' = 'all';
+let undoSession: { key: string; title: string } | undefined;
+function refreshList() {
+  renderSignature = undefined;
+  if (snapshot) renderNow(snapshot);
+}
 type PanelRect = { width: number; height: number };
 let pendingPanelRect: PanelRect | undefined;
 function panelRect(): PanelRect {
@@ -59,10 +66,12 @@ async function act(value: PanelAction) {
     await window.sessionLights.action(value.type === 'expand' || value.type === 'set-expanded' || value.type === 'settings'
       ? { ...value, reducedMotion: reducedMotion.matches } : value);
     $('#error').hidden = true;
+    return true;
   }
   catch (error) {
     if (value.type === 'set-expanded' && requestedExpanded === value.expanded) requestedExpanded = undefined;
     $('#error').textContent = errorMessage(error); $('#error').hidden = false;
+    return false;
   }
 }
 function requestExpanded(expanded: boolean) {
@@ -133,6 +142,26 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   $('#empty').hidden = value.sessions.length > 0 || value.showHidden || allHidden;
   $('#empty .wide').textContent = value.hiddenSessions.length ? 'All sessions are hidden.' : 'No local sessions.';
   $('#empty').setAttribute('aria-label', value.hiddenSessions.length ? 'All sessions are hidden. Show session list.' : 'No sessions. Show session list.');
+  $('#empty-help').hidden = $('#empty').hidden;
+  $('#empty-help').textContent = value.hiddenSessions.length ? 'Use the hidden sessions button below to restore a session.' : 'Start a session in an enabled source. Saved local sessions appear here automatically.';
+  const attention = value.sessions.filter(session => session.state === 'waiting' || session.state === 'error').length;
+  $('#attention-count').textContent = String(attention);
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-filter]')) button.setAttribute('aria-pressed', String(button.dataset.filter === filter));
+  $('#clear-search').hidden = !search;
+  const query = search.trim().toLocaleLowerCase();
+  const matches = (session: PanelPayload['sessions'][number]) =>
+    (filter === 'all' || session.state === 'waiting' || session.state === 'error') &&
+    (!query || [session.title, session.project, session.projectGroup, session.workspace, panelText.provider(session), session.model, labels[session.state]].filter(Boolean).join(' ').toLocaleLowerCase().includes(query));
+  const visible = value.sessions.filter(matches);
+  const hiddenMatches = value.showHidden ? value.hiddenSessions.filter(matches) : [];
+  const filtering = Boolean(query) || filter !== 'all';
+  $('#session-summary').textContent = `${value.demo ? 'Sample data · ' : ''}${filtering ? `${visible.length} of ${value.sessions.length}` : value.sessions.length} ${value.sessions.length === 1 ? 'session' : 'sessions'}${!filtering && attention ? ` · ${attention} need attention` : ''}`;
+  $('#no-matches').hidden = !expanded || allHidden || !filtering || visible.length + hiddenMatches.length > 0 || value.sessions.length === 0;
+  $('#no-matches-title').textContent = query ? 'No matching sessions' : 'No sessions need attention';
+  $('#no-matches-detail').textContent = query ? 'Try another title, project, source, model, or state.' : 'No visible sessions need an answer or have failed.';
+  if (undoSession && !value.hiddenSessions.some(session => session.key === undoSession?.key)) undoSession = undefined;
+  $('#hide-feedback').hidden = !undoSession;
+  $('#hide-message').textContent = undoSession ? `Hidden: ${undoSession.title}` : '';
   const hiddenToggle = $('#hidden-sessions');
   hiddenToggle.hidden = value.hiddenSessions.length === 0;
   hiddenToggle.textContent = `${value.hiddenSessions.length} ${value.hiddenSessions.length === 1 ? 'session' : 'sessions'} hidden`;
@@ -143,7 +172,8 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
     button.setAttribute('aria-pressed', String(button.dataset.sort === (value.preferences.sortOrder || 'activity')));
   }
   renderUsage(value);
-  const sections = sessionSections(value);
+  // Filters affect the expanded list only. The compact lights retain their saved order.
+  const sections = sessionSections(expanded ? { ...value, sessions: visible, hiddenSessions: hiddenMatches } : value);
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement.dataset : undefined;
   const fragment = document.createDocumentFragment();
   for (const section of sections) {
@@ -196,7 +226,9 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
         const model = document.createElement('span'); model.className = 'session-model'; model.textContent = session.model;
         metadata.append(' · ', model);
       }
-      text.append(title, detail, metadata); button.append(dot, text, activity);
+      const state = document.createElement('span'); state.className = `session-state ${session.state}`; state.textContent = labels[session.state];
+      const stateLine = document.createElement('span'); stateLine.className = 'session-state-line'; stateLine.append(state, activity);
+      text.append(title, detail, metadata, stateLine); button.append(dot, text);
       button.addEventListener('click', () => act(panelIsExpanded() ? { type: 'open', key: session.key } : { type: 'set-expanded', expanded: true }));
       const pin = document.createElement('button'); pin.className = 'wide pin'; pin.dataset.key = session.key; pin.dataset.action = 'pin';
       const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -220,7 +252,12 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
         outline.setAttribute('d', 'M2 2l12 12M6.5 3.5A7 7 0 0 1 14 8a10 10 0 0 1-2 2.5M9.5 12.5A7 7 0 0 1 2 8a10 10 0 0 1 2-2.5M6.5 6.5a2.1 2.1 0 0 0 3 3');
         eye.append(outline); visibility.append(eye);
       }
-      visibility.addEventListener('click', () => act({ type: hidden ? 'restore-session' : 'hide-session', key: session.key }));
+      visibility.addEventListener('click', async () => {
+        if (await act({ type: hidden ? 'restore-session' : 'hide-session', key: session.key })) {
+          if (!hidden) undoSession = { key: session.key, title: session.title };
+          refreshList();
+        }
+      });
       row.append(button);
       if (!hidden) row.append(pin);
       row.append(visibility); fragment.append(row);
@@ -266,6 +303,27 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   }
 }
 $('#empty-settings').addEventListener('click', () => act({ type: 'settings' }));
+const searchInput = document.querySelector<HTMLInputElement>('#session-search');
+searchInput?.addEventListener('input', () => { search = searchInput.value; refreshList(); });
+$('#clear-search').addEventListener('click', () => {
+  search = ''; if (searchInput) searchInput.value = '';
+  refreshList(); searchInput?.focus();
+});
+$('#reset-filters').addEventListener('click', () => {
+  search = ''; filter = 'all'; if (searchInput) searchInput.value = '';
+  refreshList(); searchInput?.focus();
+});
+for (const button of document.querySelectorAll<HTMLButtonElement>('[data-filter]')) {
+  button.addEventListener('click', () => { filter = button.dataset.filter === 'attention' ? 'attention' : 'all'; refreshList(); });
+}
+$('#undo-hide').addEventListener('click', async () => {
+  if (!undoSession) return;
+  const key = undoSession.key;
+  if (await act({ type: 'restore-session', key })) {
+    undoSession = undefined; refreshList();
+    [...document.querySelectorAll<HTMLButtonElement>('.session-button')].find(button => button.dataset.key === key)?.focus({ preventScroll: true });
+  }
+});
 $('#panel').addEventListener('pointerenter', () => requestExpanded(true));
 $('#panel').addEventListener('pointerleave', () => { if (!dragging) requestExpanded(false); });
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-settings]')) {
@@ -311,9 +369,16 @@ function finishDrag(event: PointerEvent) {
   if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
 }
 document.addEventListener('keydown', event => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f' && snapshot?.view === 'threads' && panelIsExpanded()) {
+    event.preventDefault(); searchInput?.focus(); return;
+  }
   if (event.key === 'Escape') {
     if (snapshot?.view === 'settings') {
       event.preventDefault(); closeSettings(); return;
+    }
+    if (search || filter !== 'all') {
+      event.preventDefault(); search = ''; filter = 'all'; if (searchInput) searchInput.value = '';
+      refreshList(); searchInput?.focus(); return;
     }
     if (panelIsExpanded()) {
       event.preventDefault();

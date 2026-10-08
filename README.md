@@ -40,6 +40,9 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 
 ## Use the panel
 
+- Search the expanded list by title, project, source, model, or state. Press Ctrl+F (Cmd+F on macOS) to focus search. Clear restores the list. Escape clears search and the attention filter before closing the panel. Search does not change compact lights or saved sort order.
+- Use Needs attention to show sessions that need an answer or approval, or whose last turn failed. Counts and results follow new local records. Each expanded row also shows its state as text.
+- After hiding a session, click Undo to restore it with its pin intact. Hidden sessions can still be restored from the footer after a restart.
 - Click the gear for theme, source switches, updates, and Quit. Settings replaces the session list in the same expanded sidebar. Click Threads or press Escape to return to the thread list. Its scroll position is kept. Press Escape from the thread list to collapse the sidebar.
 - Choose System, Light, or Dark in Theme. System is the default and follows device theme changes. The choice applies at once and stays after app restarts. Use Tab to reach the theme choices and arrow keys to change the choice.
 - A yellow badge on the gear marks an available update. Downloads and restarts require a click. Installed releases check at startup and every six hours.
@@ -53,6 +56,7 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 - The Codex switch controls both desktop and CLI sessions and their account usage. Rows and screen readers identify Codex Desktop or Codex CLI. Older CLI pins and hidden sessions move to the shared Codex identity. The combined switch starts hidden only if both old Codex switches were hidden.
 - All saved, unarchived desktop and CLI sessions from visible adapters appear unless you hide them.
 - Each expanded row shows the chat title and latest activity age. Activity rows also show the adapter and model when available. Project view groups sessions by project, shows the adapter and model on each row, and omits a project name repeated by its heading. Long model names wrap within the row. Screen readers also get the adapter, model, state, and details. Tooltips are not used. Codex uses its saved project name when a session maps to one. Otherwise, the row uses its workspace folder or `No workspace`. Projects without saved sessions do not appear. Long project names are shortened to fit.
+- The expanded view uses 16 px main text and 14 px supporting text before system scaling. Rows grow for wrapped text. The expanded panel is 420 px wide before scaling; the compact bar keeps its width.
 - The right side of each expanded row shows the age of its last recorded activity, such as `just now`, `5m ago`, or `2h ago`. The age updates while the panel is open. A dash means the activity time is unavailable.
 - Use the two buttons at the top to sort by latest activity or project. The selected button has an underline. The choice is saved and also sets compact light order. Project headings appear only in the expanded list.
 - Pinned sessions come first and follow latest activity. In project mode, the other sessions appear below them in project groups.
