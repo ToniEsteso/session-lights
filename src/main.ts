@@ -155,8 +155,9 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const rows = Math.max(1, Math.min(sessions.length, 14));
   const groupHeight = sessionSections(view).reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 13 : section.title ? 30 : 0), 0);
   const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
-  // Padding and header 60, usage border 16, and the hidden-session footer and undo bar 78.
-  const expandedContentHeight = Math.max(160, rows * 31 + groupHeight + 60 + (limits ? 16 + limits * 24 : 0) + (view.hiddenSessions.length ? 78 : 0));
+  // Padding and header 60, usage border 16, the hidden-session footer and undo bar 78, and 60 for each unreadable source.
+  const problems = view.sources.filter(source => source.problem).length;
+  const expandedContentHeight = Math.max(160, rows * 31 + groupHeight + 60 + (limits ? 16 + limits * 24 : 0) + (view.hiddenSessions.length ? 78 : 0) + problems * 60);
   // The compact bar lists one light per row along the edge.
   const compactLength = rows * 24 + (limits ? 28 : 17) + limits * 24;
   const contentHeight = panelView === 'settings' ? 480 + monitor.adapters.length * 40 : expandedContentHeight;

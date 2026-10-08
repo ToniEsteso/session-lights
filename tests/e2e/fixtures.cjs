@@ -245,6 +245,11 @@ const test = base.extend({
           await fs.writeFile(path.join(folder, 'session.log'),
             `${at.toISOString()} info [electron-message-handler] [desktop-notifications] show notification conversationId=${ids.desktop} kind=question\n`);
         },
+        // A new Codex release can change the layout of its session database.
+        async renameCodexColumn(from, to) {
+          const db = new DatabaseSync(path.join(codexRoot, 'state_5.sqlite'));
+          try { db.exec(`ALTER TABLE threads RENAME COLUMN ${from} TO ${to}`); } finally { db.close(); }
+        },
         async removeRecord(id) { await fs.unlink(path.join(codexRoot, `${id}.jsonl`)); },
         async claudeRecord(entry, id = ids.claude) {
           await fs.mkdir(claudeProject, { recursive: true });
@@ -263,11 +268,11 @@ const test = base.extend({
             : ['#!/bin/sh', 'cat "$(dirname "$0")/usage.txt"', ''].join('\n'), { mode: 0o755 });
         },
         // Claude Code keeps one status file per running process.
-        async claudeProcess(pid, status, waitingFor, id = ids.claude) {
+        async claudeProcess(pid, status, waitingFor, id = ids.claude, at = Date.now()) {
           await fs.mkdir(path.join(claudeRoot, 'sessions'), { recursive: true });
           await fs.writeFile(path.join(claudeRoot, 'sessions', `${pid}.json`), JSON.stringify({
             pid, sessionId: id, cwd: path.join(root, 'service'), kind: 'interactive', entrypoint: 'cli',
-            status, ...(waitingFor ? { waitingFor } : {}), updatedAt: Date.now(), statusUpdatedAt: Date.now(),
+            status, ...(waitingFor ? { waitingFor } : {}), updatedAt: at, statusUpdatedAt: at,
           }));
         },
         async removeClaudeProcess(pid) { await fs.unlink(path.join(claudeRoot, 'sessions', `${pid}.json`)); },

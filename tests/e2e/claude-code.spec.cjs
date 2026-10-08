@@ -149,3 +149,17 @@ test('a running Claude process reports approval waits; a dead process does not k
   await lights.claudeProcess(finished.pid, 'waiting', 'dialog open');
   await expect(row('Idle')).toBeVisible();
 });
+
+test('a status file left by a crashed Claude process does not keep a quiet session working', async ({ lights }) => {
+  // The system can give the crashed process number to another program. This test uses a live process number.
+  const threeHoursAgo = Date.now() - 3 * 3600_000;
+  await lights.claudeRecord({ type: 'user', entrypoint: 'cli', timestamp: new Date(threeHoursAgo).toISOString(), message: { content: 'Run the migration' } });
+  await lights.claudeProcess(process.pid, 'busy', undefined, lights.ids.claude, threeHoursAgo);
+  await lights.expand();
+  const row = state => lights.page.getByRole('button', { name: `Run the migration: ${state}`, exact: true });
+  await expect(row('Unknown')).toBeVisible();
+  await expect(row('Working')).toHaveCount(0);
+  // The same process reports fresh work. Now the file counts.
+  await lights.claudeProcess(process.pid, 'busy');
+  await expect(row('Working')).toBeVisible();
+});

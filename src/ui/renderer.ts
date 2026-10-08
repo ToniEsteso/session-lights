@@ -153,9 +153,16 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   $('#settings-view').hidden = value.view !== 'settings';
   const allHidden = value.sources.length === 0;
   $('#empty').hidden = value.sessions.length > 0 || value.showHidden || allHidden;
-  $('#empty .wide').textContent = value.hiddenSessions.length ? 'All sessions are hidden' : 'No sessions';
-  $('#empty').setAttribute('aria-label', value.hiddenSessions.length ? 'All sessions are hidden. Show session list.' : 'No sessions. Show session list.');
-  $('#empty-help').hidden = $('#empty').hidden || value.hiddenSessions.length > 0;
+  // An empty list can mean that a source cannot be read. Say so instead of "No sessions".
+  const problems = value.sources.flatMap(source => source.problem ? [`${source.name}: ${source.problem} Sessions can be missing.`] : []);
+  const unreadable = value.sessions.length === 0 && value.hiddenSessions.length === 0 && problems.length > 0;
+  $('#empty .wide').textContent = value.hiddenSessions.length ? 'All sessions are hidden' : unreadable ? 'Cannot read sessions' : 'No sessions';
+  $('#empty').setAttribute('aria-label', value.hiddenSessions.length ? 'All sessions are hidden. Show session list.' : unreadable ? 'Cannot read sessions. Show session list.' : 'No sessions. Show session list.');
+  $('#empty-help').hidden = $('#empty').hidden || value.hiddenSessions.length > 0 || unreadable;
+  $('#source-problems').replaceChildren(...problems.map(text => {
+    const line = document.createElement('p'); line.className = 'health error'; line.textContent = text; return line;
+  }));
+  $('#source-problems').hidden = problems.length === 0;
   $('#demo-label').hidden = !value.demo;
   if (undoSession && !value.hiddenSessions.some(session => session.key === undoSession?.key)) undoSession = undefined;
   $('#hide-feedback').hidden = !undoSession;

@@ -41,7 +41,8 @@ export interface Session extends AdapterSession {
   projectKey: string;
   projectGroup: string;
 }
-export interface SessionReading { sessions: AdapterSession[]; health: string }
+/** `problem` is set when the provider's records exist but cannot be read. The panel shows it to the user. */
+export interface SessionReading { sessions: AdapterSession[]; health: string; problem?: string }
 export interface UsageWindow {
   id: string;
   label?: string;
@@ -89,7 +90,7 @@ export interface PanelPreferences {
 }
 export interface MonitorSnapshot {
   sessions: Session[];
-  sources: { id: string; name: string; health: string }[];
+  sources: { id: string; name: string; health: string; problem?: string }[];
 }
 export interface PanelMotion { id: number; duration: number; delay: number }
 export interface PanelPayload extends MonitorSnapshot {
