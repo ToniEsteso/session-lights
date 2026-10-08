@@ -120,14 +120,14 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const display = panelDisplay();
   const area = display.workArea;
   const scale = expanded ? systemTextScale : 1;
-  const width = expanded ? Math.round(Math.min(420 * scale, area.width)) : compactWidth;
+  const width = expanded ? Math.round(Math.min(360 * scale, area.width)) : compactWidth;
   const view = payload();
   const sessions = view.showHidden ? [...view.sessions, ...view.hiddenSessions] : view.sessions;
   const rows = Math.max(1, Math.min(sessions.length, 14));
-  const groupHeight = sessionSections(view).reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 1 : section.title ? (section.kind === 'project' ? 28 : 32) : 0), 0);
+  const groupHeight = sessionSections(view).reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 1 : section.title ? (section.kind === 'project' ? 24 : 28) : 0), 0);
   const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
-  const expandedContentHeight = Math.max(344, rows * 90 + groupHeight + 222 + limits * 52);
-  const contentHeight = panelView === 'settings' ? 640 + monitor.adapters.length * 44 : expanded ? expandedContentHeight :
+  const expandedContentHeight = Math.max(300, rows * 72 + groupHeight + 230 + limits * 44);
+  const contentHeight = panelView === 'settings' ? 560 + monitor.adapters.length * 36 : expanded ? expandedContentHeight :
     rows * 24 + (limits ? 28 : 17) + limits * 24;
   const height = Math.round(Math.min(area.height - 24, scale * contentHeight));
   // Leave room for the readable list before showing the compact bar. Opening

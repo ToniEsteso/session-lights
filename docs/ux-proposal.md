@@ -13,7 +13,7 @@ find a local session, see its last recorded state, and open it.
 | Hide requires a second view to reverse. | Show a named confirmation and Undo after a successful hide. | Restore the last hidden session and keep its pin. |
 | Empty states offer little guidance. | Explain missing records, hidden sessions, and searches with no matches. Add Show all sessions for filtered empty states. | Give the user a clear next action. |
 | Some settings help is available only to screen readers. | Show source behavior, state meanings, and update details. | Explain effects and failures in the panel. |
-| Dense rows and 9–12 px text make the panel hard to read. | Use 16 px main text, 14 px supporting text, a 420 px expanded panel, taller rows that can grow, and larger controls. | Make text readable and reduce crowded text and accidental clicks. |
+| Dense rows and 9–12 px text make the panel hard to read. | Use the Windows desktop type ramp: 14 px main text, 12 px supporting text, a 360 px expanded panel, and 72 px rows that can grow. Follow system display and text scaling. | Make text readable and reduce crowded text and accidental clicks. |
 
 Ctrl+F or Cmd+F focuses search in the expanded thread list. Escape clears search
 and the attention filter first. A second Escape closes the panel. Clear and
@@ -25,6 +25,8 @@ themes, and reduced motion keep their existing behavior. The app still reports
 the last recorded state. It does not claim a direct live connection to a provider.
 
 ## Design guidance
+
+- [Microsoft: Typography in Windows](https://learn.microsoft.com/en-us/windows/apps/design/signature-experiences/typography): use 14/20 body text and 12/16 captions in effective pixels. System scaling handles display density.
 
 - [NN/g: 10 usability heuristics](https://www.nngroup.com/articles/ten-usability-heuristics/): visible status, recognition, user control, and clear recovery.
 - [W3C: Use of color](https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html): provide another visible way to read meaning.
