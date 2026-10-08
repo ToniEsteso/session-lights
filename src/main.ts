@@ -45,6 +45,7 @@ let usageTimer: NodeJS.Timeout | undefined;
 let usage: ProviderUsage[] = [];
 let updates: Updates;
 let systemTextScale = 1;
+let launchAtLogin: SettingsPayload['launchAtLogin'] = { available: false, enabled: false, reason: '' };
 let lastTextScaleRead = 0;
 // The floating level clears Windows topmost state in the tested Electron runtime.
 const panelLevel = process.platform === 'win32' ? 'normal' : 'floating';
@@ -67,6 +68,23 @@ async function refreshTextScale(force = false) {
   }
 }
 
+function enqueue(task: () => Promise<void>) { actionQueue = actionQueue.then(task).catch(console.error); }
+// A source build would register its own Electron binary, so it needs an explicit opt-in.
+function loginItemOptions() { return { path: process.execPath, args: app.isPackaged ? [] : [app.getAppPath()] }; }
+function loginItemUnavailable() {
+  if (demo) return 'Not available in the demo.';
+  if (process.platform !== 'win32' && process.platform !== 'darwin') return 'Not available on this system.';
+  if (!app.isPackaged && process.env.SESSION_LIGHTS_DEV_LOGIN_ITEM !== '1') return 'Install a release build to start at login.';
+  return '';
+}
+// The system owns this setting. The user can also change it outside the app, for example in Windows Startup apps.
+function readLaunchAtLogin() {
+  const reason = loginItemUnavailable();
+  if (reason) { launchAtLogin = { available: false, enabled: false, reason }; return; }
+  const item = app.getLoginItemSettings(loginItemOptions());
+  launchAtLogin = { available: true, enabled: process.platform === 'win32' ? item.executableWillLaunchAtLogin : item.openAtLogin, reason: '' };
+}
+
 function payload(): PanelPayload {
   const hidden = new Set(preferences.value.hidden);
   const hiddenSessions = visibleSessions(snapshot.sessions.filter(session => hidden.has(session.key)), { ...preferences.value, hidden: [] });
@@ -87,15 +105,17 @@ function notify() {
   }
 }
 function settingsPayload(): SettingsPayload {
-  return { version: app.getVersion(), update: updates.state, theme: preferences.value.theme, edge: preferences.value.edge, textScale: systemTextScale,
+  return { version: app.getVersion(), update: updates.state, theme: preferences.value.theme, edge: preferences.value.edge, textScale: systemTextScale, launchAtLogin,
     adapters: monitor.adapters.map(adapter => ({ id: adapter.id, name: adapter.name,
       visible: !preferences.value.hiddenAdapters.includes(adapter.id) })) };
 }
 async function showSettings(reducedMotion = false) {
+  readLaunchAtLogin();
   expanded = true;
   panelView = 'settings';
   positionPanel({ animate: true, reducedMotion }); notify();
   win.show(); win.setAlwaysOnTop(true, panelLevel);
+  await rememberHidden(false); updateTrayMenu();
 }
 function updateTrayMenu() {
   if (!tray) return;
@@ -106,7 +126,7 @@ function updateTrayMenu() {
     { label: updateView(updates.state).label, click: openSettings },
   ];
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Show panel', click: showPanel },
+    win.isVisible() ? { label: 'Hide panel', click: hidePanel } : { label: 'Show panel', click: showPanel },
     { label: 'Settings', click: openSettings },
     ...updateItem,
     { label: 'Move to this screen', click: () => {
@@ -114,6 +134,8 @@ function updateTrayMenu() {
         await preferences.save({ ...preferences.value, displayId: screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id, y: null, x: null }); showPanel();
       }).catch(console.error);
     } },
+    { type: 'separator' },
+    { label: 'Quit', click: () => app.quit() },
   ]));
 }
 function stopResize() { panelResize = undefined; }
@@ -137,7 +159,7 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const expandedContentHeight = Math.max(160, rows * 31 + groupHeight + 60 + (limits ? 16 + limits * 24 : 0) + (view.hiddenSessions.length ? 78 : 0));
   // The compact bar lists one light per row along the edge.
   const compactLength = rows * 24 + (limits ? 28 : 17) + limits * 24;
-  const contentHeight = panelView === 'settings' ? 400 + monitor.adapters.length * 40 : expandedContentHeight;
+  const contentHeight = panelView === 'settings' ? 480 + monitor.adapters.length * 40 : expandedContentHeight;
   const expandedWidth = Math.round(Math.min(360 * systemTextScale, area.width));
   const width = expanded ? Math.round(Math.min(360 * scale, area.width)) : vertical ? compactWidth : Math.round(Math.min(area.width - 24, compactLength));
   const height = expanded ? Math.round(Math.min(area.height - 24, scale * contentHeight)) : vertical ? Math.round(Math.min(area.height - 24, compactLength)) : compactHeight;
@@ -180,7 +202,21 @@ async function refreshUsage() {
   const value = await monitor.readUsage();
   if (!quitting) { usage = value; positionPanel(); notify(); }
 }
-function showPanel() { positionPanel(); win.showInactive(); win.setAlwaysOnTop(true, panelLevel); }
+// Save the choice so a restart or a login keeps the panel hidden or shown.
+async function rememberHidden(panelHidden: boolean) {
+  if (preferences.value.panelHidden !== panelHidden) await preferences.save({ ...preferences.value, panelHidden });
+}
+function showPanel() {
+  positionPanel(); win.showInactive(); win.setAlwaysOnTop(true, panelLevel);
+  updateTrayMenu(); enqueue(() => rememberHidden(false));
+}
+// The tray icon, its menu, and a second launch show the panel again.
+function hidePanel() {
+  // The panel must come back as the compact bar, not as the open list or Settings.
+  expanded = false; panelView = 'threads'; stopResize(); positionPanel();
+  win.hide();
+  updateTrayMenu(); notify(); enqueue(() => rememberHidden(true));
+}
 
 async function action(event: IpcMainInvokeEvent, input: unknown) {
   if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw Error('Unknown sender.');
@@ -283,7 +319,7 @@ async function main() {
   }
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => event.preventDefault());
-  win.on('close', event => { if (!quitting) { event.preventDefault(); win.hide(); } });
+  win.on('close', event => { if (!quitting) { event.preventDefault(); hidePanel(); } });
   ipcMain.handle('sessions:read', event => {
     if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw Error('Unknown sender.');
     return payload();
@@ -303,7 +339,7 @@ async function main() {
   const checkSettingsSender = (event: IpcMainInvokeEvent) => {
     if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw Error('Unknown sender.');
   };
-  ipcMain.handle('settings:read', event => { checkSettingsSender(event); return settingsPayload(); });
+  ipcMain.handle('settings:read', event => { checkSettingsSender(event); readLaunchAtLogin(); return settingsPayload(); });
   const settingsAction = async (event: IpcMainInvokeEvent, input: unknown) => {
     checkSettingsSender(event);
     const value = parseSettingsAction(input);
@@ -325,6 +361,13 @@ async function main() {
         stopResize(); positionPanel(); notify(); return;
       }
       case 'close': panelView = 'threads'; stopResize(); positionPanel(); notify(); return;
+      case 'hide': hidePanel(); await rememberHidden(true); return;
+      case 'launch-at-login': {
+        const reason = loginItemUnavailable();
+        if (reason) throw Error(reason);
+        app.setLoginItemSettings({ openAtLogin: value.enabled, ...loginItemOptions() });
+        readLaunchAtLogin(); notify(); return;
+      }
       case 'quit': app.quit(); return;
       case 'update':
         void updates.run(value.command); return;
@@ -353,8 +396,9 @@ async function main() {
   }
   tray = new Tray(trayImage);
   tray.setToolTip('Session Lights');
-  updateTrayMenu(); tray.on('click', () => win.isVisible() ? win.hide() : showPanel());
-  showPanel();
+  updateTrayMenu(); tray.on('click', () => win.isVisible() ? hidePanel() : showPanel());
+  readLaunchAtLogin();
+  if (!preferences.value.panelHidden) showPanel();
   console.log(`Session Lights is running. Local sessions: ${snapshot.sessions.length}. Panel above other windows: ${win.isAlwaysOnTop()}.`);
   updates.start();
   const pollUsage = async () => {

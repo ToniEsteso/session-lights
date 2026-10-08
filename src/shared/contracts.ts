@@ -84,6 +84,8 @@ export interface PanelPreferences {
   /** Saved position along a top or bottom edge. */
   x: number | null;
   sortOrder: SortOrder;
+  /** True when the user hid the panel. It stays hidden after a restart until the user shows it. */
+  panelHidden: boolean;
 }
 export interface MonitorSnapshot {
   sessions: Session[];
@@ -129,13 +131,16 @@ export interface SettingsPayload {
   update: UpdateState;
   adapters: { id: string; name: string; visible: boolean }[];
   textScale: number;
+  /** When the system cannot start this build at login, `available` is false and `reason` says why. */
+  launchAtLogin: { available: boolean; enabled: boolean; reason: string };
 }
 export type SettingsAction =
   | { type: 'theme'; theme: ThemeChoice }
   | { type: 'edge'; edge: PanelEdge }
   | { type: 'adapter'; id: string; visible: boolean }
+  | { type: 'launch-at-login'; enabled: boolean }
   | { type: 'update'; command: UpdateCommand }
-  | { type: 'close' | 'quit' };
+  | { type: 'close' | 'hide' | 'quit' };
 export interface SettingsBridge {
   read(): Promise<SettingsPayload>;
   action(value: SettingsAction): Promise<void>;

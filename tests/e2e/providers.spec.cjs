@@ -11,7 +11,7 @@ test('one Codex switch controls desktop, CLI, and usage; Claude stays independen
   const page = lights.page;
   await expect(page.getByRole('listitem')).toHaveCount(4);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await expect(page.getByRole('switch')).toHaveCount(2);
+  await expect(page.getByRole('group', { name: 'Sources' }).getByRole('switch')).toHaveCount(2);
   await expect(page.getByRole('switch', { name: 'Codex', exact: true })).toBeChecked();
   await expect(page.getByRole('switch', { name: 'Claude', exact: true })).toBeChecked();
   await page.getByRole('switch', { name: 'Codex', exact: true }).uncheck();

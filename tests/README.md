@@ -27,6 +27,12 @@ through a local transcript. At standard desktop text size, all four session
 buttons and all four account limit bars (Codex and Claude) must fit in the native panel. It detects a
 window that stays too short and clips the last row behind the usage section.
 
+The tray scenarios hide the panel in Settings, restart, and start the app a second time. The panel
+must stay hidden after the restart, then return as the compact bar when the app starts again. A second
+scenario turns on Start at login, restarts, and turns the item off outside the app. Settings must show
+the saved state each time. The OS registry is a file substitute. These scenarios cannot prove that Windows starts the
+installed app at sign-in, or that the tray icon appears. Check both once on a packaged build.
+
 The edge scenario selects Left, Top, and Bottom in Settings > Position, restarts, and then selects Right.
 For each edge, the closed bar and the open panel must touch that edge of the screen work area.
 On the top and bottom edges, the closed bar must be wider than it is tall. It detects a panel that

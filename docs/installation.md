@@ -10,7 +10,7 @@
 
 The installer includes Electron and its runtime. You do not need Node.js or npm.
 Live sessions require local Codex desktop records. The app reads usage limits automatically. The Codex runtime can write or migrate shared data and uses your existing sign-in.
-The panel starts after installation. Its tray icon can show or hide the panel.
+The panel starts after installation. Its tray icon can show or hide the panel. To start the panel when you sign in, turn on **Start at login** in Settings.
 The app does not start automatically when you sign in to Windows.
 
 Releases without a signing certificate are unsigned. Windows SmartScreen can show an unknown-publisher warning. Choose **More info**, then **Run anyway**, if you trust the source.
