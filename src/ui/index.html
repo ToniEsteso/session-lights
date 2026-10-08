@@ -62,6 +62,13 @@
           </div>
         </fieldset>
         <fieldset>
+          <legend>Startup</legend>
+          <div id="startup">
+            <label class="adapter-row"><span>Start at login</span><input id="launch-at-login" type="checkbox" role="switch" disabled></label>
+          </div>
+          <p id="startup-detail" class="field-detail" hidden></p>
+        </fieldset>
+        <fieldset>
           <legend>Sources</legend>
           <div id="adapters"></div>
         </fieldset>
@@ -74,7 +81,7 @@
       </div>
       <footer id="settings-footer">
         <p class="brand"><img src="icon-small.svg" alt="">Session Lights <span id="version"></span></p>
-        <button id="quit">Quit</button>
+        <span class="footer-actions"><button id="hide" aria-label="Hide panel" title="Hide the panel. Open it again from the tray icon.">Hide</button><button id="quit">Quit</button></span>
       </footer>
     </section>
   </main>

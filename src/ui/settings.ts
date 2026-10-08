@@ -26,6 +26,10 @@ function render(value: SettingsPayload) {
     }
     input.checked = adapter.visible;
   }
+  const login = $('#launch-at-login');
+  if (login instanceof HTMLInputElement) { login.checked = value.launchAtLogin.enabled; login.disabled = !value.launchAtLogin.available; }
+  $('#startup-detail').textContent = value.launchAtLogin.reason;
+  $('#startup-detail').hidden = !value.launchAtLogin.reason;
   const view = updateView(value.update);
   $('#version').textContent = `v${value.version}`;
   $('#update').textContent = view.label;
@@ -64,6 +68,10 @@ $('#update').addEventListener('click', () => {
   const command = updateView(snapshot.update).command;
   if (command) void act({ type: 'update', command });
 });
+$('#launch-at-login').addEventListener('change', event => {
+  if (event.currentTarget instanceof HTMLInputElement) void act({ type: 'launch-at-login', enabled: event.currentTarget.checked });
+});
+$('#hide').addEventListener('click', () => { void act({ type: 'hide' }); });
 $('#quit').addEventListener('click', () => { void act({ type: 'quit' }); });
 export function closeSettings() { void act({ type: 'close' }); }
 $('#settings-back').addEventListener('click', closeSettings);

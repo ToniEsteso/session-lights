@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import type { PanelPreferences } from './shared/contracts.js';
 import { PANEL_EDGES, SORT_ORDERS } from './shared/contracts.js';
 import { isRecord, hasErrorCode } from './shared/validation.js';
-const DEFAULTS: PanelPreferences = { theme: 'system', pinned: [], hidden: [], hiddenAdapters: [], displayId: null, edge: 'right', y: null, x: null, sortOrder: 'activity' };
+const DEFAULTS: PanelPreferences = { theme: 'system', pinned: [], hidden: [], hiddenAdapters: [], displayId: null, edge: 'right', y: null, x: null, sortOrder: 'activity', panelHidden: false };
 export function clean(input: unknown = {}): PanelPreferences {
   const value = isRecord(input) ? input : {};
   return { theme: value.theme === 'light' || value.theme === 'dark' ? value.theme : 'system',
@@ -14,7 +14,8 @@ export function clean(input: unknown = {}): PanelPreferences {
     edge: PANEL_EDGES.find(edge => edge === value.edge) ?? 'right',
     y: typeof value.y === 'number' && Number.isFinite(value.y) ? value.y : null,
     x: typeof value.x === 'number' && Number.isFinite(value.x) ? value.x : null,
-    sortOrder: value.sortOrder === 'activity' || value.sortOrder === 'project' ? value.sortOrder : 'activity' };
+    sortOrder: value.sortOrder === 'activity' || value.sortOrder === 'project' ? value.sortOrder : 'activity',
+    panelHidden: value.panelHidden === true };
 }
 class Preferences {
   value: PanelPreferences = { ...DEFAULTS, pinned: [], hidden: [], hiddenAdapters: [] };

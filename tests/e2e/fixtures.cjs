@@ -34,6 +34,7 @@ const test = base.extend({
         path.join(root, '.config', 'Codex', 'logs');
     const opened = path.join(root, 'opened.jsonl');
     const failOpen = path.join(root, 'fail-open');
+    const loginItemFile = path.join(root, 'login-item.json');
     const preferencesFile = path.join(appRoot, '.tmp', 'dev-profile', 'preferences.json');
     let app;
     let panel;
@@ -90,8 +91,9 @@ const test = base.extend({
       db.close();
       await fs.mkdir(path.join(root, 'service'), { recursive: true });
 
-      // Substitute only the OS URL handoff. Renderer, preload, IPC, monitor,
-      // provider, SQLite reads, and preference writes all remain real.
+      // Substitute only the OS URL handoff and the OS start-at-login registry.
+      // Renderer, preload, IPC, monitor, provider, SQLite reads, and preference writes all remain real.
+      // The login substitute is a file. It cannot prove that the OS starts the app at sign-in.
       const bootstrap = path.join(appRoot, 'launch.cjs');
       await fs.writeFile(bootstrap, `
         const { app, shell } = require('electron');
@@ -101,6 +103,9 @@ const test = base.extend({
           if (fs.existsSync(${JSON.stringify(failOpen)})) throw Error('Test OS handoff failure');
           fs.appendFileSync(${JSON.stringify(opened)}, JSON.stringify({ url }) + '\\n');
         };
+        const loginItem = () => { try { return JSON.parse(fs.readFileSync(${JSON.stringify(loginItemFile)}, 'utf8')); } catch { return { enabled: false }; } };
+        app.setLoginItemSettings = options => fs.writeFileSync(${JSON.stringify(loginItemFile)}, JSON.stringify({ enabled: options.openAtLogin }));
+        app.getLoginItemSettings = () => ({ openAtLogin: loginItem().enabled, executableWillLaunchAtLogin: loginItem().enabled });
         require('./build/src/main.js');
       `);
       const systemRoot = process.env.SystemRoot || process.env.windir;
@@ -112,6 +117,8 @@ const test = base.extend({
         // Exercise the real unavailable-runtime path. Never use an account.
         SESSION_LIGHTS_CODEX_BINARY: path.join(root, 'absent-runtime'),
         SESSION_LIGHTS_CLAUDE_BINARY: claudeLauncher,
+        // A source build needs this opt-in. The bootstrap above replaces the real OS registration.
+        SESSION_LIGHTS_DEV_LOGIN_ITEM: '1',
       };
       for (const name of ['SystemRoot', 'windir', 'SystemDrive', 'DISPLAY', 'WAYLAND_DISPLAY',
         'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS', 'XDG_RUNTIME_DIR', 'XDG_SESSION_TYPE', 'LANG', 'LC_ALL']) {
@@ -126,7 +133,12 @@ const test = base.extend({
         return { x: window.screenX, y: window.screenY, width: window.outerWidth, height: window.outerHeight,
           surface: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } };
       });
-      const start = async () => {
+      const nativeVisible = async () => {
+        const nativePanel = await app.browserWindow(panel);
+        try { return await nativePanel.evaluate(window => window.isVisible()); }
+        finally { await nativePanel.dispose(); }
+      };
+      const start = async ({ hidden = false } = {}) => {
         launch += 1;
         app = await _electron.launch({ executablePath: require('electron'), args: [bootstrap, ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], env,
           colorScheme: null,
@@ -155,12 +167,9 @@ const test = base.extend({
         // An empty panel has no visible list. Wait for its main surface instead.
         await expect(panel.getByRole('main', { name: 'Session Lights', exact: true })).toBeVisible();
         // Wait for the native panel before pointer input expands it.
-        const nativePanel = await app.browserWindow(panel);
-        try {
-          await expect.poll(() => nativePanel.evaluate(window => window.isVisible()),
-            { message: 'Electron must show its thread panel before hover input' }).toBe(true);
-        } finally {
-          await nativePanel.dispose();
+        // A panel that was hidden before the restart must stay hidden.
+        if (!hidden) {
+          await expect.poll(nativeVisible, { message: 'Electron must show its thread panel before hover input' }).toBe(true);
         }
         return panel;
       };
@@ -188,7 +197,24 @@ const test = base.extend({
           }, { timeout: 10_000, intervals: [12], message: 'The panel must reach its requested visible size' }).toBe(true);
           return samples;
         },
-        async restart() { await stop(); await start(); },
+        async restart(options) { await stop(); await start(options); },
+        nativeVisible,
+        // The app prints this line once startup, including the show or hide choice, is finished.
+        async waitForStartup() {
+          await expect.poll(() => runtimeLog.some(line => line.startsWith(`[launch ${launch} stdout]`) && line.includes('Session Lights is running')),
+            { message: 'The app must finish starting' }).toBe(true);
+        },
+        // A second launch of the same app. The running app must show its panel and the new process must exit.
+        async launchAgain() {
+          const child = require('node:child_process').spawn(require('electron'), [bootstrap, ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], { env, stdio: 'ignore' });
+          await new Promise((resolve, reject) => { child.once('exit', resolve); child.once('error', reject); });
+        },
+        async loginItem() {
+          try { return JSON.parse(await fs.readFile(loginItemFile, 'utf8')).enabled; }
+          catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+        },
+        // The user turns the item off outside the app, for example in Windows Startup apps.
+        async setLoginItemOutsideApp(enabled) { await fs.writeFile(loginItemFile, JSON.stringify({ enabled })); },
         async restartWithPreferences(value) {
           await stop();
           await fs.mkdir(path.dirname(preferencesFile), { recursive: true });

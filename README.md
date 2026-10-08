@@ -71,9 +71,10 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 - Below a thin divider, the compact panel shows two small gauges: 5-hour above weekly. Their arc and pointer show the amount left.
 - Gauges and usage percentages are green above 20% remaining, yellow above 5% up to 20%, and red at 5% or less. Unavailable limits show a gray gauge with no pointer.
 - The expanded panel shows one line per limit: name, bar, percentage left, and time until reset.
-- Click the tray icon to hide or show the panel. Quit is in Settings.
+- Click the tray icon to hide or show the panel. Settings also has a **Hide** button. A hidden panel stays hidden after a restart or login. Start the app again, click the tray icon, or select **Show panel** to bring it back.
+- Turn on **Start at login** in Settings to start the app when you sign in. The switch shows the state that the system holds, so it also follows a change in Windows Startup apps. It is available in installed Windows and macOS builds. A source build needs `SESSION_LIGHTS_DEV_LOGIN_ITEM=1`.
 - Drag the blank area of the header to move the panel up or down. The panel follows the pointer and saves its position when you release it.
-- Use the tray menu to open Settings or move the panel to the screen under the pointer.
+- Use the tray menu to open Settings, move the panel to the screen under the pointer, or quit.
 
 Panel settings are stored in the operating system's app data folder for Session Lights.
 The session reader reads Codex and Claude Code records without changing them. It does not send session data over the network.
