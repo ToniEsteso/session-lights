@@ -9,6 +9,7 @@ import { sessionSections } from './shared/session-sections.js';
 import { createAdapters } from './adapters/index.js';
 import { Preferences } from './preferences.js';
 import { Updates } from './updates.js';
+import { verifyWindowsInstaller } from './windows-signature.js';
 import { updateView } from './shared/updates.js';
 import { readSystemTextScale } from './system-text.js';
 
@@ -249,9 +250,15 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
 }
 
 async function main() {
-  const enabled = app.isPackaged && !demo && existsSync(path.join(process.resourcesPath, 'app-update.yml'));
+  let enabled = app.isPackaged && !demo && existsSync(path.join(process.resourcesPath, 'app-update.yml'));
+  let updatesOffReason = 'Use an installed release to check for updates.';
+  // Windows updates must be signed by the same publisher as this app. An unsigned build cannot pass that check.
+  if (enabled && process.platform === 'win32') {
+    try { await verifyWindowsInstaller(process.execPath); }
+    catch { enabled = false; updatesOffReason = 'This build is unsigned. Download new versions from GitHub Releases.'; }
+  }
   const engine = enabled ? (await import('electron-updater')).default.autoUpdater : undefined;
-  updates = new Updates(engine, 'Use an installed release to check for updates.', () => {
+  updates = new Updates(engine, updatesOffReason, () => {
     notify(); updateTrayMenu();
   });
   preferences = new Preferences(path.join(app.getPath('userData'), 'preferences.json'));

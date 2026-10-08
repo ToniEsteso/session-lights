@@ -43,7 +43,8 @@ For Mac releases, also add:
 - `APPLE_APP_SPECIFIC_PASSWORD`: the notarization password.
 - `APPLE_TEAM_ID`: the Apple developer team.
 
-The release workflow requires a signing certificate. It fails if signing credentials are missing. Signing secrets are limited to their platform build step.
+The release workflow requires a signing certificate. It fails if signing credentials are missing.
+To release without a certificate, select **allow_unsigned** when you run the workflow. The Windows installer is then unsigned. The installed app turns updates off and tells the user to download new versions from GitHub Releases. Signing secrets are limited to their platform build step.
 Windows update checks require valid signatures on both the installed app and the download, with the same publisher subject. A failed verification blocks installation. A publisher subject change needs a manual install.
 Local Windows installers can be unsigned for testing.
 

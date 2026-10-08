@@ -22,7 +22,7 @@ Both providers show their 5-hour and weekly account limits.
 Download an installer from [GitHub Releases](https://github.com/ToniEsteso/session-lights/releases).
 See [installation and update help](docs/installation.md) for Windows and macOS instructions.
 The installer includes its runtime. Node.js and pnpm are required only for development.
-Release downloads become available after the repository is public and the first release is published.
+The first releases are unsigned. Windows can show an unknown-publisher warning, and unsigned builds do not update themselves. See [installation help](docs/installation.md).
 
 ## Run from source
 
