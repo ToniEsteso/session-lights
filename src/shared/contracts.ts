@@ -26,6 +26,8 @@ export interface AdapterSession {
   updatedAt: EpochMilliseconds;
   project?: string;
   workspace?: string;
+  /** Folder shared by every worktree of one project. Groups sessions whose workspaces differ. */
+  projectRoot?: string;
   projectId?: string;
 }
 export interface Session extends AdapterSession {

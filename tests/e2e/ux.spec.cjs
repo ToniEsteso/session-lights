@@ -2,7 +2,7 @@ const { test, expect } = require('./fixtures.cjs');
 
 // Start with three Codex sessions. Add a fourth local session from Claude.
 // At standard desktop text size, the native panel must grow to show this short
-// list and its account limits without clipping the last row behind the footer.
+// list and the account limits of both providers without clipping the last row behind the footer.
 test('a short session list stays fully visible above the account limits', async ({ lights }) => {
   await lights.expand();
   await lights.claudeRecord({ type: 'user', message: { content: 'Check the release notes' } });
@@ -13,9 +13,8 @@ test('a short session list stays fully visible above the account limits', async 
     await expect(page.getByRole('button', { name: title, exact: true }), `${title} must fit above the fixed usage section`).toBeInViewport({ ratio: 1 });
   }
   const limits = page.getByRole('region', { name: 'Usage limits', exact: true }).getByRole('progressbar');
-  await expect(limits).toHaveCount(2);
-  await expect(limits.nth(0)).toBeInViewport({ ratio: 1 });
-  await expect(limits.nth(1)).toBeInViewport({ ratio: 1 });
+  await expect(limits).toHaveCount(4);
+  for (let index = 0; index < 4; index++) await expect(limits.nth(index)).toBeInViewport({ ratio: 1 });
 });
 
 // Start with three local sessions. Search by saved metadata, then clear the query.

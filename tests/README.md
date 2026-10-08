@@ -22,12 +22,12 @@ preference write failure must leave the session visible without Undo feedback.
 The scenarios use the running Electron app and isolated local records.
 The layout scenario starts with three Codex sessions, then adds a Claude session
 through a local transcript. At standard desktop text size, all four session
-buttons and both account limit bars must fit in the native panel. It detects a
+buttons and all four account limit bars (Codex and Claude) must fit in the native panel. It detects a
 window that stays too short and clips the last row behind the usage section.
 
 The provider scenarios require exactly two switches: Codex and Claude. Hiding
-Codex must hide desktop sessions, CLI sessions, and usage together, while Claude
-stays visible. Each Codex row must still show its source.
+Codex must hide desktop sessions, CLI sessions, and Codex usage together, while Claude
+sessions and Claude usage stay visible. Each Codex row must still show its source.
 Old preference files check CLI pins and hidden-session migration, partial and
 fully hidden adapter choices, restore, and persistence after restart. A real
 filesystem failure during a preference save must retain the previous saved
@@ -39,10 +39,16 @@ Clicking a saved session must show a clear missing-installation error.
 A second scenario feeds a question, unrelated output, an answer, a request error,
 retry, completion, interruption, damaged JSON, file removal, and recovery. The
 visible state must follow each event. Old activity must stay Unknown after a title
-update, and sidechain sessions must stay out of the panel. These checks protect
+update, and sidechain sessions must stay out of the panel. Three more scenarios cover Claude
+account limits, command-only sessions, and live process status. A launcher that prints fixed
+`claude -p /usage` text must give 55% and 96% left with reset countdowns that are right for
+reset times written in Tokyo and Los Angeles. A session made only by a `/usage` command must not
+appear as a chat. A status file for a running process must turn a session yellow for a permission
+dialog, then Idle, then Working. The same file for a process that has exited must be ignored.
+These checks protect
 provider behavior through the running app; internal code can change freely.
-The Claude fixtures are synthetic. They cannot verify real CLI startup or the
-record format of an installed Claude Code version.
+The Claude fixtures are synthetic. They cannot verify real CLI startup, the
+record format, or the `/usage` text of an installed Claude Code version.
 
 | Starting state | User action or external input | Required result / wrong result detected |
 | --- | --- | --- |
@@ -56,6 +62,14 @@ the outgoing URL at the OS boundary. They do not inspect source text or private
 application state. The code structure can change while these results stay valid.
 
 The session-model scenario checks visible adapter and model names in Activity and Project rows, the absence of hover cards, concise settings labels, and model updates from the Codex database, older Codex turn records, and Claude assistant records. It checks sessions with no model data, ignored subagent and synthetic records, full names that wrap inside rows and screen-reader descriptions, record removal, recovery, and restart. The model records are synthetic; they do not prove future provider record compatibility.
+
+The T3 scenarios check threads that T3 Code started. Without any T3 data, a Codex thread with
+the originator `T3 Code` must appear as `Codex T3 Code`, and a Claude SDK session as `Claude SDK`.
+Clicking the Codex thread must not send a `codex://` link. With a small T3 database, titles must
+come from T3, worktrees of one project must share one heading with a session from the project
+folder, an approval or question must show Needs you, a running turn must show Working, and a thread
+deleted or settled in T3 must leave, unless its turn runs or waits for you. When the T3 process has ended, the stale counts must be ignored.
+The T3 database in these scenarios is synthetic and holds only the columns the reader uses.
 
 ## Isolation and limits
 

@@ -4,12 +4,13 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { resolveState } from '../core.js';
+import { readT3, withT3, T3_SOURCE } from './t3.js';
 
 import type { SessionReading } from '../shared/contracts.js';
 import type { RecordedTurn, TurnSignal } from '../core.js';
 import { isRecord, hasErrorCode } from '../shared/validation.js';
 
-export interface CodexRecordsOptions { home?: string; root?: string; now?: () => number }
+export interface CodexRecordsOptions { home?: string; root?: string; now?: () => number; t3?: string | undefined }
 interface RolloutTurn extends RecordedTurn { waiting?: NonNullable<TurnSignal['waiting']>; turnId?: string; statusAt: number; model?: string }
 interface HistoryTurn { status: string; turnId?: string }
 interface Tail { text: string; modifiedAt: number; size: number }
@@ -112,10 +113,11 @@ function findCodexProject(row: ThreadRow, catalog: ProjectCatalog) {
 class CodexRecords {
   readonly root: string;
   private readonly now: () => number;
+  private readonly t3: string | undefined;
   private readonly fileCache = new Map<string, Tail>();
   private readonly rolloutCache = new Map<string, CachedRollout>();
-  constructor({ home = os.homedir(), root = process.env.CODEX_HOME || path.join(home, '.codex'), now = Date.now }: CodexRecordsOptions = {}) {
-    this.root = path.resolve(root); this.now = now;
+  constructor({ home = os.homedir(), root = process.env.CODEX_HOME || path.join(home, '.codex'), now = Date.now, t3 }: CodexRecordsOptions = {}) {
+    this.root = path.resolve(root); this.now = now; this.t3 = t3;
   }
 
   async cachedTail(file: string) {
@@ -186,6 +188,8 @@ class CodexRecords {
     });
     const { rows, projects, invalidRows } = state;
     const selected: ThreadRow[] = [];
+    // T3 Code starts Codex itself. These threads have no Codex Desktop log, so they read like CLI threads.
+    const fromT3 = new Set<string>();
     for (const row of rows) {
       if (row.source === 'cli') { if (row.id) selected.push(row); continue; }
       if (!['vscode', 'app', 'desktop'].includes(row.source) || typeof row.id !== 'string' || !row.id) continue;
@@ -202,6 +206,7 @@ class CodexRecords {
         } catch { /* Keep unknown origins out of desktop-only scope. */ }
       }
       if (/codex desktop/i.test(origin || '')) selected.push(row);
+      else if (/^t3 code\b/i.test(origin || '')) { selected.push(row); fromT3.add(row.id); }
     }
     const turns = new Map<string, HistoryTurn>();
     let historyHealth = '';
@@ -219,13 +224,14 @@ class CodexRecords {
       historyHealth = ' Turn history is unavailable; using session records.';
     }
     const sessions: SessionReading['sessions'] = [];
+    const t3 = readT3(this.t3);
     for (const row of selected) {
-      const cli = row.source === 'cli';
+      const cli = row.source === 'cli', hosted = fromT3.has(row.id), terminal = cli || hosted;
       let recorded: RolloutTurn | undefined;
       try { recorded = await this.rolloutState(row.rollout_path); }
       catch { recorded = undefined; }
       const updatedAt = epochMilliseconds(Math.max(0, row.updated_at_ms || row.updated_at * 1000, recorded?.updatedAt || 0));
-      const signal: TurnSignal = cli ? { ...(recorded?.waiting ? { waiting: recorded.waiting } : {}), lastUserAt: recorded?.lastUserAt || 0, lastProgressAt: 0 } : logData.signals.get(row.id) || { lastUserAt: 0, lastProgressAt: 0 };
+      const signal: TurnSignal = terminal ? { ...(recorded?.waiting ? { waiting: recorded.waiting } : {}), lastUserAt: recorded?.lastUserAt || 0, lastProgressAt: 0 } : logData.signals.get(row.id) || { lastUserAt: 0, lastProgressAt: 0 };
       const history = turns.get(row.id);
       const sameTurn = recorded?.turnId && history?.turnId === recorded.turnId;
       let status = history?.status || recorded?.status;
@@ -239,17 +245,20 @@ class CodexRecords {
         ...recorded, ...signal, status, updatedAt,
         lastUserAt: Math.max(recorded.lastUserAt || 0, signal.lastUserAt || 0),
         // CLI requests clear by call ID. Desktop questions stay open during tool work.
-        lastProgressAt: cli || signal.waiting?.kind === 'question' ? 0 : recorded.lastProgressAt || 0
+        lastProgressAt: terminal || signal.waiting?.kind === 'question' ? 0 : recorded.lastProgressAt || 0
       }, now);
       const title = [row.name, row.title].find(value => typeof value === 'string' && value.trim()) || 'Untitled session';
-      const cwd = typeof row.cwd === 'string' ? row.cwd : '';
+      // Codex can store a Windows path with the long-path prefix. Other code expects a plain path.
+      const cwd = (typeof row.cwd === 'string' ? row.cwd : '').replace(/^\\\\\?\\UNC\\/i, '\\\\').replace(/^\\\\\?\\/, '');
       const codexProject = findCodexProject(row, projects);
       const project = codexProject?.name || (isCodexScratchWorkspace(cwd) ? 'No workspace' : path.basename(cwd.replaceAll('\\', '/')) || cwd);
       const localProjectId = row.project_id == null ? undefined : String(row.project_id);
       const projectId = localProjectId ? `codex:${localProjectId}` : undefined;
       const model = row.model || recorded?.model;
-      sessions.push({ id: row.id, title: title.replace(/\s+/g, ' ').trim().slice(0, 160),
-        source: cli ? 'CLI' : 'Desktop', ...(model ? { model } : {}), project, ...(projectId ? { projectId } : {}), workspace: cwd, updatedAt, ...state });
+      const session = withT3({ id: row.id, title: title.replace(/\s+/g, ' ').trim().slice(0, 160),
+        source: cli ? 'CLI' : hosted ? T3_SOURCE : 'Desktop', ...(model ? { model } : {}), project, ...(projectId ? { projectId } : {}), workspace: cwd, updatedAt, ...state },
+      hosted ? t3.find('codex', row.id) : undefined);
+      if (session) sessions.push(session);
     }
     // Release cached logs and rollouts which are no longer used.
     const activeRollouts = new Set(selected.map(row => row.rollout_path));

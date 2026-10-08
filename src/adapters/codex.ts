@@ -9,7 +9,7 @@ import type { SessionAdapter, SessionReading, UsageDefinition, OpenExternal } fr
 import type { TurnSignal } from '../core.js';
 import type { CodexUsageOptions } from './codex-usage.js';
 
-export interface CodexOptions { home?: string; root?: string; logs?: string; now?: () => number; usageOptions?: CodexUsageOptions }
+export interface CodexOptions { home?: string; root?: string; logs?: string; now?: () => number; usageOptions?: CodexUsageOptions; t3?: string | undefined }
 function desktopLogs(platform: NodeJS.Platform, home: string) {
   if (platform === 'win32') return path.join(process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'Codex', 'Logs');
   if (platform === 'darwin') return path.join(home, 'Library', 'Logs', 'com.openai.codex');
@@ -45,8 +45,8 @@ class CodexAdapter implements SessionAdapter {
   private usageReader: CodexUsage | undefined;
   private readonly usageOptions: CodexUsageOptions | undefined;
   constructor({ home = os.homedir(), root = process.env.CODEX_HOME || path.join(home, '.codex'),
-    logs = desktopLogs(process.platform, home), now = Date.now, usageOptions }: CodexOptions = {}) {
-    this.records = new CodexRecords({ root, now }); this.logs = logs; this.now = now;
+    logs = desktopLogs(process.platform, home), now = Date.now, usageOptions, t3 }: CodexOptions = {}) {
+    this.records = new CodexRecords({ root, now, t3 }); this.logs = logs; this.now = now;
     this.usage = { scope: 'Account-wide usage', windows: [
       { id: 'fiveHour', label: '5h', title: '5-hour limit' }, { id: 'weekly', label: 'Weekly', title: 'Weekly limit' }
     ] };
@@ -62,7 +62,8 @@ class CodexAdapter implements SessionAdapter {
     if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) throw Error('Invalid Codex chat link.');
     const session = (await this.read()).sessions.find(session => session.id === id);
     if (!session) throw Error('The Codex session is no longer available.');
-    if (session.source === 'CLI') {
+    // T3 Code has no link that opens a thread. Resume it in a terminal, like a CLI thread.
+    if (session.source === 'CLI' || session.source === 'T3 Code') {
       await resumeCodexCli(id, session.workspace, this.records.root);
       return;
     }

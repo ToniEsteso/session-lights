@@ -2,14 +2,66 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { spawn } from 'node:child_process';
-import type { AdapterSession, SessionAdapter, SessionReading, SessionState } from '../shared/contracts.js';
+import type { AdapterSession, SessionAdapter, SessionReading, SessionState, UsageDefinition, UsageReading } from '../shared/contracts.js';
 import { epochMilliseconds } from '../shared/time.js';
+import { readClaudeUsage } from './claude-usage.js';
+import { readT3, withT3 } from './t3.js';
 import { hasErrorCode, isRecord } from '../shared/validation.js';
 
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const HEAD_BYTES = 64 * 1024;
 const TAIL_BYTES = 512 * 1024;
 const ACTIVE_AGE = 15 * 60_000;
+const USAGE_AGE = 2 * 60_000;
+
+// Claude Code records which program started a session. The CLI, the desktop app, editors, and
+// hosts such as T3 Code all write the same transcripts, so one adapter reads them all.
+function sourceLabel(entrypoint: string | undefined) {
+  if (!entrypoint) return undefined;
+  if (entrypoint === 'cli') return 'CLI';
+  if (/^(claude-desktop|local-agent)/.test(entrypoint)) return 'Desktop';
+  if (entrypoint === 'claude-vscode') return 'VS Code';
+  if (entrypoint.startsWith('sdk')) return 'SDK';
+  return undefined;
+}
+
+interface LiveSession { status: 'busy' | 'idle' | 'waiting'; waitingFor: string; at: number }
+
+// A running Claude Code process keeps ~/.claude/sessions/<pid>.json with its live status.
+// Claude removes the file on exit. A crash leaves it behind, so check that the process still runs.
+async function readLive(root: string): Promise<Map<string, LiveSession>> {
+  const live = new Map<string, LiveSession>();
+  const folder = path.join(root, 'sessions');
+  let files;
+  try { files = await fs.readdir(folder); } catch { return live; }
+  for (const name of files.filter(name => name.endsWith('.json'))) {
+    try {
+      const value: unknown = JSON.parse(await fs.readFile(path.join(folder, name), 'utf8'));
+      if (!isRecord(value) || typeof value.sessionId !== 'string' || typeof value.pid !== 'number') continue;
+      if (value.status !== 'busy' && value.status !== 'idle' && value.status !== 'waiting') continue;
+      try { process.kill(value.pid, 0); }
+      catch (error) { if (!hasErrorCode(error, 'EPERM')) continue; }
+      const at = typeof value.statusUpdatedAt === 'number' ? value.statusUpdatedAt : 0;
+      const known = live.get(value.sessionId);
+      if (known && known.at > at) continue;
+      live.set(value.sessionId, { status: value.status, waitingFor: typeof value.waitingFor === 'string' ? value.waitingFor : '', at });
+    } catch { /* A file that is being replaced or damaged does not hide other sessions. */ }
+  }
+  return live;
+}
+
+function withLive(session: AdapterSession, live: LiveSession | undefined): AdapterSession {
+  if (!live) return session;
+  const updatedAt = epochMilliseconds(Math.max(session.updatedAt, live.at));
+  if (live.status === 'busy') return { ...session, state: 'working', detail: '', updatedAt };
+  if (live.status === 'waiting') {
+    const detail = live.waitingFor === 'sandbox request' ? 'Sandbox approval needed'
+      : live.waitingFor === 'input needed' ? 'Answer needed' : 'Waiting for you';
+    return { ...session, state: 'waiting', detail, updatedAt };
+  }
+  // The process is idle. A recorded failure stays visible; a missing completion marker does not.
+  return session.state === 'error' || session.state === 'idle' ? session : { ...session, state: 'idle', detail: '', updatedAt };
+}
 
 function textContent(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -42,19 +94,21 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
     const last = entries(tail.subarray(0, tailRead.bytesRead), offset > 0);
     if (first.some(entry => entry.isSidechain === true)) return;
     let customTitle = '', aiTitle = '', summary = '', prompt = '', workspace = '';
-    let model: string | undefined;
+    let model: string | undefined, entrypoint: string | undefined;
     let state: SessionState = 'unknown';
     let detail = 'The transcript does not confirm a turn state.';
     let updatedAt = 0;
     let stateAt = 0;
-    let hasMessage = false;
+    let hasReply = false;
     const questions = new Set<string>();
     for (const entry of [...first, ...last]) {
       if (entry.isSidechain === true || (typeof entry.sessionId === 'string' && entry.sessionId !== id)) continue;
       if (typeof entry.cwd === 'string') workspace = entry.cwd;
+      if (typeof entry.entrypoint === 'string') entrypoint = entry.entrypoint;
       if (entry.type === 'assistant' && entry.isApiErrorMessage !== true && isRecord(entry.message) &&
           typeof entry.message.model === 'string' && entry.message.model.trim() && !entry.message.model.trim().startsWith('<')) {
         model = entry.message.model.trim();
+        hasReply = true;
       }
       if (entry.type === 'custom-title' && typeof entry.customTitle === 'string') customTitle = entry.customTitle;
       if (entry.type === 'ai-title' && typeof entry.aiTitle === 'string') aiTitle = entry.aiTitle;
@@ -70,7 +124,6 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
       const timestamp = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : NaN;
       if (Number.isFinite(timestamp)) updatedAt = Math.max(updatedAt, timestamp);
       if ((entry.type === 'user' || entry.type === 'assistant') && isRecord(entry.message)) {
-        hasMessage = true;
         const content = entry.message.content;
         const blocks = Array.isArray(content) ? content.filter(isRecord) : [];
         if (entry.type === 'user') {
@@ -114,12 +167,15 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
       }
     }
     const title = (customTitle || aiTitle || summary || prompt).replace(/\s+/g, ' ').trim().slice(0, 200);
-    if (!title && !hasMessage) return;
+    // Commands such as /usage run in a session with no prompt and no model reply. It is not a chat.
+    if (!title && !prompt && !hasReply) return;
     if ((state === 'working' || state === 'waiting') && (!stateAt || Date.now() - stateAt >= ACTIVE_AGE)) {
       state = 'unknown'; detail = 'No recent activity';
     }
     // mtime is a recorded file activity time, never the poll time.
-    return { id, title: title || `Claude Code ${id.slice(0, 8)}`, workspace, ...(model ? { model } : {}),
+    const source = sourceLabel(entrypoint);
+    return { id, title: title || `Claude Code ${id.slice(0, 8)}`, workspace,
+      ...(source ? { source } : {}), ...(model ? { model } : {}),
       state, detail, updatedAt: epochMilliseconds(updatedAt || stat.mtimeMs) };
   } finally { await handle.close(); }
 }
@@ -170,9 +226,15 @@ async function launchTerminal(binary: string, id: string, workspace: string, roo
 export class ClaudeCodeAdapter implements SessionAdapter {
   readonly id = 'claude-code';
   readonly name = 'Claude';
+  readonly usage: UsageDefinition = { scope: 'Account-wide usage', windows: [
+    { id: 'fiveHour', label: '5h', title: '5-hour limit' }, { id: 'weekly', label: 'Weekly', title: 'Weekly limit' }
+  ] };
   private readonly root: string;
-  constructor({ root = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude') }: { root?: string } = {}) {
-    this.root = path.resolve(root);
+  private readonly t3: string | undefined;
+  private usageRead: { at: number; reading: UsageReading } | undefined;
+  private usagePending: Promise<UsageReading> | undefined;
+  constructor({ root = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), t3 }: { root?: string; t3?: string | undefined } = {}) {
+    this.root = path.resolve(root); this.t3 = t3;
   }
   async read(): Promise<SessionReading> {
     const projects = path.join(this.root, 'projects');
@@ -181,6 +243,8 @@ export class ClaudeCodeAdapter implements SessionAdapter {
     catch (error) {
       return { sessions: [], health: hasErrorCode(error, 'ENOENT') ? 'No local Claude Code sessions found.' : 'Cannot read Claude Code session folders.' };
     }
+    const live = await readLive(this.root);
+    const t3 = readT3(this.t3);
     const sessions = new Map<string, AdapterSession>();
     let unreadable = 0;
     for (const directory of directories.filter(entry => entry.isDirectory())) {
@@ -197,7 +261,20 @@ export class ClaudeCodeAdapter implements SessionAdapter {
         } catch { unreadable++; }
       }
     }
-    return { sessions: [...sessions.values()], health: `State uses the last recorded event. Approval prompts and usage limits are unavailable.${unreadable ? ` Cannot read ${unreadable} records or folders.` : ''}` };
+    return { sessions: [...sessions.values()].flatMap(session => withT3(withLive(session, live.get(session.id)), t3.find('claude', session.id)) ?? []),
+      health: `A running Claude Code process reports its live state. Other sessions use the last recorded event.${unreadable ? ` Cannot read ${unreadable} records or folders.` : ''}` };
+  }
+  // `claude /usage` takes seconds to start. Share one run and keep its result for a short time.
+  async readUsage(): Promise<UsageReading> {
+    if (this.usageRead && Date.now() - this.usageRead.at < USAGE_AGE) return this.usageRead.reading;
+    this.usagePending ||= (async () => {
+      try {
+        const reading = await readClaudeUsage({ binary: await findClaude(), root: this.root });
+        if (reading.windows.length) this.usageRead = { at: Date.now(), reading };
+        return reading;
+      } finally { this.usagePending = undefined; }
+    })();
+    return this.usagePending;
   }
   async open(id: string) {
     if (!UUID.test(id)) throw Error('Invalid Claude Code session ID.');

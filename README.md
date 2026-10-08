@@ -3,6 +3,9 @@
 A small panel attached to the right edge of your screen. It stays above normal app windows.
 The panel reads local **Codex desktop, Codex CLI, and Claude Code** sessions on Windows and macOS.
 Settings has one **Codex** switch and one **Claude** switch. Codex includes desktop and CLI sessions.
+Claude includes every program that runs Claude Code on this computer: the CLI, the desktop app, and editors.
+Threads that T3 Code starts in Codex or Claude appear in the same two sources, with or without T3 data. See [T3 Code](docs/t3-code.md).
+Both providers show their 5-hour and weekly account limits.
 
 | Color | State | Meaning |
 | --- | --- | --- |
@@ -70,8 +73,9 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 
 Panel settings are stored in the operating system's app data folder for Session Lights.
 The session reader reads Codex and Claude Code records without changing them. It does not send session data over the network.
-The app reads usage limits automatically through an installed Codex runtime. It uses the existing ChatGPT sign-in and can write or migrate data in the Codex home.
-Session Lights does not open credential files or handle tokens itself. Codex manages its own authentication.
+The app reads Codex limits automatically through an installed Codex runtime. It uses the existing ChatGPT sign-in and can write or migrate data in the Codex home.
+The app reads Claude limits by running `claude -p /usage`. This command sends no model request.
+Session Lights does not open credential files or handle tokens itself. Codex and Claude manage their own authentication.
 
 ## Usage limits
 
@@ -176,7 +180,7 @@ The monitor refreshes usage once a minute. Usage failures do not hide other prov
 Add an optional `close()` method to release child processes or other resources when the app quits.
 Codex runtime discovery, authentication requests, limit selection, labels, scope, and chat links all stay in its adapter files.
 
-Claude Code reads local transcripts without starting a Claude process. See [Claude Code support and limits](docs/claude-code.md).
+Claude Code reads local transcripts and the status files of running Claude processes. It starts Claude only to read usage limits. See [Claude Code support and limits](docs/claude-code.md).
 OpenCode and other tools are not yet implemented.
 
 ## Checks

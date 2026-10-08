@@ -11,6 +11,8 @@ const ids = {
   claude: '44444444-4444-4444-8444-444444444444',
   claudeOld: '55555555-5555-4555-8555-555555555555',
   claudeAgent: '66666666-6666-4666-8666-666666666666',
+  codexT3: '77777777-7777-4777-8777-777777777777',
+  claudeT3: '88888888-8888-4888-8888-888888888888',
 };
 
 const test = base.extend({
@@ -23,6 +25,8 @@ const test = base.extend({
     const codexRoot = path.join(root, 'codex-home');
     const claudeRoot = path.join(root, 'claude-home');
     const claudeProject = path.join(claudeRoot, 'projects', 'test-project');
+    // The launcher is absent until a test installs it, so the missing-installation path stays real.
+    const claudeLauncher = path.join(root, process.platform === 'win32' ? 'claude-launcher.cmd' : 'claude-launcher');
     const logsRoot = process.platform === 'win32' ? path.join(root, 'local', 'Codex', 'Logs') :
       process.platform === 'darwin' ? path.join(root, 'Library', 'Logs', 'com.openai.codex') :
         path.join(root, '.config', 'Codex', 'logs');
@@ -105,7 +109,7 @@ const test = base.extend({
         LOCALAPPDATA: path.join(root, 'local'), TEMP: tempDir, TMP: tempDir, TMPDIR: tempDir,
         // Exercise the real unavailable-runtime path. Never use an account.
         SESSION_LIGHTS_CODEX_BINARY: path.join(root, 'absent-runtime'),
-        SESSION_LIGHTS_CLAUDE_BINARY: path.join(root, 'absent-claude.exe'),
+        SESSION_LIGHTS_CLAUDE_BINARY: claudeLauncher,
       };
       for (const name of ['SystemRoot', 'windir', 'SystemDrive', 'DISPLAY', 'WAYLAND_DISPLAY',
         'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS', 'XDG_RUNTIME_DIR', 'XDG_SESSION_TYPE', 'LANG', 'LC_ALL']) {
@@ -222,6 +226,66 @@ const test = base.extend({
         },
         async claudeRaw(text) {
           await fs.appendFile(path.join(claudeProject, `${ids.claude}.jsonl`), text);
+        },
+        // A launcher that prints fixed `claude -p /usage` text. It cannot prove how a real Claude Code formats it.
+        async installClaude(usageText) {
+          await fs.writeFile(path.join(root, 'usage.txt'), usageText);
+          await fs.writeFile(claudeLauncher, process.platform === 'win32'
+            ? ['@echo off', 'type "%~dp0usage.txt"', ''].join('\r\n')
+            : ['#!/bin/sh', 'cat "$(dirname "$0")/usage.txt"', ''].join('\n'), { mode: 0o755 });
+        },
+        // Claude Code keeps one status file per running process.
+        async claudeProcess(pid, status, waitingFor, id = ids.claude) {
+          await fs.mkdir(path.join(claudeRoot, 'sessions'), { recursive: true });
+          await fs.writeFile(path.join(claudeRoot, 'sessions', `${pid}.json`), JSON.stringify({
+            pid, sessionId: id, cwd: path.join(root, 'service'), kind: 'interactive', entrypoint: 'cli',
+            status, ...(waitingFor ? { waitingFor } : {}), updatedAt: Date.now(), statusUpdatedAt: Date.now(),
+          }));
+        },
+        async removeClaudeProcess(pid) { await fs.unlink(path.join(claudeRoot, 'sessions', `${pid}.json`)); },
+        // A thread that T3 Code started in Codex. Codex records the originator and a rollout file.
+        async codexT3Thread(id, title, status = 'task_complete') {
+          const workspace = path.join(root, 't3-worktrees', id.slice(0, 4));
+          const file = path.join(codexRoot, `${id}.jsonl`);
+          const at = Date.now();
+          await fs.writeFile(file, `${JSON.stringify({ timestamp: new Date(at).toISOString(), type: 'event_msg', payload: { type: status, turn_id: 'turn-t3' } })}\n`);
+          const db = new DatabaseSync(path.join(codexRoot, 'state_5.sqlite'));
+          try {
+            db.prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)').run(
+              id, title, workspace, 'vscode', file, Math.floor(at / 1000), at, 'T3 Code');
+          } finally { db.close(); }
+        },
+        // The parts of T3 Code's own database that Session Lights reads. `running` tells if T3 is open.
+        async t3Database(threads, { running = true } = {}) {
+          const folder = path.join(root, '.t3', 'userdata');
+          await fs.mkdir(folder, { recursive: true });
+          const db = new DatabaseSync(path.join(folder, 'state.sqlite'));
+          try {
+            db.exec(`
+              CREATE TABLE IF NOT EXISTS projection_projects (project_id TEXT PRIMARY KEY, title TEXT NOT NULL, workspace_root TEXT NOT NULL);
+              CREATE TABLE IF NOT EXISTS projection_threads (thread_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, title TEXT NOT NULL,
+                worktree_path TEXT, deleted_at TEXT, archived_at TEXT, settled_override TEXT, pending_approval_count INTEGER NOT NULL DEFAULT 0,
+                pending_user_input_count INTEGER NOT NULL DEFAULT 0);
+              CREATE TABLE IF NOT EXISTS projection_thread_sessions (thread_id TEXT PRIMARY KEY, status TEXT NOT NULL, active_turn_id TEXT);
+              CREATE TABLE IF NOT EXISTS provider_session_runtime (thread_id TEXT PRIMARY KEY, provider_name TEXT NOT NULL, resume_cursor_json TEXT);
+              DELETE FROM projection_projects; DELETE FROM projection_threads; DELETE FROM projection_thread_sessions; DELETE FROM provider_session_runtime;`);
+            for (const [index, thread] of threads.entries()) {
+              db.prepare('INSERT OR REPLACE INTO projection_projects VALUES (?, ?, ?)').run('project-1', thread.project, thread.projectRoot);
+              db.prepare('INSERT INTO projection_threads VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(`thread-${index}`, 'project-1', thread.title,
+                null, thread.deleted ? new Date().toISOString() : null, null, thread.settled ? 'settled' : null, thread.approvals || 0, thread.questions || 0);
+              db.prepare('INSERT INTO projection_thread_sessions VALUES (?, ?, ?)').run(`thread-${index}`, thread.status || 'ready', null);
+              db.prepare('INSERT INTO provider_session_runtime VALUES (?, ?, ?)').run(`thread-${index}`, thread.provider,
+                JSON.stringify(thread.provider === 'codex' ? { threadId: thread.sessionId } : { threadId: `thread-${index}`, resume: thread.sessionId }));
+            }
+          } finally { db.close(); }
+          // T3 writes its process ID while it runs. A finished process stands for a closed T3.
+          let pid = process.pid;
+          if (!running) {
+            const finished = require('node:child_process').spawn(process.execPath, ['-e', '']);
+            await new Promise(resolve => finished.once('exit', resolve));
+            pid = finished.pid;
+          }
+          await fs.writeFile(path.join(folder, 'server-runtime.json'), JSON.stringify({ version: 1, pid }));
         },
         async removeClaudeRecord() { await fs.unlink(path.join(claudeProject, `${ids.claude}.jsonl`)); },
         async setOpenFailure(value) {

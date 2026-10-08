@@ -9,14 +9,16 @@ export interface RecordedTurn { status: string | undefined; updatedAt: number; l
 // A session has a provider-local id, title, state, detail, and updatedAt.
 function projectInfo(session: AdapterSession, providerId: string) {
   const workspace = typeof session.workspace === 'string' ? session.workspace.trim() : '';
+  const root = typeof session.projectRoot === 'string' ? session.projectRoot.trim() : '';
   const label = typeof session.project === 'string' ? session.project.trim() : '';
   const id = typeof session.projectId === 'string' ? session.projectId.trim() : '';
-  const project = label || path.posix.basename(workspace.replaceAll('\\', '/').replace(/\/+$/, '')) || workspace || id || 'No workspace';
+  const project = label || path.posix.basename((root || workspace).replaceAll('\\', '/').replace(/\/+$/, '')) || root || workspace || id || 'No workspace';
   let projectKey;
   if (id) projectKey = JSON.stringify(['id', id]);
-  else if (workspace) {
-    const windowsPath = /^[a-z]:[\\/]|^[\\/]{2}/i.test(workspace);
-    const normalized = (windowsPath ? path.win32.normalize(workspace).replaceAll('\\', '/').toLowerCase() : path.posix.normalize(workspace)).replace(/\/+$/, '') || '/';
+  else if (root || workspace) {
+    const grouped = root || workspace;
+    const windowsPath = /^[a-z]:[\\/]|^[\\/]{2}/i.test(grouped);
+    const normalized = (windowsPath ? path.win32.normalize(grouped).replaceAll('\\', '/').toLowerCase() : path.posix.normalize(grouped)).replace(/\/+$/, '') || '/';
     projectKey = JSON.stringify(['workspace', normalized]);
   } else projectKey = label ? JSON.stringify(['label', providerId, label]) : 'none';
   return { project, workspace, projectKey };

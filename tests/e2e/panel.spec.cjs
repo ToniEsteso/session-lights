@@ -6,7 +6,7 @@ test('live local records update desktop and CLI states, including missing data a
   await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Review release: Idle', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Fix CLI: Idle', exact: true })).toBeVisible();
-  await expect(page.getByText('Unavailable', { exact: true })).toHaveCount(2);
+  await expect(page.getByText('Unavailable', { exact: true })).toHaveCount(4);
 
   await lights.desktopQuestion();
   await expect(page.getByRole('button', { name: 'Build API: Needs you', exact: true })).toBeVisible();
@@ -81,13 +81,13 @@ test('theme and adapter switches persist; the empty panel can restore a source',
   await page.getByRole('switch', { name: 'Codex', exact: true }).uncheck();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
   await expect(page.getByRole('listitem')).toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Usage limits', exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'No sessions. Show session list.', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('switch', { name: 'Claude', exact: true }).uncheck();
   await page.getByRole('button', { name: 'Back to threads', exact: true }).click();
   await expect(page.getByText('All sources are hidden.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Usage limits', exact: true })).toBeHidden();
   await lights.restart();
   page = lights.page;
   await page.getByRole('button', { name: 'All sources are hidden. Open Settings.', exact: true }).click();

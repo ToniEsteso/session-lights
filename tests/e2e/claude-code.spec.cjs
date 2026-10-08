@@ -78,3 +78,74 @@ test('Claude transcript activity changes states; old, partial, and subagent data
   await lights.claudeRecord({ type: 'user', message: { content: '[Request interrupted by user]' } });
   await expect(page.getByRole('button', { name: 'Restored Claude task: Idle', exact: true })).toBeVisible();
 });
+
+// Claude prints reset times as "Oct 8, 1:39pm (Zone)", or "10am (Zone)" on the hour. It omits the year.
+function claudeReset(at, zone) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: zone, month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true }).formatToParts(at).map(part => [part.type, part.value]));
+  const time = `${parts.hour}${parts.minute === '00' ? '' : `:${parts.minute}`}${parts.dayPeriod.toLowerCase()}`;
+  return `${parts.month} ${parts.day}, ${time} (${zone})`;
+}
+
+test('Claude account limits come from the installed CLI with reset times in the account time zone', async ({ lights }) => {
+  const page = lights.page;
+  await lights.expand();
+  const limits = page.getByRole('region', { name: 'Usage limits', exact: true }).getByRole('progressbar');
+  // Without an installation, Claude limits are visible but marked unavailable; Codex limits are separate.
+  await expect(limits.filter({ hasText: /^$/ })).toHaveCount(4);
+  await expect(page.getByText('Unavailable', { exact: true })).toHaveCount(4);
+  const session = Date.now() + 3.5 * 3_600_000, week = Date.now() + (2 * 24 + 5.5) * 3_600_000;
+  await lights.installClaude([
+    'You are currently using your subscription to power your Claude Code usage', '',
+    `Current session: 45% used · resets ${claudeReset(session, 'Asia/Tokyo')}`,
+    `Current week (all models): 4% used · resets ${claudeReset(week, 'America/Los_Angeles')}`, '',
+    "What's contributing to your limits usage?", 'Last 24h · 139 requests · 3 sessions', ''].join('\n'));
+  await lights.restart();
+  await lights.expand();
+  const five = lights.page.getByRole('progressbar', { name: 'Claude · 5-hour limit remaining', exact: true });
+  const weekly = lights.page.getByRole('progressbar', { name: 'Claude · Weekly limit remaining', exact: true });
+  await expect(five).toHaveAttribute('aria-valuenow', '55');
+  await expect(weekly).toHaveAttribute('aria-valuenow', '96');
+  // The same moment in another zone must give the same wait. A zone mistake shifts it by hours.
+  await expect(lights.page.getByLabel(/^Resets in 3h (29|30)m$/)).toHaveCount(1);
+  await expect(lights.page.getByLabel(/^Resets in 2d 5h$/)).toHaveCount(1);
+});
+
+test('a Claude command that is not a chat stays out of the list', async ({ lights }) => {
+  // Records written when a command such as /usage runs without a conversation.
+  await lights.claudeRecord({ type: 'user', isMeta: true, message: { role: 'user',
+    content: '<local-command-caveat>The command below was run directly in Claude Code.</local-command-caveat>' } }, lights.ids.claudeAgent);
+  await lights.claudeRecord({ type: 'user', message: { role: 'user',
+    content: '<command-name>/usage</command-name>\n<command-message>usage</command-message>' } }, lights.ids.claudeAgent);
+  await lights.claudeRecord({ type: 'system', subtype: 'local_command', content: '<local-command-stdout>Current session: 45% used</local-command-stdout>' }, lights.ids.claudeAgent);
+  await lights.claudeRecord({ type: 'user', message: { content: 'Real Claude chat' } });
+  await lights.expand();
+  await expect(lights.page.getByRole('button', { name: 'Real Claude chat: Working', exact: true })).toBeVisible();
+  await expect(lights.page.getByRole('listitem')).toHaveCount(4);
+  await expect(lights.page.getByRole('button', { name: /Claude Code 66666666/ })).toHaveCount(0);
+});
+
+test('a running Claude process reports approval waits; a dead process does not keep a stale state', async ({ lights }) => {
+  const entrypoint = 'cli';
+  await lights.claudeRecord({ type: 'user', entrypoint, message: { content: 'Run the migration' } });
+  await lights.expand();
+  const page = lights.page;
+  const row = state => page.getByRole('button', { name: `Run the migration: ${state}`, exact: true });
+  await expect(row('Working')).toBeVisible();
+  await expect(row('Working').getByText('Claude CLI', { exact: true })).toBeVisible();
+  // The permission dialog is not in the transcript. Only the process status shows it.
+  await lights.claudeProcess(process.pid, 'waiting', 'dialog open');
+  await expect(row('Needs you')).toBeVisible();
+  await lights.claudeProcess(process.pid, 'idle');
+  await expect(row('Idle')).toBeVisible();
+  await lights.claudeProcess(process.pid, 'busy');
+  await expect(row('Working')).toBeVisible();
+  // Claude removes its status file on a normal exit. A crash leaves the file behind.
+  // The process is gone either way, so the transcript decides.
+  await lights.removeClaudeProcess(process.pid);
+  const finished = require('node:child_process').spawn(process.execPath, ['-e', '']);
+  await new Promise(resolve => finished.once('exit', resolve));
+  await lights.claudeRecord({ type: 'assistant', entrypoint, message: { content: [{ type: 'text', text: 'Done.' }], stop_reason: 'end_turn' } });
+  await lights.claudeProcess(finished.pid, 'waiting', 'dialog open');
+  await expect(row('Idle')).toBeVisible();
+});
