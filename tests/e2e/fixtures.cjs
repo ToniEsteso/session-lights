@@ -173,13 +173,13 @@ const test = base.extend({
           await panel.emulateMedia({ colorScheme: null, reducedMotion: reduce ? 'reduce' : 'no-preference' });
         },
         panelBounds,
-        async samplePanelBounds(duration) {
+        async samplePanelBoundsUntil(condition) {
           const samples = [];
-          const started = Date.now();
-          while (Date.now() - started < duration) {
-            samples.push(await panelBounds());
-            await new Promise(resolve => setTimeout(resolve, 12));
-          }
+          await expect.poll(async () => {
+            const bounds = await panelBounds();
+            samples.push(bounds);
+            return condition(bounds);
+          }, { timeout: 10_000, intervals: [12], message: 'The panel must reach its requested visible size' }).toBe(true);
           return samples;
         },
         async restart() { await stop(); await start(); },
