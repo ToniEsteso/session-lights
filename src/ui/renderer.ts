@@ -14,6 +14,8 @@ let threadsScrollTop = 0;
 let dragFrame: number | undefined;
 let motionId: number | undefined;
 let collapseTimer: ReturnType<typeof setTimeout> | undefined;
+let expandTimer: ReturnType<typeof setTimeout> | undefined;
+let hoverCloseTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingRender: PanelPayload | undefined;
 let effects: Animation[] = [];
 let search = '';
@@ -32,6 +34,10 @@ function panelRect(): PanelRect {
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 function renderUsage(value: PanelPayload) {
   const fragment = document.createDocumentFragment();
+  const heading = document.createElement('div'); heading.className = 'wide usage-heading';
+  const title = document.createElement('span'); title.textContent = 'Account limits';
+  const caption = document.createElement('span'); caption.textContent = 'Remaining';
+  heading.append(title, caption);
   const multiple = (value.usage || []).filter(source => source.windows.length).length > 1;
   for (const source of value.usage || []) for (const limit of source.windows) {
     const row = usageRow();
@@ -58,10 +64,15 @@ function renderUsage(value: PanelPayload) {
     reset.hidden = !reset.textContent;
     fragment.append(row);
   }
-  $('#usage').replaceChildren(fragment); $('#usage').hidden = !$('#usage').children.length;
+  const hasUsage = fragment.childElementCount > 0;
+  $('#usage').replaceChildren(...(hasUsage ? [heading, fragment] : [])); $('#usage').hidden = !hasUsage;
 }
 
 async function act(value: PanelAction) {
+  if (value.type === 'settings' || value.type === 'expand' || value.type === 'set-expanded') {
+    clearTimeout(expandTimer); expandTimer = undefined;
+    clearTimeout(hoverCloseTimer); hoverCloseTimer = undefined;
+  }
   try {
     await window.sessionLights.action(value.type === 'expand' || value.type === 'set-expanded' || value.type === 'settings'
       ? { ...value, reducedMotion: reducedMotion.matches } : value);
@@ -80,7 +91,7 @@ function requestExpanded(expanded: boolean) {
   void act({ type: 'set-expanded', expanded });
 }
 function panelIsExpanded() {
-  return requestedExpanded ?? snapshot?.expanded ?? false;
+  return $('#panel').classList.contains('expanded');
 }
 function render(value: PanelPayload) {
   if (collapseTimer && value.motion?.id === motionId) { pendingRender = value; return; }
@@ -148,6 +159,8 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   $('#attention-count').textContent = String(attention);
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-filter]')) button.setAttribute('aria-pressed', String(button.dataset.filter === filter));
   $('#clear-search').hidden = !search;
+  $('#search-shortcut').hidden = Boolean(search);
+  $('#demo-label').hidden = !value.demo;
   const query = search.trim().toLocaleLowerCase();
   const matches = (session: PanelPayload['sessions'][number]) =>
     (filter === 'all' || session.state === 'waiting' || session.state === 'error') &&
@@ -155,7 +168,9 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   const visible = value.sessions.filter(matches);
   const hiddenMatches = value.showHidden ? value.hiddenSessions.filter(matches) : [];
   const filtering = Boolean(query) || filter !== 'all';
-  $('#session-summary').textContent = `${value.demo ? 'Sample data · ' : ''}${filtering ? `${visible.length} of ${value.sessions.length}` : value.sessions.length} ${value.sessions.length === 1 ? 'session' : 'sessions'}${!filtering && attention ? ` · ${attention} need attention` : ''}`;
+  $('#session-summary').textContent = `${filtering ? `${visible.length} of ${value.sessions.length}` : value.sessions.length} ${value.sessions.length === 1 ? 'session' : 'sessions'}`;
+  $('#session-summary').setAttribute('aria-label', `${value.demo ? 'Sample data. ' : ''}${$('#session-summary').textContent}${attention ? `. ${attention} need attention` : ''}`);
+  document.querySelector<HTMLButtonElement>('[data-filter="attention"]')?.classList.toggle('has-attention', attention > 0);
   $('#no-matches').hidden = !expanded || allHidden || !filtering || visible.length + hiddenMatches.length > 0 || value.sessions.length === 0;
   $('#no-matches-title').textContent = query ? 'No matching sessions' : 'No sessions need attention';
   $('#no-matches-detail').textContent = query ? 'Try another title, project, source, model, or state.' : 'No visible sessions need an answer or have failed.';
@@ -195,6 +210,7 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
     }
     for (const session of section.sessions) {
       const row = document.createElement('div'); row.className = section.kind === 'hidden' ? 'session hidden-session' : 'session'; row.setAttribute('role', 'listitem');
+      row.dataset.state = session.state;
       const button = document.createElement('button'); button.className = 'session-button';
       button.dataset.key = session.key; button.dataset.action = 'session';
       const activityAge = age(session.updatedAt);
@@ -227,9 +243,16 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
         metadata.append(' · ', model);
       }
       const state = document.createElement('span'); state.className = `session-state ${session.state}`; state.textContent = labels[session.state];
-      const stateLine = document.createElement('span'); stateLine.className = 'session-state-line'; stateLine.append(state, activity);
-      text.append(title, detail, metadata, stateLine); button.append(dot, text);
-      button.addEventListener('click', () => act(panelIsExpanded() ? { type: 'open', key: session.key } : { type: 'set-expanded', expanded: true }));
+      const stateLine = document.createElement('span'); stateLine.className = 'session-state-line'; stateLine.append(state);
+      const titleLine = document.createElement('span'); titleLine.className = 'session-title-line'; titleLine.append(title, activity);
+      if (session.state === 'waiting' && session.detail) {
+        const reason = document.createElement('span'); reason.className = 'session-reason'; reason.textContent = session.detail;
+        stateLine.append(reason);
+      }
+      text.append(titleLine, detail, metadata, stateLine); button.append(dot, text);
+      // Use the rendered state: a visible session name opens its chat even if
+      // a native pointer event has queued a resize that has not painted yet.
+      button.addEventListener('click', () => act(expanded ? { type: 'open', key: session.key } : { type: 'set-expanded', expanded: true }));
       const pin = document.createElement('button'); pin.className = 'wide pin'; pin.dataset.key = session.key; pin.dataset.action = 'pin';
       const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       icon.setAttribute('viewBox', '0 0 16 16'); icon.setAttribute('aria-hidden', 'true');
@@ -324,8 +347,21 @@ $('#undo-hide').addEventListener('click', async () => {
     [...document.querySelectorAll<HTMLButtonElement>('.session-button')].find(button => button.dataset.key === key)?.focus({ preventScroll: true });
   }
 });
-$('#panel').addEventListener('pointerenter', () => requestExpanded(true));
-$('#panel').addEventListener('pointerleave', () => { if (!dragging) requestExpanded(false); });
+// Let a compact-button click finish before hover moves its target. The short
+// hover delay also keeps the panel closed when the pointer only crosses it.
+$('#panel').addEventListener('pointerenter', () => {
+  clearTimeout(hoverCloseTimer); hoverCloseTimer = undefined;
+  clearTimeout(expandTimer);
+  expandTimer = setTimeout(() => { expandTimer = undefined; requestExpanded(true); }, 120);
+});
+$('#panel').addEventListener('pointerleave', () => {
+  clearTimeout(expandTimer); expandTimer = undefined;
+  clearTimeout(hoverCloseTimer);
+  if (!dragging) hoverCloseTimer = setTimeout(() => { hoverCloseTimer = undefined; if (!dragging) requestExpanded(false); }, 120);
+});
+$('#panel').addEventListener('pointerdown', () => {
+  clearTimeout(hoverCloseTimer); hoverCloseTimer = undefined;
+});
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-settings]')) {
   button.addEventListener('click', () => act({ type: 'settings' }));
 }
@@ -370,7 +406,7 @@ function finishDrag(event: PointerEvent) {
 }
 document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f' && snapshot?.view === 'threads' && panelIsExpanded()) {
-    event.preventDefault(); searchInput?.focus(); return;
+    event.preventDefault(); requestExpanded(true); searchInput?.focus(); return;
   }
   if (event.key === 'Escape') {
     if (snapshot?.view === 'settings') {
@@ -388,4 +424,5 @@ document.addEventListener('keydown', event => {
 });
 setInterval(() => { if (snapshot && !snapshot.motion && !collapseTimer && document.visibilityState === 'visible') renderNow(snapshot); }, 1000);
 window.sessionLights.subscribe(render);
+$('#search-shortcut').textContent = navigator.userAgent.includes('Mac') ? '⌘ F' : 'Ctrl F';
 window.sessionLights.read().then(render).catch(error => { $('#error').textContent = errorMessage(error); $('#error').hidden = false; });

@@ -1,41 +1,46 @@
-/* Electron sets prefers-color-scheme for System, Light, and Dark before load. */
+/* Electron supplies the device theme and the saved theme choice. */
 :root {
   color-scheme: light;
-  --text: #242424;
-  --muted: #626262;
-  --surface: #fafaf8;
-  --panel: #fafaf8;
-  --surface-soft: #24242404;
-  --hover: #2424240b;
-  --selected: #24242412;
-  --border-soft: #2424241a;
-  --border: #24242438;
-  --track: #24242420;
-  --focus: #805600;
-  --status-idle: #326b1f;
-  --status-waiting: #805600;
-  --status-working: #166773;
-  --status-error: #b22925;
-  --status-unknown: #5b6570;
+  --text: #25312c;
+  --muted: #66736d;
+  --surface: #ffffff;
+  --panel: #fafcfb;
+  --surface-soft: #f1f5f3;
+  --hover: #edf2ef;
+  --selected: #e5ece7;
+  --border-soft: #e4eae6;
+  --border: #cad5cd;
+  --track: #e1e8e3;
+  --focus: #337957;
+  --status-idle: #337957;
+  --status-waiting: #926311;
+  --status-working: #3f73a5;
+  --status-error: #ba4b4b;
+  --status-unknown: #78847e;
+  --waiting-soft: #fbf5e8;
+  --error-soft: #faf0f0;
+  --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --text: #e8e8e6;
-    --muted: #a3a3a0;
-    --surface: #20201f;
-    --panel: #20201f;
-    --surface-soft: #ffffff03;
-    --hover: #ffffff0b;
-    --selected: #ffffff14;
-    --border-soft: #ffffff16;
-    --border: #ffffff30;
-    --track: #ffffff20;
-    --focus: #ffd45e;
-    --status-idle: #8cce6b;
-    --status-waiting: #ffd45e;
-    --status-working: #69d5dc;
-    --status-error: #ff807c;
-    --status-unknown: #a1abb5;
+    --text: #e8edf0;
+    --muted: #98a5af;
+    --surface: #1c232a;
+    --panel: #171d23;
+    --surface-soft: #1e262d;
+    --hover: #232d35;
+    --selected: #2b363e;
+    --border-soft: #2a333b;
+    --border: #3e4b54;
+    --track: #303c44;
+    --focus: #a3d9b2;
+    --status-idle: #99d1ad;
+    --status-waiting: #e9bf6d;
+    --status-working: #8ebde5;
+    --status-error: #ed9393;
+    --status-unknown: #92a0ab;
+    --waiting-soft: #2b2821;
+    --error-soft: #2c2327;
   }
 }

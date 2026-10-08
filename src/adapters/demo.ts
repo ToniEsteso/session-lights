@@ -3,7 +3,7 @@ import type { SessionAdapter, SessionReading, UsageDefinition, UsageReading } fr
 class DemoAdapter implements SessionAdapter {
   private readonly startedAt = Date.now();
   readonly id = 'demo';
-  readonly name = 'Preview';
+  readonly name = 'Codex';
   readonly usage: UsageDefinition;
   constructor() {
     this.usage = { scope: 'Sample usage', windows: [
@@ -11,12 +11,12 @@ class DemoAdapter implements SessionAdapter {
     ] };
   }
   async read(): Promise<SessionReading> {
-    return { health: 'Preview data.', sessions: ([
-      { id: '1', title: 'Fix the sign-in form', project: 'website', state: 'waiting', detail: 'Approval needed' },
-      { id: '2', title: 'Build the API', project: 'service', state: 'working', detail: '' },
-      { id: '3', title: 'Review the tests', project: 'tools', state: 'idle', detail: '' },
-      { id: '4', title: 'Update the app', project: 'desktop', state: 'error', detail: '' },
-      { id: '5', title: 'Check a long task', project: 'research', state: 'unknown', detail: 'No recent activity' }
+    return { health: 'Sample data.', sessions: ([
+      { id: '1', title: 'Fix the sign-in form', project: 'website', source: 'Desktop', model: 'gpt-6.1-sol', state: 'waiting', detail: 'Approval needed' },
+      { id: '2', title: 'Build the API', project: 'service', source: 'CLI', model: 'gpt-6.1-sol', state: 'working', detail: '' },
+      { id: '3', title: 'Review the tests', project: 'tools', source: 'Desktop', model: 'gpt-6-astra', state: 'idle', detail: '' },
+      { id: '4', title: 'Update the app', project: 'desktop', source: 'CLI', model: 'gpt-6.1-sol', state: 'error', detail: '' },
+      { id: '5', title: 'Check a long task', project: 'research', source: 'Desktop', state: 'unknown', detail: 'No recent activity' }
     ] satisfies Omit<SessionReading['sessions'][number], 'updatedAt'>[]).map((session, index) => ({
       ...session, updatedAt: epochMilliseconds(this.startedAt - index * 180_000)
     })) };
@@ -25,7 +25,7 @@ class DemoAdapter implements SessionAdapter {
     return { windows: [
       { id: 'short', remainingPercent: 65, resetsAt: unixSeconds(Math.floor(Date.now() / 1000) + 7200) },
       { id: 'long', remainingPercent: 83, resetsAt: unixSeconds(Math.floor(Date.now() / 1000) + 345600) }
-    ], message: 'Preview data.', updatedAt: epochMilliseconds(Date.now()) };
+    ], message: 'Sample data.', updatedAt: epochMilliseconds(Date.now()) };
   }
 }
 export { DemoAdapter };

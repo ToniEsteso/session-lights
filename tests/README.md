@@ -18,6 +18,10 @@ keyboard clearing and focus; compact lights during search; live attention
 membership and visible state text; and Undo with pin persistence. A real
 preference write failure must leave the session visible without Undo feedback.
 The scenarios use the running Electron app and isolated local records.
+The layout scenario starts with three Codex sessions, then adds a Claude session
+through a local transcript. At standard desktop text size, all four session
+buttons and both account limit bars must fit in the native panel. It detects a
+window that stays too short and clips the last row behind the usage section.
 
 The provider scenarios require exactly two switches: Codex and Claude. Hiding
 Codex must hide desktop sessions, CLI sessions, and usage together, while Claude

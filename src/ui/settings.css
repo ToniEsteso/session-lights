@@ -1,42 +1,48 @@
 .panel[data-view='settings'] { height: calc(100vh / var(--text-scale, 1)); }
 .settings-view { display: flex; flex: 1; flex-direction: column; min-height: 0; }
-.expanded .settings-header { min-height: 36px; justify-content: space-between; padding-bottom: 5px; }
-.settings-header h1 { margin: 0 4px 0 0; font-size: 14px; font-weight: 600; }
-#settings-back { display: flex; align-items: center; gap: 3px; padding: 5px 3px; color: var(--muted); border-radius: 3px; }
+.expanded .settings-header { min-height: 48px; justify-content: flex-start; gap: 10px; margin-bottom: 0; border-bottom: 1px solid var(--border-soft); }
+.settings-header h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.2px; }
+#settings-back { display: grid; place-items: center; width: 30px; height: 30px; padding: 7px; color: var(--muted); border: 1px solid var(--border-soft); border-radius: 6px; }
 #settings-back svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.settings-content { flex: 1; min-height: 0; overflow-y: auto; padding-top: 10px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.settings-content { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 0 16px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 .settings-view button:hover { background: var(--hover); }
 .settings-view button:disabled { cursor: default; color: var(--muted); }
-#update { display: block; width: 100%; text-align: left; padding: 8px; border-radius: 3px; }
-#update.available { color: var(--status-waiting); }
-#settings-footer { margin: 5px 5px 0; padding-top: 5px; min-height: 36px; }
-#quit { padding: 6px 8px; color: var(--muted); border-radius: 3px; }
-#version { margin-right: 7px; color: var(--muted); font-size: 12px; }
-#progress { display: block; width: calc(100% - 16px); height: 2px; margin: 0 8px; accent-color: var(--status-waiting); }
-#settings-error { color: var(--status-error); font-size: 12px; margin: 4px 8px 8px; overflow-wrap: anywhere; }
-.settings-view fieldset { min-width: 0; margin: 16px 8px 8px; padding: 0; border: 0; }
-.settings-view legend { width: 100%; padding: 0 0 6px; border-bottom: 1px solid var(--border-soft); font-size: 12px; font-weight: 600; color: var(--muted); }
-.adapter-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; cursor: pointer; }
-.adapter-row span { overflow-wrap: anywhere; }
-.adapter-row input { appearance: none; position: relative; flex-shrink: 0; width: 30px; height: 18px; margin: 0; border: 1px solid var(--muted); border-radius: 10px; background: var(--track); cursor: pointer; }
-.adapter-row input::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); }
-.adapter-row input:checked { border-color: var(--text); background: var(--text); }
-.adapter-row input:checked::after { left: 14px; background: var(--surface); }
-.adapter-row input:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
-.settings-view #appearance { margin: 4px 8px 0; }
-.theme-choices { display: flex; gap: 2px; margin-top: 8px; }
-.theme-choices label { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 6px 2px; border-radius: 3px; cursor: pointer; }
-.theme-choices label:has(:checked) { background: var(--selected); }
+.settings-view fieldset { min-width: 0; margin: 22px 2px 0; padding: 0; border: 0; }
+.settings-view legend, .settings-updates h2 { padding: 0; font-size: 12px; font-weight: 600; color: var(--text); }
+.theme-choices { display: flex; gap: 3px; margin-top: 10px; padding: 3px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface-soft); }
+.theme-choices label { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 6px 2px; color: var(--muted); font-size: 12px; border: 1px solid transparent; border-radius: 5px; cursor: pointer; }
+.theme-choices label:has(:checked) { background: var(--surface); border-color: var(--border); color: var(--text); }
 .theme-choices label:hover { background: var(--hover); }
-.theme-choices label:has(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
-.theme-choices input { margin: 0; width: 16px; height: 16px; accent-color: var(--text); }
-.settings-help { margin: 10px 0 6px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-.settings-guide { margin: 16px 8px; }
-.settings-guide h2 { margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border-soft); font-size: 12px; font-weight: 600; color: var(--muted); }
-.settings-guide dl { margin: 0; font-size: 12px; }
-.settings-guide dl > div { display: grid; grid-template-columns: 100px 1fr; gap: 10px; padding: 5px 0; }
-.settings-guide dt { font-weight: 600; }
+.theme-choices label:has(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 1px; }
+.theme-choices input { position: absolute; inset: 0; z-index: 1; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.theme-choices svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.settings-help { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+#adapters { margin-top: 8px; padding: 0 10px; border: 1px solid var(--border-soft); border-radius: 7px; background: var(--surface); }
+.adapter-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 46px; cursor: pointer; }
+.adapter-row + .adapter-row { border-top: 1px solid var(--border-soft); }
+.adapter-row span { overflow-wrap: anywhere; font-size: 13px; }
+.adapter-row input { appearance: none; position: relative; flex-shrink: 0; width: 30px; height: 18px; margin: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--track); cursor: pointer; }
+.adapter-row input::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); }
+.adapter-row input:checked { border-color: var(--status-idle); background: var(--status-idle); }
+.adapter-row input:checked::after { left: 14px; background: var(--panel); }
+.adapter-row input:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.settings-guide { margin: 22px 2px 0; padding: 10px; border: 1px solid var(--border-soft); border-radius: 7px; }
+.settings-guide summary { display: flex; align-items: center; justify-content: space-between; min-height: 22px; font-size: 12px; font-weight: 600; cursor: pointer; list-style: none; }
+.settings-guide summary::-webkit-details-marker { display: none; }
+.settings-guide summary svg { width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.settings-guide[open] summary svg { transform: rotate(180deg); }
+.settings-guide dl { margin: 12px 0 0; font-size: 12px; }
+.settings-guide dl > div { display: grid; grid-template-columns: 82px 1fr; gap: 10px; padding: 5px 0; }
+.settings-guide dt { font-weight: 500; }
 .settings-guide dd { margin: 0; color: var(--muted); }
-#update-detail { margin: 0 8px 10px; overflow-wrap: anywhere; }
-.adapter-row { min-height: 36px; }
-.theme-choices label { min-height: 40px; }
+.settings-updates { margin: 22px 2px 0; }
+.settings-updates h2 { margin: 0 0 10px; }
+#update { display: block; width: 100%; min-height: 36px; text-align: left; padding: 8px 10px; border: 1px solid var(--border-soft); border-radius: 6px; font-size: 12px; }
+#update.available { color: var(--status-waiting); border-color: var(--status-waiting); }
+#progress { display: block; width: 100%; height: 3px; margin: 0 0 8px; accent-color: var(--status-idle); }
+#update-detail { overflow-wrap: anywhere; }
+#settings-error { color: var(--status-error); font-size: 12px; margin: 12px 2px 0; overflow-wrap: anywhere; }
+#settings-footer { justify-content: space-between; margin: 0; padding-top: 10px; min-height: 42px; border-top: 1px solid var(--border-soft); }
+#quit { padding: 5px 8px; color: var(--muted); border-radius: 5px; font-size: 12px; }
+#quit:hover { color: var(--status-error); background: var(--error-soft); }
+#version { color: var(--muted); font: 11px/1.5 var(--mono); }

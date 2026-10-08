@@ -1,5 +1,23 @@
 const { test, expect } = require('./fixtures.cjs');
 
+// Start with three Codex sessions. Add a fourth local session from Claude.
+// At standard desktop text size, the native panel must grow to show this short
+// list and its account limits without clipping the last row behind the footer.
+test('a short session list stays fully visible above the account limits', async ({ lights }) => {
+  await lights.expand();
+  await lights.claudeRecord({ type: 'user', message: { content: 'Check the release notes' } });
+  const page = lights.page;
+  const rows = page.getByRole('list', { name: 'Sessions', exact: true }).getByRole('listitem');
+  await expect(rows).toHaveCount(4);
+  for (const title of ['Build API: Working', 'Review release: Idle', 'Fix CLI: Idle', 'Check the release notes: Working']) {
+    await expect(page.getByRole('button', { name: title, exact: true }), `${title} must fit above the fixed usage section`).toBeInViewport({ ratio: 1 });
+  }
+  const limits = page.getByRole('region', { name: 'Usage limits', exact: true }).getByRole('progressbar');
+  await expect(limits).toHaveCount(2);
+  await expect(limits.nth(0)).toBeInViewport({ ratio: 1 });
+  await expect(limits.nth(1)).toBeInViewport({ ratio: 1 });
+});
+
 // Start with three local sessions. Search by saved metadata, then clear the query.
 // Detect missing matches, lost keyboard focus, or a filter that hides compact lights.
 test('search finds sessions by title, project, source, and saved model; clear restores the list', async ({ lights }) => {
