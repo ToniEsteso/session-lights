@@ -60,6 +60,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 .panel.expanded .session-text { display: flex; align-items: baseline; gap: 8px; }
 .session-title { display: block; min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; line-height: 20px; font-weight: 500; }
 .session-activity { flex-shrink: 0; white-space: nowrap; color: var(--faint); font: 11px/20px var(--mono); }
+.session-duration { color: var(--status-working); }
 .session-state { flex-shrink: 0; max-width: 45%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 550; }
 .hidden-session .session-title { color: var(--muted); }
 

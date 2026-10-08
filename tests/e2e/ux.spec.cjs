@@ -111,3 +111,28 @@ test('arrow keys move between sessions and Enter opens the focused chat', async 
   await page.keyboard.press('ArrowUp');
   await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeFocused();
 });
+
+// Start with an idle Codex CLI chat and a Claude chat with an older finished turn. Each provider records a
+// turn start in the past. The open panel must show how long the current turn has run, not the last
+// activity, the first prompt, or a tool result. Detect a duration that stays after the turn completes.
+test('a working session shows how long its current turn has run', async ({ lights }) => {
+  const minute = 60_000, now = Date.now();
+  await lights.record(lights.ids.cli, 'event_msg', { type: 'task_started', turn_id: 'turn-2' }, now - 7.5 * minute);
+  await lights.claudeRecord({ type: 'user', message: { content: 'Migrate the schema' }, timestamp: new Date(now - 70 * minute).toISOString() });
+  await lights.claudeRecord({ type: 'assistant', message: { model: 'claude-opus-4-6', content: 'Done.', stop_reason: 'end_turn' }, timestamp: new Date(now - 65 * minute).toISOString() });
+  await lights.claudeRecord({ type: 'user', message: { content: 'Now run the backfill' }, timestamp: new Date(now - 62.5 * minute).toISOString() });
+  await lights.claudeRecord({ type: 'assistant', message: { model: 'claude-opus-4-6', content: [{ type: 'tool_use', id: 'tool-1', name: 'Bash', input: {} }], stop_reason: 'tool_use' }, timestamp: new Date(now - 2 * minute).toISOString() });
+  await lights.claudeRecord({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'ok' }] }, timestamp: new Date(now - minute).toISOString() });
+  await lights.expand();
+  const page = lights.page;
+  const row = name => page.getByRole('listitem').filter({ has: page.getByRole('button', { name, exact: true }) });
+  await expect(row('Fix CLI: Working').getByLabel(/^Working for/), 'the Codex turn started 7.5 minutes ago').toHaveText('7m');
+  await expect(page.getByRole('button', { name: 'Fix CLI: Working', exact: true })).toHaveAttribute('aria-description', /Working for 7m/);
+  await expect(row('Migrate the schema: Working').getByLabel(/^Working for/), 'the second Claude prompt started the turn').toHaveText('1h 2m');
+  await expect(row('Review release: Idle').getByLabel(/^Working for/)).toHaveCount(0);
+  await lights.page.screenshot({ path: test.info().outputPath('turn-durations.png') });
+
+  await lights.record(lights.ids.cli, 'event_msg', { type: 'task_complete', turn_id: 'turn-2' });
+  await expect(row('Fix CLI: Idle').getByLabel(/^Last activity/)).toHaveText('just now');
+  await expect(row('Fix CLI: Idle').getByLabel(/^Working for/)).toHaveCount(0);
+});

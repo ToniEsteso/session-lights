@@ -5,7 +5,7 @@ import { updateView } from '../shared/updates.js';
 import { element as $, svgElement, usageRow } from './dom.js';
 import { errorMessage } from '../shared/validation.js';
 import { closeSettings } from './settings.js';
-const { labels, available, countdown, until, age } = panelText;
+const { labels, available, countdown, until, age, elapsed } = panelText;
 let snapshot: PanelPayload | undefined;
 let requestedExpanded: boolean | undefined;
 let renderSignature: string | undefined;
@@ -133,7 +133,7 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   // Do not rebuild focused buttons during the two-second update.
   // Refresh the usage display when a reset passes, even if no source data changed.
   const signature = JSON.stringify([value,
-    value.expanded && [...value.sessions, ...(value.showHidden ? value.hiddenSessions : [])].map(session => age(session.updatedAt)),
+    value.expanded && [...value.sessions, ...(value.showHidden ? value.hiddenSessions : [])].map(session => [age(session.updatedAt), session.startedAt && elapsed(session.startedAt)]),
     value.usage?.flatMap(source => source.windows.map(limit => [available(limit), countdown(limit.resetsAt)]))]);
   if (signature === renderSignature) return;
   renderSignature = signature;
@@ -195,9 +195,11 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
       const button = document.createElement('button'); button.className = 'session-button';
       button.dataset.key = session.key; button.dataset.action = 'session';
       const activityAge = age(session.updatedAt);
+      // A working session shows how long its current turn has run instead of its last activity.
+      const duration = session.state === 'working' && session.startedAt ? elapsed(session.startedAt) : '';
       button.setAttribute('aria-label', `${session.title}: ${labels[session.state]}`);
       button.setAttribute('aria-description', [panelText.provider(session), session.model && `Model: ${session.model}`, session.workspace || session.project, session.detail,
-        `Last activity: ${activityAge}`].filter(Boolean).join('. '));
+        duration && `Working for ${duration}`, `Last activity: ${activityAge}`].filter(Boolean).join('. '));
       const dot = document.createElement('span'); dot.className = `dot ${session.state}`;
       dot.setAttribute('aria-hidden', 'true');
       // Keep the orbit in phase when a monitor update rebuilds the row.
@@ -205,10 +207,17 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
       const text = document.createElement('span'); text.className = 'wide session-text';
       const title = document.createElement('span'); title.className = 'session-title'; title.textContent = session.title;
       const activity = document.createElement('time'); activity.className = 'wide session-activity';
-      const timestamp = session.updatedAt > 0 ? new Date(session.updatedAt).toJSON() : null;
-      activity.textContent = timestamp ? activityAge : '–';
-      activity.setAttribute('aria-label', `Last activity: ${timestamp ? activityAge : 'Time unavailable'}`);
-      if (timestamp) activity.dateTime = timestamp;
+      if (duration && session.startedAt) {
+        activity.classList.add('session-duration');
+        activity.textContent = duration;
+        activity.setAttribute('aria-label', `Working for ${duration}`);
+        activity.dateTime = new Date(session.startedAt).toJSON();
+      } else {
+        const timestamp = session.updatedAt > 0 ? new Date(session.updatedAt).toJSON() : null;
+        activity.textContent = timestamp ? activityAge : '–';
+        activity.setAttribute('aria-label', `Last activity: ${timestamp ? activityAge : 'Time unavailable'}`);
+        if (timestamp) activity.dateTime = timestamp;
+      }
       // One line per row. Only a session that needs the user shows its state as text.
       // The tooltip gives the full title and where and how the session runs.
       text.append(title);

@@ -23,6 +23,13 @@ export const panelText = {
     const left = panelText.until(resetsAt);
     return left ? `Resets in ${left}` : 'Updating…';
   },
+  /** Time since a turn started, such as `12m` or `1h 5m`. */
+  elapsed(at: EpochMilliseconds) {
+    const minutes = Math.floor(Math.max(0, Date.now() - at) / 60000);
+    if (minutes < 1) return '<1m';
+    const days = Math.floor(minutes / 1440), hours = Math.floor(minutes % 1440 / 60), rest = minutes % 60;
+    return [days && `${days}d`, hours && `${hours}h`, !days && rest && `${rest}m`].filter(Boolean).join(' ');
+  },
   age(at: EpochMilliseconds | null) {
     if (at === null || !Number.isFinite(at) || at <= 0) return 'Time unavailable';
     const minutes = Math.floor(Math.max(0, Date.now() - at) / 60000);

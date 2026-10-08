@@ -255,8 +255,11 @@ class CodexRecords {
       const localProjectId = row.project_id == null ? undefined : String(row.project_id);
       const projectId = localProjectId ? `codex:${localProjectId}` : undefined;
       const model = row.model || recorded?.model;
+      // A running turn starts at its task_started record. Older records give only the last user message.
+      const turnStart = recorded?.status === 'inProgress' && recorded.statusAt ? recorded.statusAt : Math.max(recorded?.lastUserAt || 0, signal.lastUserAt || 0);
+      const startedAt = state.state === 'working' && turnStart > 0 ? { startedAt: epochMilliseconds(turnStart) } : {};
       const session = withT3({ id: row.id, title: title.replace(/\s+/g, ' ').trim().slice(0, 160),
-        source: cli ? 'CLI' : hosted ? T3_SOURCE : 'Desktop', ...(model ? { model } : {}), project, ...(projectId ? { projectId } : {}), workspace: cwd, updatedAt, ...state },
+        source: cli ? 'CLI' : hosted ? T3_SOURCE : 'Desktop', ...(model ? { model } : {}), project, ...(projectId ? { projectId } : {}), workspace: cwd, updatedAt, ...startedAt, ...state },
       hosted ? t3.find('codex', row.id) : undefined);
       if (session) sessions.push(session);
     }

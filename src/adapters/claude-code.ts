@@ -99,6 +99,7 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
     let detail = 'The transcript does not confirm a turn state.';
     let updatedAt = 0;
     let stateAt = 0;
+    let promptAt = 0;
     let hasReply = false;
     const questions = new Set<string>();
     for (const entry of [...first, ...last]) {
@@ -133,7 +134,7 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
           if (text.startsWith('[Request interrupted by user')) {
             questions.clear(); state = 'idle'; detail = 'The last turn stopped.';
           } else {
-            if (text) questions.clear();
+            if (text) { questions.clear(); promptAt = stateAt; }
             for (const block of blocks) {
               if (block.type === 'tool_result' && typeof block.tool_use_id === 'string') questions.delete(block.tool_use_id);
             }
@@ -176,7 +177,9 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
     const source = sourceLabel(entrypoint);
     return { id, title: title || `Claude Code ${id.slice(0, 8)}`, workspace,
       ...(source ? { source } : {}), ...(model ? { model } : {}),
-      state, detail, updatedAt: epochMilliseconds(updatedAt || stat.mtimeMs) };
+      state, detail, updatedAt: epochMilliseconds(updatedAt || stat.mtimeMs),
+      // The last prompt starts the turn. Tool results inside the turn have no prompt text.
+      ...(state === 'working' && promptAt > 0 ? { startedAt: epochMilliseconds(promptAt) } : {}) };
   } finally { await handle.close(); }
 }
 

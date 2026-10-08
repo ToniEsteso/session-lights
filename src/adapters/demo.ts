@@ -18,7 +18,8 @@ class DemoAdapter implements SessionAdapter {
       { id: '4', title: 'Update the app', project: 'desktop', source: 'CLI', model: 'gpt-6.1-sol', state: 'error', detail: '' },
       { id: '5', title: 'Check a long task', project: 'research', source: 'Desktop', state: 'unknown', detail: 'No recent activity' }
     ] satisfies Omit<SessionReading['sessions'][number], 'updatedAt'>[]).map((session, index) => ({
-      ...session, updatedAt: epochMilliseconds(this.startedAt - index * 180_000)
+      ...session, updatedAt: epochMilliseconds(this.startedAt - index * 180_000),
+      ...(session.state === 'working' ? { startedAt: epochMilliseconds(this.startedAt - 1_380_000) } : {})
     })) };
   }
   async readUsage(): Promise<UsageReading> {

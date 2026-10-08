@@ -17,6 +17,10 @@ The UX scenarios check the 24-hour list limit with pinned and newly active old
 threads; waiting and failed sessions above newer activity, with visible state
 text and recovery; arrow keys and Enter in the list; and Undo with pin persistence. A real
 preference write failure must leave the session visible without Undo feedback.
+The turn-duration scenario starts a Codex CLI turn 7.5 minutes ago and a second Claude turn
+62.5 minutes ago, after an older finished turn and before a recent tool result. The open panel must
+show `7m` and `1h 2m` on the Working rows. It detects a row that shows the last activity, a duration
+from the first prompt or the tool result, and a duration that stays after the turn completes.
 The scenarios use the running Electron app and isolated local records.
 The layout scenario starts with three Codex sessions, then adds a Claude session
 through a local transcript. At standard desktop text size, all four session

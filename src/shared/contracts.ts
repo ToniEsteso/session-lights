@@ -24,6 +24,8 @@ export interface AdapterSession {
   /** Last recorded session activity in epoch milliseconds, not the adapter read time.
    * Use 0 when unavailable. Drives activity sorting and row ages. */
   updatedAt: EpochMilliseconds;
+  /** Start of the current turn in epoch milliseconds. Set only while the session is working. */
+  startedAt?: EpochMilliseconds;
   project?: string;
   workspace?: string;
   /** Folder shared by every worktree of one project. Groups sessions whose workspaces differ. */

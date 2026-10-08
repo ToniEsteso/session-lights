@@ -200,9 +200,9 @@ const test = base.extend({
           if (value) await fs.mkdir(`${preferencesFile}.tmp`);
           else await fs.rmdir(`${preferencesFile}.tmp`);
         },
-        async record(id, type, payload) {
+        async record(id, type, payload, at = Date.now()) {
           await fs.appendFile(path.join(codexRoot, `${id}.jsonl`), `${JSON.stringify({
-            timestamp: new Date().toISOString(), type, payload,
+            timestamp: new Date(at).toISOString(), type, payload,
           })}\n`);
         },
         async databaseModel(id, model) {
