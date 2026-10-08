@@ -9,8 +9,8 @@ test('threads that T3 Code started appear without any T3 data and open in a term
   await lights.expand();
   const page = lights.page;
   const codex = page.getByRole('button', { name: 'Plan the release: Working', exact: true });
-  await expect(codex.getByText('Codex T3 Code', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Write the changelog: Working', exact: true }).getByText('Claude SDK', { exact: true })).toBeVisible();
+  await expect(codex).toHaveAttribute('title', /Codex T3 Code/);
+  await expect(page.getByRole('button', { name: 'Write the changelog: Working', exact: true })).toHaveAttribute('title', /Claude SDK/);
   // T3 has no thread link. A Codex desktop link would open the wrong app, so the panel must not send one.
   await codex.click();
   await expect(page.getByRole('alert')).toContainText('The session workspace is unavailable.');

@@ -69,7 +69,6 @@ export interface SessionAdapter {
 export type ThemeChoice = 'system' | 'light' | 'dark';
 export interface PanelPreferences {
   theme: ThemeChoice;
-  showAll: boolean;
   pinned: string[];
   hidden: string[];
   hiddenAdapters: string[];

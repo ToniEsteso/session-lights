@@ -13,22 +13,13 @@
   <main id="panel" class="panel" data-view="threads" aria-label="Session Lights">
     <section id="threads-view" class="threads-view" aria-label="Threads">
     <header id="handle" class="panel-handle">
-      <div class="wide session-filters" role="group" aria-label="Filter sessions">
-        <button data-filter="all" aria-pressed="true">All <span id="all-count" class="count">0</span></button>
-        <button data-filter="attention" aria-pressed="false">Attention <span id="attention-count" class="count">0</span></button>
-      </div>
       <span id="demo-label" class="wide demo-label" hidden>Demo</span>
-      <div class="wide sort-tools" role="group" aria-label="Sort chats">
-        <button data-sort="activity" aria-label="Sort by latest activity" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg></button>
-        <button data-sort="project" aria-label="Group by project" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg></button>
-      </div>
+      <button class="wide group-toggle" data-group aria-label="Group by project" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg></button>
       <button class="wide gear" data-settings aria-label="Settings" aria-controls="settings-view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.6 2.1-1.8 1-2.1-.5-2.5 4.3 1.5 1.6v2.1l-1.5 1.5L5 19.4l2.1-.5 1.8 1 .6 2.1h5l.6-2.1 1.8-1 2.1.5 2.5-4.3-1.5-1.5v-2.1l1.5-1.6L19 5.6l-2.1.5-1.8-1-.6-2.1z"/><circle cx="12" cy="12.5" r="3.2"/></svg><span class="update-badge" hidden></span></button>
     </header>
-    <label class="wide search-field"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4"/><path d="m9.5 9.5 4 4"/></svg><input id="session-search" type="search" aria-label="Search sessions" placeholder="Search" autocomplete="off" spellcheck="false"><kbd id="search-shortcut" aria-hidden="true">Ctrl F</kbd><button id="clear-search" aria-label="Clear search" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button></label>
-    <section id="no-matches" class="wide empty-state" hidden><strong id="no-matches-title">No matching sessions</strong><button id="reset-filters">Show all sessions</button></section>
     <div id="sessions" role="list" aria-label="Sessions"></div>
     <button id="empty" aria-label="No sessions. Show session list." hidden><span class="empty-dot" aria-hidden="true"></span><span class="wide">No sessions</span></button>
-    <p id="empty-help" class="wide empty-help" hidden>Sessions from enabled sources appear here.</p>
+    <p id="empty-help" class="wide empty-help" hidden>Sessions with activity in the last 24 hours appear here.</p>
     <section id="adapters-hidden" aria-label="All sources are hidden" hidden>
       <p class="wide">All sources are hidden.</p>
       <button id="empty-settings" aria-label="All sources are hidden. Open Settings." aria-controls="settings-view"><span class="compact empty-dot" aria-hidden="true"></span><span class="wide">Open Settings</span></button>

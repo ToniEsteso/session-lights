@@ -27,9 +27,9 @@ test('one Codex switch controls desktop, CLI, and usage; Claude stays independen
   await expect(page.getByRole('listitem')).toHaveCount(3);
   await expect(limits).toHaveCount(2);
   await expect(limits.first()).toHaveAttribute('aria-label', /^Codex · /);
-  await expect(page.getByRole('button', { name: 'Build API: Working', exact: true }).getByText('Codex Desktop', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toHaveAttribute('title', /Codex Desktop/);
   await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toHaveAttribute('aria-description', /Codex Desktop/);
-  await expect(page.getByRole('button', { name: 'Fix CLI: Idle', exact: true }).getByText('Codex CLI', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fix CLI: Idle', exact: true })).toHaveAttribute('title', /Codex CLI/);
   await expect(page.getByRole('button', { name: 'Fix CLI: Idle', exact: true })).toHaveAttribute('aria-description', /Codex CLI/);
   await expect(page.getByText('Unavailable', { exact: true })).toHaveCount(2);
 });

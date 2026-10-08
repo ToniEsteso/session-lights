@@ -13,11 +13,9 @@ main use case or a reported defect. Follow the feature rules in `AGENTS.md`.
 
 ## Scenarios
 
-The UX scenarios check search by title, project, source, and saved model;
-keyboard search with Enter and arrow keys; a panel that stays open when a search
-shortens the list below the pointer;
-keyboard clearing and focus; compact lights during search; live attention
-membership and visible state text; and Undo with pin persistence. A real
+The UX scenarios check the 24-hour list limit with pinned and newly active old
+threads; waiting and failed sessions above newer activity, with visible state
+text and recovery; arrow keys and Enter in the list; and Undo with pin persistence. A real
 preference write failure must leave the session visible without Undo feedback.
 The scenarios use the running Electron app and isolated local records.
 The layout scenario starts with three Codex sessions, then adds a Claude session

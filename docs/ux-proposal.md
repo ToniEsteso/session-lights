@@ -1,7 +1,12 @@
 # UX proposal
 
-This proposal is implemented in the current checkout. It improves the main task:
+This proposal was implemented, then partly replaced. It improves the main task:
 find a local session, see its last recorded state, and open it.
+
+Later change: search, the Attention filter, and two-line rows were removed to keep
+the panel compact. The list now shows the last 24 hours plus pinned sessions, puts
+waiting and failed sessions first, and moves project, source, and model into the
+row tooltip. See the README for current behavior.
 
 ## Findings and changes
 
