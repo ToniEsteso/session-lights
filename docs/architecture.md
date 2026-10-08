@@ -63,7 +63,7 @@ Desktop waiting signals come from notification logs. CLI waiting signals come fr
 Both sources use the same Codex project namespace. Their session filters do not overlap.
 The Codex adapter owns account usage once. `codex-runtime.ts` supplies runtime discovery for both usage reads and CLI resume. CLI resume prefers the packaged CLI over the standalone desktop binary.
 CLI opening checks the saved session and workspace, then starts an interactive terminal with the selected session ID.
-Desktop opening uses its chat link. The adapter selects the opening path from the
+Desktop opening uses its chat link. T3 Code threads open T3 Code (`t3.ts`). The adapter selects the opening path from the
 source returned by the record reader. `codex-terminal.ts` owns CLI terminal launch.
 
 Claude keeps the `claude-code` provider ID and uses the display name Claude. Local

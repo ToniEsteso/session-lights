@@ -88,7 +88,8 @@ Click a Claude Code session to open a terminal in its saved workspace and run
 The workspace and installed launcher must exist. A missing installation produces
 an error in the panel; saved records remain visible. Opening a session that another
 Claude process already runs starts a second copy of it. The adapter cannot focus the
-original window. The desktop app and T3 Code have no link that opens a chat directly.
+original window. The Claude desktop app has no link that opens a session by ID, so its
+sessions also resume in a terminal. T3 Code threads open in T3 Code. See [T3 Code](t3-code.md).
 
 The launcher searches PATH and `~/.local/bin`. On Windows, it accepts `claude.exe`
 and `claude.cmd`. On macOS, it also checks the usual Homebrew folders. Set

@@ -40,9 +40,16 @@ or stops a provider read.
 
 ## Opening a thread
 
-T3 has no link that opens a thread. Clicking a T3 thread opens a terminal in its worktree and
-resumes it with `codex resume <id>` or `claude --resume <id>`. If T3 still runs that thread,
-the terminal starts a second copy. The panel cannot focus the T3 window.
+Clicking a T3 thread opens T3 Code with the link `t3code://app/`. A running T3 comes to the
+front. A closed T3 starts. This applies to Codex and Claude threads.
+
+T3 links cannot select a thread. T3 accepts only its sign-in and settings links, and shows its
+window for any other link. Find the thread in the T3 list. The panel does not resume a T3
+thread in a terminal, because that starts a second copy next to T3.
+
+A Claude session shows as a T3 thread only when T3's database lists it. Without T3 data, an
+Agent SDK session (`Claude SDK`) can come from any host, so it resumes in a terminal.
+A missing T3 installation produces an error in the panel.
 
 ## Limits
 
