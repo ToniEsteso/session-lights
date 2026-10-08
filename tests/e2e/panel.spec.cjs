@@ -57,7 +57,7 @@ test('pin, project sort, and hidden sessions survive restart; restore returns a 
   await expect(page.getByRole('button', { name: 'Unpin Review release', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Unpin Review release', exact: true }).click();
   await expect(titles(page)).toHaveText([/Build API/, /Fix CLI/, /Review release/]);
-  await page.getByRole('button', { name: 'Sort by latest activity', exact: true }).click();
+  await page.getByRole('button', { name: 'Group by project', exact: true }).click();
   await expect(titles(page)).toHaveText([/Build API/, /Review release/, /Fix CLI/]);
   await page.getByRole('button', { name: 'Hide Build API', exact: true }).click();
   await page.getByRole('button', { name: 'Hide Fix CLI', exact: true }).click();
@@ -68,7 +68,7 @@ test('pin, project sort, and hidden sessions survive restart; restore returns a 
   await lights.restart();
   await lights.expand();
   await expect(titles(lights.page)).toHaveText([/Build API/, /Review release/, /Fix CLI/]);
-  await expect(lights.page.getByRole('button', { name: 'Sort by latest activity', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(lights.page.getByRole('button', { name: 'Group by project', exact: true })).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('theme and adapter switches persist; the empty panel can restore a source', async ({ lights }) => {

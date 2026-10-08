@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
-import type { AdapterSession } from '../shared/contracts.js';
+import type { AdapterSession, OpenExternal } from '../shared/contracts.js';
 import { isRecord } from '../shared/validation.js';
 
 // T3 Code runs Codex and Claude Code underneath. Each of them keeps its own records, so Session Lights
@@ -90,6 +90,15 @@ export function readT3(base = process.env.T3CODE_HOME || path.join(os.homedir(),
     catch { /* T3 may be writing or may use a newer layout. Provider records still work. */ }
   }
   return merged.size ? { find: (provider, id) => merged.get(`${provider}:${id.toLowerCase()}`) } : EMPTY;
+}
+
+/**
+ * Bring T3 Code to the front, or start it. T3 links cannot select a thread: T3 accepts only its sign-in
+ * and settings links. Any other `t3code://` link shows the T3 window, where the thread is in the list.
+ */
+export async function openT3(openExternal: OpenExternal) {
+  try { await openExternal('t3code://app/'); }
+  catch { throw Error('Cannot open T3 Code. Check that the desktop app is installed.'); }
 }
 
 /**

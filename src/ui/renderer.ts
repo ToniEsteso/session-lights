@@ -18,10 +18,7 @@ let expandTimer: ReturnType<typeof setTimeout> | undefined;
 let hoverCloseTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingRender: PanelPayload | undefined;
 let effects: Animation[] = [];
-let search = '';
-let filter: 'all' | 'attention' = 'all';
 let undoSession: { key: string; title: string } | undefined;
-let filterHeight: number | undefined;
 let pendingLeave: { x: number; y: number } | undefined;
 function refreshList() {
   renderSignature = undefined;
@@ -159,27 +156,7 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   $('#empty .wide').textContent = value.hiddenSessions.length ? 'All sessions are hidden' : 'No sessions';
   $('#empty').setAttribute('aria-label', value.hiddenSessions.length ? 'All sessions are hidden. Show session list.' : 'No sessions. Show session list.');
   $('#empty-help').hidden = $('#empty').hidden || value.hiddenSessions.length > 0;
-  const attention = value.sessions.filter(session => session.state === 'waiting' || session.state === 'error').length;
-  $('#attention-count').textContent = String(attention);
-  $('#all-count').textContent = String(value.sessions.length);
-  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-filter]')) button.setAttribute('aria-pressed', String(button.dataset.filter === filter));
-  $('#clear-search').hidden = !search;
-  $('#search-shortcut').hidden = Boolean(search);
   $('#demo-label').hidden = !value.demo;
-  const query = search.trim().toLocaleLowerCase();
-  const matches = (session: PanelPayload['sessions'][number]) =>
-    (filter === 'all' || session.state === 'waiting' || session.state === 'error') &&
-    (!query || [session.title, session.project, session.projectGroup, session.workspace, panelText.provider(session), session.model, labels[session.state]].filter(Boolean).join(' ').toLocaleLowerCase().includes(query));
-  const visible = value.sessions.filter(matches);
-  const hiddenMatches = value.showHidden ? value.hiddenSessions.filter(matches) : [];
-  const filtering = Boolean(query) || filter !== 'all';
-  // Keep the panel height while a filter is active. A shorter list would
-  // otherwise move the panel edge away from the pointer and close the panel.
-  if (!expanded || !filtering || value.view !== 'threads') { filterHeight = undefined; $('#panel').style.minHeight = ''; }
-  else if (filterHeight === undefined) { filterHeight = $('#panel').offsetHeight; $('#panel').style.minHeight = `${filterHeight}px`; }
-  document.querySelector<HTMLButtonElement>('[data-filter="attention"]')?.classList.toggle('has-attention', attention > 0);
-  $('#no-matches').hidden = !expanded || allHidden || !filtering || visible.length + hiddenMatches.length > 0 || value.sessions.length === 0;
-  $('#no-matches-title').textContent = query ? 'No matching sessions' : 'No sessions need attention';
   if (undoSession && !value.hiddenSessions.some(session => session.key === undoSession?.key)) undoSession = undefined;
   $('#hide-feedback').hidden = !undoSession;
   $('#hide-message').textContent = undoSession ? `Hidden: ${undoSession.title}` : '';
@@ -190,12 +167,9 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   hiddenToggle.setAttribute('aria-expanded', String(value.showHidden));
   $('#threads-view > footer').hidden = expanded && value.hiddenSessions.length === 0;
   $('#adapters-hidden').hidden = !allHidden;
-  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-sort]')) {
-    button.setAttribute('aria-pressed', String(button.dataset.sort === (value.preferences.sortOrder || 'activity')));
-  }
+  $('[data-group]').setAttribute('aria-pressed', String(value.preferences.sortOrder === 'project'));
   renderUsage(value);
-  // Filters affect the expanded list only. The compact lights retain their saved order.
-  const sections = sessionSections(expanded ? { ...value, sessions: visible, hiddenSessions: hiddenMatches } : value);
+  const sections = sessionSections(value);
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement.dataset : undefined;
   const fragment = document.createDocumentFragment();
   for (const section of sections) {
@@ -235,20 +209,16 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
       activity.textContent = timestamp ? activityAge : '–';
       activity.setAttribute('aria-label', `Last activity: ${timestamp ? activityAge : 'Time unavailable'}`);
       if (timestamp) activity.dateTime = timestamp;
-      // One metadata line: state, then where and how the session runs.
-      // A project heading already names the project of its rows.
-      const metadata = document.createElement('span'); metadata.className = 'session-meta';
-      const part = (className: string, content: string) => {
-        const span = document.createElement('span'); span.className = className; span.textContent = content;
-        metadata.append(span);
-      };
-      part(`session-state ${session.state}`, labels[session.state]);
-      if (session.state === 'waiting' && session.detail) part('session-reason', session.detail);
-      if (session.project && (section.kind !== 'project' || session.project !== section.title)) part('session-project', session.project);
-      part('session-provider', panelText.provider(session));
-      if (session.model) part('session-model', session.model);
-      const titleLine = document.createElement('span'); titleLine.className = 'session-title-line'; titleLine.append(title, activity);
-      text.append(titleLine, metadata); button.append(dot, text);
+      // One line per row. Only a session that needs the user shows its state as text.
+      // The tooltip gives the full title and where and how the session runs.
+      text.append(title);
+      if (session.state === 'waiting' || session.state === 'error') {
+        const state = document.createElement('span'); state.className = `session-state ${session.state}`;
+        state.textContent = session.state === 'waiting' && session.detail ? session.detail : labels[session.state];
+        text.append(state);
+      }
+      text.append(activity); button.append(dot, text);
+      if (expanded) button.title = [session.title, [session.project, panelText.provider(session), session.model].filter(Boolean).join(' · '), session.detail].filter(Boolean).join('\n');
       // Use the rendered state: a visible session name opens its chat even if
       // a native pointer event has queued a resize that has not painted yet.
       button.addEventListener('click', () => act(expanded ? { type: 'open', key: session.key } : { type: 'set-expanded', expanded: true }));
@@ -328,35 +298,15 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   }
 }
 $('#empty-settings').addEventListener('click', () => act({ type: 'settings' }));
-const searchInput = document.querySelector<HTMLInputElement>('#session-search');
-searchInput?.addEventListener('input', () => { search = searchInput.value; refreshList(); });
-const rowButtons = () => [...document.querySelectorAll<HTMLButtonElement>('#sessions .session-button')];
-// Enter opens the first result. Arrow keys move between rows; Arrow Up from the first row returns to search.
-searchInput?.addEventListener('keydown', event => {
-  if (event.key === 'Enter' && search.trim()) { event.preventDefault(); rowButtons()[0]?.click(); }
-  if (event.key === 'ArrowDown') { event.preventDefault(); rowButtons()[0]?.focus(); }
-});
+// Arrow keys move between rows.
 $('#sessions').addEventListener('keydown', event => {
   if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-  const rows = rowButtons();
+  const rows = [...document.querySelectorAll<HTMLButtonElement>('#sessions .session-button')];
   const index = rows.findIndex(row => row === document.activeElement?.closest('.session')?.querySelector('.session-button'));
   if (index < 0) return;
   event.preventDefault();
-  const next = index + (event.key === 'ArrowDown' ? 1 : -1);
-  if (next < 0) searchInput?.focus();
-  else rows[Math.min(next, rows.length - 1)]?.focus();
+  rows[Math.max(0, Math.min(index + (event.key === 'ArrowDown' ? 1 : -1), rows.length - 1))]?.focus();
 });
-$('#clear-search').addEventListener('click', () => {
-  search = ''; if (searchInput) searchInput.value = '';
-  refreshList(); searchInput?.focus();
-});
-$('#reset-filters').addEventListener('click', () => {
-  search = ''; filter = 'all'; if (searchInput) searchInput.value = '';
-  refreshList(); searchInput?.focus();
-});
-for (const button of document.querySelectorAll<HTMLButtonElement>('[data-filter]')) {
-  button.addEventListener('click', () => { filter = button.dataset.filter === 'attention' ? 'attention' : 'all'; refreshList(); });
-}
 $('#undo-hide').addEventListener('click', async () => {
   if (!undoSession) return;
   const key = undoSession.key;
@@ -392,12 +342,7 @@ for (const button of document.querySelectorAll<HTMLButtonElement>('[data-setting
 }
 $('#empty').addEventListener('click', () => requestExpanded(true));
 $('#hidden-sessions').addEventListener('click', () => act({ type: 'show-hidden' }));
-for (const button of document.querySelectorAll<HTMLButtonElement>('[data-sort]')) {
-  button.addEventListener('click', () => {
-    const order = button.dataset.sort;
-    if (order === 'activity' || order === 'project') act({ type: 'sort', order });
-  });
-}
+$('[data-group]').addEventListener('click', () => act({ type: 'sort', order: snapshot?.preferences.sortOrder === 'project' ? 'activity' : 'project' }));
 for (const handle of document.querySelectorAll<HTMLElement>('.panel-handle')) {
   handle.addEventListener('pointerdown', event => {
     if (event.button !== 0 || dragging || (event.target instanceof Element && event.target.closest('button'))) return;
@@ -431,16 +376,9 @@ function finishDrag(event: PointerEvent) {
   if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
 }
 document.addEventListener('keydown', event => {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f' && snapshot?.view === 'threads' && panelIsExpanded()) {
-    event.preventDefault(); requestExpanded(true); searchInput?.focus(); return;
-  }
   if (event.key === 'Escape') {
     if (snapshot?.view === 'settings') {
       event.preventDefault(); closeSettings(); return;
-    }
-    if (search || filter !== 'all') {
-      event.preventDefault(); search = ''; filter = 'all'; if (searchInput) searchInput.value = '';
-      refreshList(); searchInput?.focus(); return;
     }
     if (panelIsExpanded()) {
       event.preventDefault();
@@ -450,5 +388,4 @@ document.addEventListener('keydown', event => {
 });
 setInterval(() => { if (snapshot && !snapshot.motion && !collapseTimer && document.visibilityState === 'visible') renderNow(snapshot); }, 1000);
 window.sessionLights.subscribe(render);
-$('#search-shortcut').textContent = navigator.userAgent.includes('Mac') ? '⌘ F' : 'Ctrl F';
 window.sessionLights.read().then(render).catch(error => { $('#error').textContent = errorMessage(error); $('#error').hidden = false; });

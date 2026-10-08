@@ -68,9 +68,8 @@ async function refreshTextScale(force = false) {
 
 function payload(): PanelPayload {
   const hidden = new Set(preferences.value.hidden);
-  const hiddenSessions = visibleSessions(snapshot.sessions.filter(session => hidden.has(session.key)), { ...preferences.value, showAll: true, hidden: [] });
-  // Ignore the old recent filter. Explicit session and adapter hiding still apply.
-  const sessions = visibleSessions(snapshot.sessions, { ...preferences.value, showAll: true });
+  const hiddenSessions = visibleSessions(snapshot.sessions.filter(session => hidden.has(session.key)), { ...preferences.value, hidden: [] });
+  const sessions = visibleSessions(snapshot.sessions, preferences.value);
   const sources = snapshot.sources.filter(source => !preferences.value.hiddenAdapters.includes(source.id));
   const visibleUsage = usage.filter(source => !preferences.value.hiddenAdapters.includes(source.providerId));
   return { sources, sessions, expanded, view: panelView,
@@ -133,7 +132,8 @@ function positionPanel({ animate = false, reducedMotion = false } = {}) {
   const rows = Math.max(1, Math.min(sessions.length, 14));
   const groupHeight = sessionSections(view).reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 13 : section.title ? 30 : 0), 0);
   const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
-  const expandedContentHeight = Math.max(240, rows * 54 + groupHeight + 216 + limits * 24);
+  // Padding and header 60, usage border 16, and the hidden-session footer and undo bar 78.
+  const expandedContentHeight = Math.max(160, rows * 31 + groupHeight + 60 + (limits ? 16 + limits * 24 : 0) + (view.hiddenSessions.length ? 78 : 0));
   // The compact bar lists one light per row along the edge.
   const compactLength = rows * 24 + (limits ? 28 : 17) + limits * 24;
   const contentHeight = panelView === 'settings' ? 400 + monitor.adapters.length * 40 : expandedContentHeight;

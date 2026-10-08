@@ -3,18 +3,39 @@ const { test, expect } = require('./fixtures.cjs');
 const rows = page => page.getByRole('list', { name: 'Sessions', exact: true }).getByRole('listitem');
 
 // T3 Code starts Codex and Claude Code itself. The panel must list those threads whether T3 is installed or not.
-test('threads that T3 Code started appear without any T3 data and open in a terminal', async ({ lights }) => {
+test('threads that T3 Code started appear without any T3 data and open in T3 Code', async ({ lights }) => {
   await lights.codexT3Thread(lights.ids.codexT3, 'Plan the release', 'task_started');
   await lights.claudeRecord({ type: 'user', entrypoint: 'sdk-ts', message: { content: 'Write the changelog' } }, lights.ids.claudeT3);
   await lights.expand();
   const page = lights.page;
   const codex = page.getByRole('button', { name: 'Plan the release: Working', exact: true });
-  await expect(codex.getByText('Codex T3 Code', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Write the changelog: Working', exact: true }).getByText('Claude SDK', { exact: true })).toBeVisible();
-  // T3 has no thread link. A Codex desktop link would open the wrong app, so the panel must not send one.
+  await expect(codex).toHaveAttribute('title', /Codex T3 Code/);
+  await expect(page.getByRole('button', { name: 'Write the changelog: Working', exact: true })).toHaveAttribute('title', /Claude SDK/);
+  // The thread runs in T3. A Codex desktop link or a terminal would open the wrong program.
   await codex.click();
-  await expect(page.getByRole('alert')).toContainText('The session workspace is unavailable.');
+  await expect.poll(() => lights.openedChats()).toEqual(['t3code://app/']);
+  await expect(page.getByRole('alert')).toBeHidden();
+  await lights.setOpenFailure(true);
+  await codex.click();
+  await expect(page.getByRole('alert')).toContainText('Cannot open T3 Code. Check that the desktop app is installed.');
+});
+
+// Without T3 data, an Agent SDK session can come from any host. With T3 data, it is a T3 thread.
+test('a Claude thread opens in T3 Code only when T3 lists it', async ({ lights }) => {
+  const { claudeT3 } = lights.ids;
+  await lights.claudeRecord({ type: 'user', entrypoint: 'sdk-ts', message: { content: 'Write the changelog' } }, claudeT3);
+  await lights.expand();
+  const page = lights.page;
+  // The terminal path runs. No Claude Code is installed in the fixture, so it reports that.
+  await page.getByRole('button', { name: 'Write the changelog: Working', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Claude Code not found.');
   expect(await lights.openedChats()).toEqual([]);
+  await lights.t3Database([{ provider: 'claudeAgent', sessionId: claudeT3, title: 'Write the changelog', project: 'atlas',
+    projectRoot: require('node:path').join(require('node:os').tmpdir(), 'atlas') }]);
+  const thread = page.getByRole('button', { name: /^Write the changelog: / });
+  await expect(thread).toHaveAttribute('title', /Claude T3 Code/);
+  await thread.click();
+  await expect.poll(() => lights.openedChats()).toEqual(['t3code://app/']);
 });
 
 test('T3 data names threads, groups worktrees by project, and shows approvals while T3 runs', async ({ lights }) => {

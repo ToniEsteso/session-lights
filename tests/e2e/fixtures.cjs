@@ -13,6 +13,8 @@ const ids = {
   claudeAgent: '66666666-6666-4666-8666-666666666666',
   codexT3: '77777777-7777-4777-8777-777777777777',
   claudeT3: '88888888-8888-4888-8888-888888888888',
+  old: '99999999-9999-4999-8999-999999999999',
+  recent: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
 };
 
 const test = base.extend({
@@ -243,6 +245,17 @@ const test = base.extend({
           }));
         },
         async removeClaudeProcess(pid) { await fs.unlink(path.join(claudeRoot, 'sessions', `${pid}.json`)); },
+        // A finished Codex Desktop thread whose last recorded activity is at `at`.
+        async codexThread(id, title, at) {
+          const file = path.join(codexRoot, `${id}.jsonl`);
+          await fs.writeFile(file, `${JSON.stringify({ timestamp: new Date(at).toISOString(), type: 'event_msg', payload: { type: 'task_complete', turn_id: 'turn-1' } })}\n`);
+          await fs.utimes(file, at / 1000, at / 1000);
+          const db = new DatabaseSync(path.join(codexRoot, 'state_5.sqlite'));
+          try {
+            db.prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)').run(
+              id, title, path.join(root, 'notes'), 'app', file, Math.floor(at / 1000), at, 'Codex Desktop');
+          } finally { db.close(); }
+        },
         // A thread that T3 Code started in Codex. Codex records the originator and a rollout file.
         async codexT3Thread(id, title, status = 'task_complete') {
           const workspace = path.join(root, 't3-worktrees', id.slice(0, 4));

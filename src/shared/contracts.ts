@@ -72,7 +72,6 @@ export const PANEL_EDGES = ['right', 'left', 'top', 'bottom'] as const;
 export type PanelEdge = typeof PANEL_EDGES[number];
 export interface PanelPreferences {
   theme: ThemeChoice;
-  showAll: boolean;
   pinned: string[];
   hidden: string[];
   hiddenAdapters: string[];
