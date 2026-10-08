@@ -1,6 +1,6 @@
 # Session Lights
 
-A small panel attached to the right edge of your screen. It stays above normal app windows.
+A small panel attached to an edge of your screen. The right edge is the default. It stays above normal app windows.
 The panel reads local **Codex desktop, Codex CLI, and Claude Code** sessions on Windows and macOS.
 Settings has one **Codex** switch and one **Claude** switch. Codex includes desktop and CLI sessions.
 Claude includes every program that runs Claude Code on this computer: the CLI, the desktop app, and editors.
@@ -47,12 +47,13 @@ See [build and release instructions](docs/releases.md) for signing, release setu
 - The header shows All and Attention with live counts. Attention shows sessions that need an answer or approval, or whose last turn failed. Each expanded row also shows its state as text.
 - After hiding a session, click Undo to restore it with its pin intact. Hidden sessions can still be restored from the footer after a restart.
 - Click the gear for theme, source switches, updates, and Quit. Settings replaces the session list in the same expanded sidebar. Click the back arrow or press Escape to return to the thread list. Its scroll position is kept. Press Escape from the thread list to collapse the sidebar.
+- Choose Left, Right, Top, or Bottom in Position to move the panel to that screen edge. On the top and bottom edges, the compact lights show in a row, and the panel opens down or up from the bar. Drag the bar along its edge to move it. The edge and position stay after app restarts.
 - Choose System, Light, or Dark in Theme. System is the default and follows device theme changes. The choice applies at once and stays after app restarts. Use Tab to reach the theme choices and arrow keys to change the choice.
 - A yellow badge on the gear marks an available update. Downloads and restarts require a click. Installed releases check at startup and every six hours.
 
 - Text follows system display scaling. On Windows, it also follows **Settings → Accessibility → Text size** automatically, including changes while the app is running. The expanded panel grows with the text; the compact bar keeps its width. The app checks the Windows text setting every ten seconds. macOS uses system display scaling; a separate accessibility text size reader is not implemented.
 - Hover over the compact panel to show session names. The panel closes when the pointer leaves. Press Escape to close it with the keyboard.
-- The panel opens and closes with a short slide and fade. Its right edge stays fixed. The system's reduced-motion setting skips the animation.
+- The panel opens and closes with a short slide and fade. The side against the screen edge stays fixed. The system's reduced-motion setting skips the animation.
 - Click a name in the expanded panel to open a desktop chat or resume a CLI session.
 - Pin a session with the bookmark icon. A filled yellow bookmark marks a pinned session. Pinned sessions stay in a separate section at the top in both sort modes. Pins survive app restarts.
 - All adapters appear by default. In Settings, use the adapter switches to hide or show an adapter and its sessions and usage. Changes apply at once and stay saved after a restart. Hidden adapters continue monitoring; their session data and pins stay intact. If all sources are hidden, use Open Settings in the panel to show one again.

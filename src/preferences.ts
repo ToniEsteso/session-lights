@@ -1,9 +1,9 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { PanelPreferences } from './shared/contracts.js';
-import { SORT_ORDERS } from './shared/contracts.js';
+import { PANEL_EDGES, SORT_ORDERS } from './shared/contracts.js';
 import { isRecord, hasErrorCode } from './shared/validation.js';
-const DEFAULTS: PanelPreferences = { theme: 'system', showAll: true, pinned: [], hidden: [], hiddenAdapters: [], displayId: null, y: null, sortOrder: 'activity' };
+const DEFAULTS: PanelPreferences = { theme: 'system', showAll: true, pinned: [], hidden: [], hiddenAdapters: [], displayId: null, edge: 'right', y: null, x: null, sortOrder: 'activity' };
 export function clean(input: unknown = {}): PanelPreferences {
   const value = isRecord(input) ? input : {};
   return { theme: value.theme === 'light' || value.theme === 'dark' ? value.theme : 'system',
@@ -12,7 +12,9 @@ export function clean(input: unknown = {}): PanelPreferences {
     hidden: Array.isArray(value.hidden) ? [...new Set(value.hidden.filter((v: unknown): v is string => typeof v === 'string'))] : [],
     hiddenAdapters: Array.isArray(value.hiddenAdapters) ? [...new Set(value.hiddenAdapters.filter((v: unknown): v is string => typeof v === 'string'))] : [],
     displayId: typeof value.displayId === 'number' && Number.isInteger(value.displayId) ? value.displayId : null,
+    edge: PANEL_EDGES.find(edge => edge === value.edge) ?? 'right',
     y: typeof value.y === 'number' && Number.isFinite(value.y) ? value.y : null,
+    x: typeof value.x === 'number' && Number.isFinite(value.x) ? value.x : null,
     sortOrder: value.sortOrder === 'activity' || value.sortOrder === 'project' ? value.sortOrder : 'activity' };
 }
 class Preferences {

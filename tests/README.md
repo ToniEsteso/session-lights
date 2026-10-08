@@ -25,6 +25,12 @@ through a local transcript. At standard desktop text size, all four session
 buttons and all four account limit bars (Codex and Claude) must fit in the native panel. It detects a
 window that stays too short and clips the last row behind the usage section.
 
+The edge scenario selects Left, Top, and Bottom in Settings > Position, restarts, and then selects Right.
+For each edge, the closed bar and the open panel must touch that edge of the screen work area.
+On the top and bottom edges, the closed bar must be wider than it is tall. It detects a panel that
+stays on the old edge, a bar that keeps the vertical shape, a bar that misses the edge because of the
+native minimum window height, and an edge choice that is not saved.
+
 The provider scenarios require exactly two switches: Codex and Claude. Hiding
 Codex must hide desktop sessions, CLI sessions, and Codex usage together, while Claude
 sessions and Claude usage stay visible. Each Codex row must still show its source.

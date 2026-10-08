@@ -1,5 +1,5 @@
 import type { IpcMainInvokeEvent, Rectangle } from 'electron';
-import type { MonitorSnapshot, ProviderUsage, PanelMotion, PanelPayload, SettingsPayload } from './shared/contracts.js';
+import type { MonitorSnapshot, ProviderUsage, PanelEdge, PanelMotion, PanelPayload, SettingsPayload } from './shared/contracts.js';
 import { parseAction, parseSettingsAction, errorMessage, hasErrorCode } from './shared/validation.js';
 import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, nativeTheme, autoUpdater } from 'electron';
 import * as path from 'node:path';
@@ -35,7 +35,9 @@ let panelView: PanelPayload['view'] = 'threads';
 let timer: NodeJS.Timeout | undefined;
 let quitting = false;
 let actionQueue = Promise.resolve();
-let panelDrag: { displayId: number; startY: number; pointerY: number; y: number } | undefined;
+// Drag positions follow the edge: Y on a left or right edge, X on a top or bottom edge.
+let panelDrag: { displayId: number; start: number; pointer: number; position: number } | undefined;
+let placedEdge: PanelEdge | undefined;
 let panelResize: PanelMotion | undefined;
 let resizeId = 0;
 let usageTimer: NodeJS.Timeout | undefined;
@@ -48,6 +50,8 @@ const panelLevel = process.platform === 'win32' ? 'normal' : 'floating';
 // Start with the usual platform minimum, then measure the native window.
 // Windows can impose a larger minimum on some displays. The visible bar stays 26 pixels wide.
 let compactWidth = process.platform === 'win32' ? 30 : 26;
+// A top or bottom bar uses the same thickness, unless the native minimum height is larger.
+let compactHeight = compactWidth;
 
 function panelDisplay() {
   return screen.getAllDisplays().find(d => d.id === (panelDrag?.displayId ?? preferences.value.displayId)) || screen.getPrimaryDisplay();
@@ -83,7 +87,7 @@ function notify() {
   }
 }
 function settingsPayload(): SettingsPayload {
-  return { version: app.getVersion(), update: updates.state, theme: preferences.value.theme, textScale: systemTextScale,
+  return { version: app.getVersion(), update: updates.state, theme: preferences.value.theme, edge: preferences.value.edge, textScale: systemTextScale,
     adapters: monitor.adapters.map(adapter => ({ id: adapter.id, name: adapter.name,
       visible: !preferences.value.hiddenAdapters.includes(adapter.id) })) };
 }
@@ -107,7 +111,7 @@ function updateTrayMenu() {
     ...updateItem,
     { label: 'Move to this screen', click: () => {
       actionQueue = actionQueue.then(async () => {
-        await preferences.save({ ...preferences.value, displayId: screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id, y: null }); showPanel();
+        await preferences.save({ ...preferences.value, displayId: screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id, y: null, x: null }); showPanel();
       }).catch(console.error);
     } },
   ]));
@@ -116,27 +120,44 @@ function stopResize() { panelResize = undefined; }
 function positionPanel({ animate = false, reducedMotion = false } = {}) {
   if (!win || win.isDestroyed() || (panelResize && !animate)) return;
   const current = win.getBounds();
+  const edge = preferences.value.edge;
+  const vertical = edge === 'left' || edge === 'right';
   const visible = win.isVisible();
+  // Reuse the current position only while the panel stays on the same edge.
+  const placed = visible && placedEdge === edge;
   const display = panelDisplay();
   const area = display.workArea;
   const scale = expanded ? systemTextScale : 1;
-  const width = expanded ? Math.round(Math.min(360 * scale, area.width)) : compactWidth;
   const view = payload();
   const sessions = view.showHidden ? [...view.sessions, ...view.hiddenSessions] : view.sessions;
   const rows = Math.max(1, Math.min(sessions.length, 14));
   const groupHeight = sessionSections(view).reduce((height, section) => height + (section.kind === 'sessions' && section.divider ? 13 : section.title ? 30 : 0), 0);
   const limits = view.usage.reduce((sum, source) => sum + source.windows.length, 0);
   const expandedContentHeight = Math.max(240, rows * 54 + groupHeight + 216 + limits * 24);
-  const contentHeight = panelView === 'settings' ? 400 + monitor.adapters.length * 40 : expanded ? expandedContentHeight :
-    rows * 24 + (limits ? 28 : 17) + limits * 24;
-  const height = Math.round(Math.min(area.height - 24, scale * contentHeight));
-  // Leave room for the readable list before showing the compact bar. Opening
-  // the panel can then keep its top edge still on shorter displays.
-  const expandedHeight = Math.min(area.height - 24, systemTextScale * expandedContentHeight);
-  const defaultY = visible ? current.y : area.y + Math.min((area.height - height) / 2, area.height - expandedHeight - 12);
-  const preferredY = panelDrag?.y ?? preferences.value.y ?? defaultY;
-  const y = Math.round(Math.max(area.y + 12, Math.min(preferredY, area.y + area.height - height - 12)));
-  const bounds = { x: display.bounds.x + display.bounds.width - width, y, width, height };
+  // The compact bar lists one light per row along the edge.
+  const compactLength = rows * 24 + (limits ? 28 : 17) + limits * 24;
+  const contentHeight = panelView === 'settings' ? 400 + monitor.adapters.length * 40 : expandedContentHeight;
+  const expandedWidth = Math.round(Math.min(360 * systemTextScale, area.width));
+  const width = expanded ? Math.round(Math.min(360 * scale, area.width)) : vertical ? compactWidth : Math.round(Math.min(area.width - 24, compactLength));
+  const height = expanded ? Math.round(Math.min(area.height - 24, scale * contentHeight)) : vertical ? Math.round(Math.min(area.height - 24, compactLength)) : compactHeight;
+  let x: number, y: number;
+  if (vertical) {
+    // Leave room for the readable list before showing the compact bar. Opening
+    // the panel can then keep its top edge still on shorter displays.
+    const expandedHeight = Math.min(area.height - 24, systemTextScale * expandedContentHeight);
+    const defaultY = placed ? current.y : area.y + Math.min((area.height - height) / 2, area.height - expandedHeight - 12);
+    const preferredY = panelDrag?.position ?? preferences.value.y ?? defaultY;
+    y = Math.round(Math.max(area.y + 12, Math.min(preferredY, area.y + area.height - height - 12)));
+    x = edge === 'right' ? area.x + area.width - width : area.x;
+  } else {
+    // Keep the left edge still when the panel opens along a top or bottom edge.
+    const defaultX = placed ? current.x : area.x + Math.min((area.width - width) / 2, area.width - expandedWidth - 12);
+    const preferredX = panelDrag?.position ?? preferences.value.x ?? defaultX;
+    x = Math.round(Math.max(area.x + 12, Math.min(preferredX, area.x + area.width - width - 12)));
+    y = edge === 'top' ? area.y : area.y + area.height - height;
+  }
+  const bounds = { x, y, width, height };
+  placedEdge = edge;
   stopResize();
   if (animate && !reducedMotion && visible) {
     panelResize = { id: ++resizeId, duration: 280, delay: expanded ? 0 : 70 };
@@ -194,22 +215,24 @@ async function action(event: IpcMainInvokeEvent, input: unknown) {
     case 'show-hidden':
       showHidden = !showHidden; break;
     case 'move': {
-      if (!Number.isFinite(value.screenY)) return;
+      const vertical = prefs.edge === 'left' || prefs.edge === 'right';
+      const pointer = vertical ? value.screenY : value.screenX;
+      if (!Number.isFinite(pointer)) return;
       if (value.phase === 'start') {
         if (panelResize) { stopResize(); positionPanel(); notify(); }
         const bounds = win.getBounds();
-        panelDrag = { displayId: screen.getDisplayMatching(bounds).id,
-          startY: bounds.y, pointerY: value.screenY, y: bounds.y };
+        const start = vertical ? bounds.y : bounds.x;
+        panelDrag = { displayId: screen.getDisplayMatching(bounds).id, start, pointer, position: start };
         return;
       }
       if (!panelDrag || !['update', 'end'].includes(value.phase)) return;
       // Use the pointer's total distance from the start, not the moving window's position.
-      panelDrag.y = panelDrag.startY + value.screenY - panelDrag.pointerY;
+      panelDrag.position = panelDrag.start + pointer - panelDrag.pointer;
       positionPanel();
       if (value.phase === 'end') {
         const displayId = panelDrag.displayId;
-        const y = win.getBounds().y;
-        try { await preferences.save({ ...prefs, displayId, y }); }
+        const bounds = win.getBounds();
+        try { await preferences.save(vertical ? { ...prefs, displayId, y: bounds.y } : { ...prefs, displayId, x: bounds.x }); }
         finally { panelDrag = undefined; }
         notify();
       }
@@ -244,6 +267,8 @@ async function main() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), nodeIntegration: false,
       contextIsolation: true, sandbox: true, backgroundThrottling: false } });
   compactWidth = Math.max(compactWidth, win.getBounds().width);
+  win.setSize(compactWidth, 1);
+  compactHeight = Math.max(compactWidth, win.getBounds().height);
   win.setAlwaysOnTop(true, panelLevel);
   if (process.platform === 'darwin') {
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -281,6 +306,10 @@ async function main() {
         await preferences.save({ ...preferences.value, theme: value.theme });
         nativeTheme.themeSource = value.theme;
         notify(); return;
+      case 'edge':
+        if (preferences.value.edge === value.edge) return;
+        await preferences.save({ ...preferences.value, edge: value.edge });
+        stopResize(); positionPanel(); notify(); return;
       case 'adapter': {
         if (!monitor.adapters.some(adapter => adapter.id === value.id)) return;
         const hiddenAdapters = preferences.value.hiddenAdapters.filter(id => id !== value.id);

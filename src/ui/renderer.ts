@@ -9,7 +9,7 @@ const { labels, available, countdown, until, age } = panelText;
 let snapshot: PanelPayload | undefined;
 let requestedExpanded: boolean | undefined;
 let renderSignature: string | undefined;
-let dragging: { pointerId: number; screenY: number; handle: HTMLElement } | undefined;
+let dragging: { pointerId: number; screenX: number; screenY: number; handle: HTMLElement } | undefined;
 let threadsScrollTop = 0;
 let dragFrame: number | undefined;
 let motionId: number | undefined;
@@ -144,6 +144,7 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   document.body.style.setProperty('--text-scale', String(value.textScale));
   document.body.classList.toggle('resizing', Boolean(value.motion));
   document.body.style.setProperty('--compact-inset', `${value.compactInset || 0}px`);
+  document.body.dataset.edge = value.preferences.edge;
   $('#panel').classList.toggle('expanded', expanded);
   if (pendingLeave) {
     const point = pendingLeave; pendingLeave = undefined;
@@ -317,8 +318,10 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
       if (motionId === id) window.sessionLights.finishMotion(id);
     }).catch(() => {});
     if (value.view === 'threads') {
+      // New content slides in from the screen edge that holds the panel.
+      const offset = { right: 'translateX(6px)', left: 'translateX(-6px)', top: 'translateY(-6px)', bottom: 'translateY(6px)' }[value.preferences.edge];
       for (const element of document.querySelectorAll(expanded ? '.wide' : '.usage-gauge')) {
-        effects.push(element.animate([{ opacity: 0, transform: 'translateX(6px)' }, { opacity: 1, transform: 'translateX(0)' }],
+        effects.push(element.animate([{ opacity: 0, transform: offset }, { opacity: 1, transform: 'none' }],
           { duration: value.motion.duration, easing, delay: expanded ? 80 : 0, fill: 'backwards' }));
       }
     }
@@ -399,18 +402,18 @@ for (const handle of document.querySelectorAll<HTMLElement>('.panel-handle')) {
   handle.addEventListener('pointerdown', event => {
     if (event.button !== 0 || dragging || (event.target instanceof Element && event.target.closest('button'))) return;
     event.preventDefault();
-    dragging = { pointerId: event.pointerId, screenY: event.screenY, handle };
+    dragging = { pointerId: event.pointerId, screenX: event.screenX, screenY: event.screenY, handle };
     handle.setPointerCapture(event.pointerId);
     document.body.classList.add('dragging');
-    act({ type: 'move', phase: 'start', screenY: event.screenY });
+    act({ type: 'move', phase: 'start', screenX: event.screenX, screenY: event.screenY });
   });
   handle.addEventListener('pointermove', event => {
     if (!dragging || event.pointerId !== dragging.pointerId) return;
-    dragging.screenY = event.screenY;
+    dragging.screenX = event.screenX; dragging.screenY = event.screenY;
     if (dragFrame) return;
     dragFrame = requestAnimationFrame(() => {
       dragFrame = undefined;
-      if (dragging) act({ type: 'move', phase: 'update', screenY: dragging.screenY });
+      if (dragging) act({ type: 'move', phase: 'update', screenX: dragging.screenX, screenY: dragging.screenY });
     });
   });
   handle.addEventListener('pointerup', finishDrag);
@@ -419,11 +422,12 @@ for (const handle of document.querySelectorAll<HTMLElement>('.panel-handle')) {
 }
 function finishDrag(event: PointerEvent) {
   if (!dragging || event.pointerId !== dragging.pointerId) return;
-  const { pointerId, screenY, handle } = dragging;
+  const { pointerId, screenX, screenY, handle } = dragging;
   dragging = undefined;
   if (dragFrame !== undefined) cancelAnimationFrame(dragFrame); dragFrame = undefined;
   document.body.classList.remove('dragging');
-  act({ type: 'move', phase: 'end', screenY: event.type === 'pointerup' ? event.screenY : screenY });
+  const up = event.type === 'pointerup';
+  act({ type: 'move', phase: 'end', screenX: up ? event.screenX : screenX, screenY: up ? event.screenY : screenY });
   if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
 }
 document.addEventListener('keydown', event => {
