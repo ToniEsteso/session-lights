@@ -93,6 +93,25 @@ test('Undo restores a hidden pinned session and failed saves do not show success
   await expect(page.getByRole('listitem').first()).toContainText('Review release');
 });
 
+// Start with three sessions. Hide one, move the pointer away so the panel closes, then open the panel again.
+// Detect a "Hidden" message with Undo that is still shown long after the user hid the session.
+// The session must stay recoverable from the hidden list.
+test('the Undo offer for a hidden session ends when the panel closes', async ({ lights }) => {
+  await lights.expand();
+  const page = lights.page;
+  await page.getByRole('button', { name: 'Hide Review release', exact: true }).click();
+  await expect(page.getByText('Hidden: Review release', { exact: true })).toBeVisible();
+  await page.mouse.move(-20, -20);
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeHidden();
+  await lights.expand();
+  await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeVisible();
+  await expect(page.getByText('Hidden: Review release', { exact: true })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeHidden();
+  await page.getByRole('button', { name: '1 session hidden', exact: true }).click();
+  await page.getByRole('button', { name: 'Restore Review release', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Review release: Idle', exact: true })).toBeVisible();
+});
+
 // Start with three sessions. Use only the keyboard after focus enters the list.
 // Detect arrow keys that lose the list or an Enter that opens the wrong chat.
 test('arrow keys move between sessions and Enter opens the focused chat', async ({ lights }) => {

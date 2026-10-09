@@ -157,7 +157,8 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   $('#empty').setAttribute('aria-label', value.hiddenSessions.length ? 'All sessions are hidden. Show session list.' : 'No sessions. Show session list.');
   $('#empty-help').hidden = $('#empty').hidden || value.hiddenSessions.length > 0;
   $('#demo-label').hidden = !value.demo;
-  if (undoSession && !value.hiddenSessions.some(session => session.key === undoSession?.key)) undoSession = undefined;
+  // The Undo offer ends when the panel closes, when the hidden list opens, or when the session is no longer hidden.
+  if (undoSession && (!expanded || value.showHidden || !value.hiddenSessions.some(session => session.key === undoSession?.key))) undoSession = undefined;
   $('#hide-feedback').hidden = !undoSession;
   $('#hide-message').textContent = undoSession ? `Hidden: ${undoSession.title}` : '';
   const hiddenToggle = $('#hidden-sessions');
