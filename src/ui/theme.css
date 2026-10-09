@@ -3,7 +3,7 @@
   color-scheme: light;
   --text: #1c1e22;
   --muted: #676c75;
-  --faint: #9a9ea6;
+  --faint: #666b74;
   --surface: #ffffff;
   --panel: #f8f8f9;
   --surface-soft: #efeff1;
@@ -27,7 +27,7 @@
     color-scheme: dark;
     --text: #e7e8ea;
     --muted: #8d919a;
-    --faint: #62666e;
+    --faint: #868a93;
     --surface: #1a1b1e;
     --panel: #121315;
     --surface-soft: #1c1d20;
