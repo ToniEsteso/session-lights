@@ -127,7 +127,7 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
   snapshot = value;
   const update = updateView(value.update);
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-settings]')) {
-    button.setAttribute('aria-label', update.badge ? 'Settings. Update available.' : 'Settings');
+    button.title = update.badge ? 'Settings. Update available.' : 'Settings';
     $('.update-badge', button).hidden = !update.badge;
   }
   // Do not rebuild focused buttons during the two-second update.
@@ -239,13 +239,15 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
       bookmark.setAttribute('d', 'M4.5 2.5h7a1 1 0 0 1 1 1v10l-4.5-3-4.5 3v-10a1 1 0 0 1 1-1z');
       icon.append(bookmark); pin.append(icon);
       const pinned = value.preferences.pinned.includes(session.key);
-      pin.setAttribute('aria-label', `${pinned ? 'Unpin' : 'Pin'} ${session.title}`); pin.setAttribute('aria-pressed', String(pinned));
+      pin.title = `${pinned ? 'Unpin' : 'Pin'} ${session.title}`; pin.setAttribute('aria-pressed', String(pinned));
       pin.addEventListener('click', () => act({ type: 'pin', key: session.key }));
       const visibility = document.createElement('button');
       const hidden = section.kind === 'hidden';
       visibility.className = hidden ? 'restore-session' : 'hide-session';
       visibility.dataset.key = session.key; visibility.dataset.action = hidden ? 'restore-session' : 'hide-session';
-      visibility.setAttribute('aria-label', `${hidden ? 'Restore' : 'Hide'} ${session.title}`);
+      // The icon button takes its name from the hover text. The Restore button keeps its own label, because its visible text would replace a title.
+      if (hidden) visibility.setAttribute('aria-label', `Restore ${session.title}`);
+      else visibility.title = `Hide ${session.title}`;
       if (hidden) visibility.textContent = 'Restore';
       else {
         const eye = document.createElementNS('http://www.w3.org/2000/svg', 'svg');

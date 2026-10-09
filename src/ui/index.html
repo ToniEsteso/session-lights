@@ -14,8 +14,8 @@
     <section id="threads-view" class="threads-view" aria-label="Threads">
     <header id="handle" class="panel-handle">
       <span id="demo-label" class="wide demo-label" hidden>Demo</span>
-      <button class="wide group-toggle" data-group aria-label="Group by project" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg></button>
-      <button class="wide gear" data-settings aria-label="Settings" aria-controls="settings-view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.6 2.1-1.8 1-2.1-.5-2.5 4.3 1.5 1.6v2.1l-1.5 1.5L5 19.4l2.1-.5 1.8 1 .6 2.1h5l.6-2.1 1.8-1 2.1.5 2.5-4.3-1.5-1.5v-2.1l1.5-1.6L19 5.6l-2.1.5-1.8-1-.6-2.1z"/><circle cx="12" cy="12.5" r="3.2"/></svg><span class="update-badge" hidden></span></button>
+      <button class="wide group-toggle" data-group title="Group by project" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg></button>
+      <button class="wide gear" data-settings title="Settings" aria-controls="settings-view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.6 2.1-1.8 1-2.1-.5-2.5 4.3 1.5 1.6v2.1l-1.5 1.5L5 19.4l2.1-.5 1.8 1 .6 2.1h5l.6-2.1 1.8-1 2.1.5 2.5-4.3-1.5-1.5v-2.1l1.5-1.6L19 5.6l-2.1.5-1.8-1-.6-2.1z"/><circle cx="12" cy="12.5" r="3.2"/></svg><span class="update-badge" hidden></span></button>
     </header>
     <div id="sessions" role="list" aria-label="Sessions"></div>
     <button id="empty" aria-label="No sessions. Show session list." hidden><span class="empty-dot" aria-hidden="true"></span><span class="wide">No sessions</span></button>
@@ -40,7 +40,7 @@
     </section>
     <section id="settings-view" class="settings-view" aria-label="Settings" hidden>
       <header id="settings-handle" class="panel-handle settings-header">
-        <button id="settings-back" aria-label="Back to threads"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.5 4-4 4 4 4"/></svg></button>
+        <button id="settings-back" title="Back to threads"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.5 4-4 4 4 4"/></svg></button>
         <h1>Settings</h1>
       </header>
       <div class="settings-content">
