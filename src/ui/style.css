@@ -48,7 +48,8 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 .expanded .dot { width: 8px; height: 8px; }
 .dot.idle { background: var(--status-idle); }
 .dot.waiting { background: var(--status-waiting); box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-waiting) 22%, transparent); }
-.dot.error { background: var(--status-error); }
+/* A diamond keeps a failed session apart from an idle one without relying on red and green. */
+.dot.error { background: var(--status-error); border-radius: 2px; transform: rotate(45deg) scale(.9); }
 .dot.unknown { background: transparent; box-shadow: inset 0 0 0 1.5px var(--status-unknown); }
 .dot.working { position: relative; }
 .dot.working::before, .dot.working::after { content: ''; position: absolute; inset: -1px; border-radius: 50%; }
