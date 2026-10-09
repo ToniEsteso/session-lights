@@ -19,7 +19,22 @@ Both providers show their 5-hour and weekly account limits.
 
 ## Install
 
-Download an installer from [GitHub Releases](https://github.com/ToniEsteso/session-lights/releases).
+Run one command to install the latest release.
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/ToniEsteso/session-lights/main/scripts/install.ps1 | iex
+```
+
+macOS (Terminal):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ToniEsteso/session-lights/main/scripts/install.sh | bash
+```
+
+The script checks the download against the checksum in the release before it installs. To update, quit the app and run the command again. Each command works only for a release that includes a build for that system.
+You can also download an installer from [GitHub Releases](https://github.com/ToniEsteso/session-lights/releases).
 See [installation and update help](docs/installation.md) for Windows and macOS instructions.
 The installer includes its runtime. Node.js and pnpm are required only for development.
 The first releases are unsigned. Windows can show an unknown-publisher warning, and unsigned builds do not update themselves. See [installation help](docs/installation.md).
