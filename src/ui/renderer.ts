@@ -3,6 +3,7 @@ import { panelText } from './text.js';
 import { sessionSections } from '../shared/session-sections.js';
 import { updateView } from '../shared/updates.js';
 import { element as $, svgElement, usageRow } from './dom.js';
+import { providerLogo } from './logos.js';
 import { errorMessage } from '../shared/validation.js';
 import { closeSettings } from './settings.js';
 const { labels, available, countdown, until, age, elapsed } = panelText;
@@ -234,7 +235,10 @@ function renderNow(value: PanelPayload, previousPanel?: PanelRect) {
         state.textContent = session.state === 'waiting' && session.detail ? session.detail : labels[session.state];
         text.append(state);
       }
-      text.append(activity); button.append(dot, text);
+      text.append(activity); button.append(dot);
+      const logo = providerLogo(session.providerId);
+      if (logo) button.append(logo);
+      button.append(text);
       if (expanded) button.title = [session.title, [session.project, panelText.provider(session), session.model].filter(Boolean).join(' · '), session.detail].filter(Boolean).join('\n');
       // Use the rendered state: a visible session name opens its chat even if
       // a native pointer event has queued a resize that has not painted yet.

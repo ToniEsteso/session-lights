@@ -57,6 +57,10 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 .dot.working::after { background: conic-gradient(transparent 35%, var(--status-working) 95%); mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 0); animation: working-orbit 1.2s linear infinite; animation-delay: var(--orbit-phase, 0ms); }
 @keyframes working-orbit { to { transform: rotate(360deg); } }
 .idle { color: var(--status-idle); } .waiting { color: var(--status-waiting); } .working { color: var(--status-working); } .error { color: var(--status-error); } .unknown { color: var(--status-unknown); }
+.provider-logo { width: 14px; height: 14px; flex-shrink: 0; fill: currentColor; }
+/* Brand colors. OpenAI's mark is black or white, so it follows the theme text color. */
+.provider-logo.openai { color: var(--text); }
+.provider-logo.claude { color: #d97757; }
 .session-text { min-width: 0; flex: 1; }
 .panel.expanded .session-text { display: flex; align-items: baseline; gap: 8px; }
 .session-title { display: block; min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; line-height: 20px; font-weight: 500; }
