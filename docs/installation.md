@@ -1,5 +1,31 @@
 # Install Session Lights
 
+## Install with one command
+
+The scripts download the latest published release, check its SHA-512 checksum, and install it.
+They stop without installing if the checksum does not match.
+Read [`scripts/install.ps1`](../scripts/install.ps1) or [`scripts/install.sh`](../scripts/install.sh) before you run them.
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/ToniEsteso/session-lights/main/scripts/install.ps1 | iex
+```
+
+macOS (Terminal):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ToniEsteso/session-lights/main/scripts/install.sh | bash
+```
+
+The scripts download only from the GitHub release. The checksum comes from the same release. It finds a broken download. It does not prove who made the release. Only a code signature proves that.
+Downloads from these commands do not carry the "downloaded from the internet" mark. This can avoid the SmartScreen and Gatekeeper prompts for an unsigned build. It does not remove every block. Windows 11 Smart App Control can still block an unsigned program, and an unsigned app can fail to start on Apple silicon.
+An unsigned build still does not update itself. Quit the app and run the command again to update.
+The scripts find only published releases. Draft releases are not visible to them. GitHub allows 60 release lookups per hour for each address.
+The macOS command works only for a release that includes a Mac build. The Windows command works only for a release that includes a Windows build.
+Standard macOS accounts cannot write to `/Applications`. Use an administrator account.
+Linux is not supported.
+
 ## Install on Windows
 
 1. Open the [release downloads](https://github.com/ToniEsteso/session-lights/releases).
