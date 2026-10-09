@@ -12,6 +12,7 @@ const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const HEAD_BYTES = 64 * 1024;
 const TAIL_BYTES = 512 * 1024;
 const ACTIVE_AGE = 15 * 60_000;
+const DAY = 86_400_000;
 const USAGE_AGE = 2 * 60_000;
 
 // Claude Code records which program started a session. The CLI, the desktop app, editors, and
@@ -50,8 +51,22 @@ async function readLive(root: string): Promise<Map<string, LiveSession>> {
   return live;
 }
 
-function withLive(session: AdapterSession, live: LiveSession | undefined): AdapterSession {
+// A transcript read, kept until the file changes. `stateAt` is the time of the record that set the state.
+interface Parsed { session: AdapterSession; stateAt: number }
+
+// A turn that claims to run or wait needs a recent record. The age is checked at each poll, never cached.
+function settle({ session, stateAt }: Parsed, now: number): AdapterSession {
+  if ((session.state !== 'working' && session.state !== 'waiting') || (stateAt && now - stateAt < ACTIVE_AGE)) return session;
+  const { startedAt: _startedAt, ...rest } = session;
+  return { ...rest, state: 'unknown', detail: 'No recent activity' };
+}
+
+function withLive(session: AdapterSession, live: LiveSession | undefined, now: number): AdapterSession {
   if (!live) return session;
+  // A crash leaves the file behind, and the system can give its process number to another program.
+  // A claim of work or a wait with no recent sign of life in the file or the transcript does not count.
+  const quiet = now - Math.max(session.updatedAt, live.at);
+  if ((live.status === 'busy' && quiet >= ACTIVE_AGE) || (live.status === 'waiting' && quiet >= DAY)) return session;
   const updatedAt = epochMilliseconds(Math.max(session.updatedAt, live.at));
   if (live.status === 'busy') return { ...session, state: 'working', detail: '', updatedAt };
   if (live.status === 'waiting') {
@@ -81,7 +96,7 @@ function entries(buffer: Buffer, startsMidFile = false, endsMidFile = false): Re
   });
 }
 
-async function readSession(file: string, id: string): Promise<AdapterSession | undefined> {
+async function readSession(file: string, id: string): Promise<Parsed | undefined> {
   const handle = await fs.open(file, 'r');
   try {
     const stat = await handle.stat();
@@ -170,16 +185,14 @@ async function readSession(file: string, id: string): Promise<AdapterSession | u
     const title = (customTitle || aiTitle || summary || prompt).replace(/\s+/g, ' ').trim().slice(0, 200);
     // Commands such as /usage run in a session with no prompt and no model reply. It is not a chat.
     if (!title && !prompt && !hasReply) return;
-    if ((state === 'working' || state === 'waiting') && (!stateAt || Date.now() - stateAt >= ACTIVE_AGE)) {
-      state = 'unknown'; detail = 'No recent activity';
-    }
     // mtime is a recorded file activity time, never the poll time.
     const source = sourceLabel(entrypoint);
-    return { id, title: title || `Claude Code ${id.slice(0, 8)}`, workspace,
+    const session: AdapterSession = { id, title: title || `Claude Code ${id.slice(0, 8)}`, workspace,
       ...(source ? { source } : {}), ...(model ? { model } : {}),
       state, detail, updatedAt: epochMilliseconds(updatedAt || stat.mtimeMs),
       // The last prompt starts the turn. Tool results inside the turn have no prompt text.
       ...(state === 'working' && promptAt > 0 ? { startedAt: epochMilliseconds(promptAt) } : {}) };
+    return { session, stateAt };
   } finally { await handle.close(); }
 }
 
@@ -234,6 +247,7 @@ export class ClaudeCodeAdapter implements SessionAdapter {
   ] };
   private readonly root: string;
   private readonly t3: string | undefined;
+  private readonly transcripts = new Map<string, { size: number; modifiedAt: number; parsed: Parsed | undefined }>();
   private usageRead: { at: number; reading: UsageReading } | undefined;
   private usagePending: Promise<UsageReading> | undefined;
   constructor({ root = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), t3 }: { root?: string; t3?: string | undefined } = {}) {
@@ -244,11 +258,14 @@ export class ClaudeCodeAdapter implements SessionAdapter {
     let directories;
     try { directories = await fs.readdir(projects, { withFileTypes: true }); }
     catch (error) {
-      return { sessions: [], health: hasErrorCode(error, 'ENOENT') ? 'No local Claude Code sessions found.' : 'Cannot read Claude Code session folders.' };
+      if (hasErrorCode(error, 'ENOENT')) return { sessions: [], health: 'No local Claude Code sessions found.' };
+      return { sessions: [], health: 'Cannot read Claude Code session folders.', problem: 'Cannot read its session folders.' };
     }
     const live = await readLive(this.root);
     const t3 = readT3(this.t3);
     const sessions = new Map<string, AdapterSession>();
+    const seen = new Set<string>();
+    const now = Date.now();
     let unreadable = 0;
     for (const directory of directories.filter(entry => entry.isDirectory())) {
       const folder = path.join(projects, directory.name);
@@ -258,13 +275,24 @@ export class ClaudeCodeAdapter implements SessionAdapter {
       for (const file of files.filter(entry => entry.isFile() && entry.name.endsWith('.jsonl'))) {
         const id = file.name.slice(0, -6);
         if (!UUID.test(id)) continue;
+        const name = path.join(folder, file.name);
         try {
-          const session = await readSession(path.join(folder, file.name), id);
+          // Most transcripts are old and never change. Read one again only when its size or time changes.
+          // Take the file status before the read, so a write during the read is seen at the next poll.
+          const stat = await fs.stat(name);
+          let cached = this.transcripts.get(name);
+          if (cached?.size !== stat.size || cached.modifiedAt !== stat.mtimeMs) {
+            cached = { size: stat.size, modifiedAt: stat.mtimeMs, parsed: await readSession(name, id) };
+            this.transcripts.set(name, cached);
+          }
+          seen.add(name);
+          const session = cached.parsed && settle(cached.parsed, now);
           if (session && (!sessions.has(id) || session.updatedAt > sessions.get(id)!.updatedAt)) sessions.set(id, session);
         } catch { unreadable++; }
       }
     }
-    return { sessions: [...sessions.values()].flatMap(session => withT3(withLive(session, live.get(session.id)), t3.find('claude', session.id)) ?? []),
+    for (const name of this.transcripts.keys()) if (!seen.has(name)) this.transcripts.delete(name);
+    return { sessions: [...sessions.values()].flatMap(session => withT3(withLive(session, live.get(session.id), now), t3.find('claude', session.id)) ?? []),
       health: `A running Claude Code process reports its live state. Other sessions use the last recorded event.${unreadable ? ` Cannot read ${unreadable} records or folders.` : ''}` };
   }
   // `claude /usage` takes seconds to start. Share one run and keep its result for a short time.

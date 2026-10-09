@@ -136,3 +136,16 @@ test('opening a desktop chat hands off its link; launch failures appear and the 
   await expect(page.getByRole('alert')).toBeHidden();
   await expect(page.getByRole('listitem')).toHaveText([/Build API/, /Fix CLI/, /Review release/]);
 });
+
+test('an unreadable source says so instead of showing an empty list, and recovers', async ({ lights }) => {
+  await lights.expand();
+  const page = lights.page;
+  await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeVisible();
+  await lights.renameCodexColumn('archived', 'is_archived');
+  await expect(page.getByText('Codex: Cannot read its session data. Sessions can be missing.')).toBeVisible();
+  await expect(page.getByText('Cannot read sessions', { exact: true })).toBeVisible();
+  await expect(page.getByText('No sessions', { exact: true })).toHaveCount(0);
+  await lights.renameCodexColumn('is_archived', 'archived');
+  await expect(page.getByRole('button', { name: 'Build API: Working', exact: true })).toBeVisible();
+  await expect(page.getByText(/Cannot read its session data/)).toHaveCount(0);
+});

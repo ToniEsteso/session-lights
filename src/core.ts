@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import { STATES } from './shared/contracts.js';
-import type { AdapterSession, SessionAdapter, Session, PanelPreferences, MonitorSnapshot, ProviderUsage, OpenExternal, SessionState } from './shared/contracts.js';
+import type { AdapterSession, SessionAdapter, SessionReading, Session, PanelPreferences, MonitorSnapshot, ProviderUsage, OpenExternal, SessionState } from './shared/contracts.js';
 import { parseUsageWindows } from './shared/readings.js';
 
 export interface TurnSignal { waiting?: { at: number; kind: 'approval' | 'question' }; lastUserAt: number; lastProgressAt: number }
@@ -24,11 +24,18 @@ function projectInfo(session: AdapterSession, providerId: string) {
   return { project, workspace, projectKey };
 }
 class SessionMonitor {
+  private readonly failures = new Map<string, number>();
   constructor(public readonly adapters: SessionAdapter[]) {}
   async read(): Promise<MonitorSnapshot> {
     const sources = await Promise.all(this.adapters.map(async adapter => {
-      try { return { id: adapter.id, name: adapter.name, ...await adapter.read() }; }
-      catch { return { id: adapter.id, name: adapter.name, sessions: [], health: 'Cannot read session data.' }; }
+      let reading: SessionReading;
+      try { reading = await adapter.read(); }
+      catch { reading = { sessions: [], health: 'Cannot read session data.', problem: 'Cannot read its session data.' }; }
+      // A provider can lock its records for one read. Tell the user only when the failure repeats.
+      const failures = reading.problem ? (this.failures.get(adapter.id) ?? 0) + 1 : 0;
+      this.failures.set(adapter.id, failures);
+      const { problem, ...rest } = reading;
+      return { id: adapter.id, name: adapter.name, ...rest, ...(problem && failures >= 2 ? { problem } : {}) };
     }));
     const sessions = sources.flatMap(source => source.sessions.map(session => ({
       ...session, ...projectInfo(session, source.id), provider: source.name, providerId: source.id, key: `${source.id}:${session.id}`,
