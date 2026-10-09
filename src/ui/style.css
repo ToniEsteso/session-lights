@@ -102,7 +102,9 @@ footer { display: flex; align-items: center; min-height: 24px; flex-shrink: 0; }
 #undo-hide:hover { background: color-mix(in srgb, var(--panel) 16%, transparent); }
 #usage { flex-shrink: 0; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-soft); }
 .usage-row { display: grid; align-items: center; font-size: 12px; color: var(--muted); }
-.expanded .usage-row { height: 24px; grid-template-columns: minmax(42px, max-content) 1fr auto 36px; column-gap: 10px; padding: 0 2px; }
+/* All rows share one set of columns, so every bar starts and ends at the same place. */
+.expanded #usage { display: grid; grid-template-columns: minmax(42px, max-content) 1fr auto 36px; column-gap: 10px; padding-inline: 2px; }
+.expanded .usage-row { height: 24px; grid-column: 1 / -1; grid-template-columns: subgrid; }
 .usage-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; }
 .usage-track { height: 4px; background: var(--track); border-radius: 2px; overflow: hidden; }
 .usage-fill { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--status-idle); }
